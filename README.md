@@ -39,9 +39,29 @@ See the CLI entry points [cli.index()](src/code_index/cli.py:154), [cli.search()
 - Qdrant server
 - Optional: uv for environment management
 
+## Windows Development Notes
+
+If you are developing on Windows, please note the following differences:
+
+**1. Makefile:** This project uses a `Makefile` for common tasks. On Windows, you should use the `Makefile.windows` file, which is designed for the `cmd.exe` shell.
+   ```shell
+   # Example: running the 'clean' command on Windows
+   make -f Makefile.windows clean
+   ```
+
+**2. Virtual Environment:** To activate the virtual environment, use the following command:
+   ```shell
+   .\venv\Scripts\activate
+   ```
+
+**3. Configuration File:** The `cat` command is not available in `cmd.exe`. Create the `code_index.json` file manually in the root of the project and paste the JSON configuration into it.
+
+**4. `tree-sitter` Compilation:** The `tree-sitter` dependency requires a C++ compiler. If you run into installation errors, you will need to install the **Visual Studio Build Tools**. You can download them from the official [Visual Studio website](https://visualstudio.microsoft.com/visual-cpp-build-tools/). Ensure that the "C++ build tools" workload is selected during installation.
+
 ## Quick Start
 
 ```bash
+# For Windows users, please see the "Windows Development Notes" section above for platform-specific commands.
 # Clone the repository
 git clone <repository-url>
 cd code_index
@@ -266,12 +286,22 @@ Note:
 - Memory-mapped file reading is controlled by configuration only (no env var toggle).
 - For Tree-sitter language detection, installing whats-that-code is optional; a manual extension mapping fallback is used otherwise.
 
-### Memory-Mapped File Reading Options
+## Performance Tuning
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| use_mmap_file_reading | Enable memory-mapped file reading | false |
-| mmap_min_file_size_bytes | Minimum file size for mmap (smaller files use traditional reading) | 64KB |
+The default settings offer a good balance of speed and reliability for most projects. However, if you feel that indexing is sluggish, especially on repositories with many large files, you might want to try adjusting the file reading mechanism for better performance.
+
+### Memory-Mapped File Reading (mmap)
+
+This tool supports memory-mapped (mmap) file reading, a technique that can significantly reduce memory usage and speed up processing for larger files. Instead of loading an entire file into memory, `mmap` allows the operating system to efficiently load parts of the file on demand.
+
+**When to use it:** If you are indexing a repository with numerous source files larger than a few megabytes, enabling `use_mmap_file_reading` can lead to noticeable improvements. For projects with mostly small files, the standard file reading method is often sufficient.
+
+These settings are available in your `code_index.json`:
+
+| Option                   | Description                                                                    | Default        |
+| ------------------------ | ------------------------------------------------------------------------------ | -------------- |
+| `use_mmap_file_reading`    | Set to `true` to enable memory-mapped file reading.                            | `false`        |
+| `mmap_min_file_size_bytes` | The minimum file size to use mmap for. Smaller files will use the standard method. | `65536` (64KB) |
 
 ### Tree-sitter Configuration Options
 
