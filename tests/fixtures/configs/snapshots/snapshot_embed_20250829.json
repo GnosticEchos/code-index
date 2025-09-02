@@ -1,0 +1,31 @@
+{
+    "workspace_path": "/home/james/kanban_frontend/kanban_api",
+    "ollama_base_url": "http://localhost:11434",
+    "ollama_model": "dengcao/Qwen3-Embedding-0.6B:F16",
+    "qdrant_url": "http://localhost:6333",
+    "embedding_length": 1024,
+    "chunking_strategy": "treesitter",
+    "token_chunk_size": 1024,
+    "token_chunk_overlap": 120,
+    "use_tree_sitter": true,
+    "tree_sitter_max_file_size_bytes": 262144,
+    "tree_sitter_max_blocks_per_file": 50,
+    "tree_sitter_max_functions_per_file": 30,
+    "tree_sitter_max_classes_per_file": 20,
+    "tree_sitter_max_impl_blocks_per_file": 25,
+    "tree_sitter_skip_test_files": false,
+    "auto_extensions": true,
+    "exclude_files_path": null,
+    "timeout_log_path": "rust_timeout_files.txt",
+    "max_file_size_bytes": 524288,
+    "batch_segment_threshold": 30,
+    "search_min_score": 0.1,
+    "search_max_results": 10,
+    "embed_timeout_seconds": 120,
+    "rust_specific_optimizations": {
+      "skip_large_rust_files": true,
+      "max_rust_file_size_kb": 300,
+      "skip_generated_rust_files": true,
+      "rust_target_directories": ["target/", "build/", "dist/"]
+    }
+}

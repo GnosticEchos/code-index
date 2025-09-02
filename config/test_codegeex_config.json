@@ -1,0 +1,28 @@
+{
+  "ollama_base_url": "http://localhost:11434",
+  "ollama_model": "codegeex4:9b-all-q4_K_M",
+  "qdrant_url": "http://localhost:6333",
+  "embedding_length": 4096,
+  "chunking_strategy": "treesitter",
+  "token_chunk_size": 1000,
+  "token_chunk_overlap": 200,
+  "auto_extensions": false,
+  "exclude_files_path": null,
+  "timeout_log_path": "timeout_files.txt",
+  "max_file_size_bytes": 1048576,
+  "batch_segment_threshold": 60,
+  "search_min_score": 0.4,
+  "search_max_results": 50,
+  "use_tree_sitter": true,
+  "tree_sitter_max_file_size_bytes": 524288,
+  "tree_sitter_max_blocks_per_file": 100,
+  "tree_sitter_max_functions_per_file": 50,
+  "tree_sitter_max_classes_per_file": 20,
+  "tree_sitter_skip_test_files": true,
+  "tree_sitter_skip_examples": true,
+  "tree_sitter_skip_patterns": [
+    "*.min.js", "*.bundle.js", "*.min.css",
+    "package-lock.json", "yarn.lock",
+    "target/", "build/", "dist/", "node_modules/", "__pycache__/"
+  ]
+}

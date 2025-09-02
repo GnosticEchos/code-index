@@ -1,0 +1,676 @@
+"""
+Code parser for the code index tool.
+"""
+import os
+from typing import List, Dict, Any, Optional
+from code_index.config import Config
+from code_index.utils import get_file_hash
+
+
+class CodeBlock:
+    """Represents a code block extracted from a file."""
+    
+    def __init__(self, file_path: str, identifier: str, type: str, start_line: int,
+                 end_line: int, content: str, file_hash: str, segment_hash: str):
+        self.file_path = file_path
+        self.identifier = identifier
+        self.type = type
+        self.start_line = start_line
+        self.end_line = end_line
+        self.content = content
+        self.file_hash = file_hash
+        self.segment_hash = segment_hash
+
+
+class CodeParser:
+    """Parses code files into blocks."""
+    
+    def __init__(self, config: Config):
+        """Initialize code parser with configuration."""
+        self.config = config
+        self.min_block_chars = 50
+        self.max_block_chars = 1000
+        self.max_chars_tolerance_factor = 1.15
+        
+        # Tree-sitter cache
+        self._tree_sitter_parsers: Dict[str, Any] = {}
+        self._tree_sitter_cache: Dict[str, Any] = {}
+        
+        # Tree-sitter cache
+        self._tree_sitter_parsers: Dict[str, Any] = {}
+    
+    def parse_file(self, file_path: str) -> List[CodeBlock]:
+        """
+        Parse a file into code blocks.
+        
+        Args:
+            file_path: Path to the file to parse
+            
+        Returns:
+            List of CodeBlock objects
+        """
+        try:
+            # Read file content
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            
+            # Calculate file hash
+            file_hash = get_file_hash(file_path)
+            
+            # Choose chunking strategy
+            return self._chunk_text(text=content, file_path=file_path, file_hash=file_hash)
+        except Exception as e:
+            print(f"Warning: Failed to parse file {file_path}: {e}")
+            return []
+    
+    def _chunk_text(self, text: str, file_path: str, file_hash: str) -> List[CodeBlock]:
+        """
+        Split text into chunks for embedding using configured strategy:
+        - 'lines'  (default): existing behavior
+        - 'tokens': token-based splitting via langchain-text-splitters (if available)
+        - 'treesitter': semantic block extraction via Tree-sitter (if available)
+        """
+        strategy = getattr(self.config, "chunking_strategy", "lines")
+        
+        # Check if Tree-sitter is enabled and requested
+        use_tree_sitter = getattr(self.config, "use_tree_sitter", False)
+        if strategy == "treesitter" or use_tree_sitter:
+            try:
+                blocks = self._chunk_text_treesitter(text, file_path, file_hash)
+                if blocks:
+                    return blocks
+                # Fall back to line-based if Tree-sitter fails
+                print(f"Warning: Tree-sitter parsing failed for {file_path}, falling back to line-based splitting.")
+            except Exception as e:
+                print(f"Warning: Tree-sitter parsing error for {file_path}: {e}, falling back to line-based splitting.")
+        
+        if strategy == "tokens":
+            try:
+                # Import lazily to avoid hard dependency if not installed
+                from langchain_text_splitters import TokenTextSplitter  # type: ignore
+                chunk_size = int(getattr(self.config, "token_chunk_size", 1000) or 1000)
+                chunk_overlap = int(getattr(self.config, "token_chunk_overlap", 200) or 200)
+                splitter = TokenTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+                chunks: List[str] = splitter.split_text(text)
+                if not chunks:
+                    return []
+                return self._map_chunks_with_lines(text, chunks, file_path, file_hash)
+            except Exception:
+                # Fallback with clear warning as specified
+                print("Warning: Token-based chunking requested but 'langchain-text-splitters' is not available; falling back to line-based splitting.")
+                return self._chunk_text_lines(text, file_path, file_hash)
+        else:
+            # Default to line-based splitting
+            return self._chunk_text_lines(text, file_path, file_hash)
+    
+    def _chunk_text_lines(self, text: str, file_path: str, file_hash: str) -> List[CodeBlock]:
+        """Existing line-based chunking behavior."""
+        lines = text.split("\n")
+        blocks: List[CodeBlock] = []
+        current_chunk_lines: List[str] = []
+        current_chunk_length = 0
+        chunk_start_line = 1
+        
+        for i, line in enumerate(lines):
+            line_length = len(line) + 1  # +1 for newline
+            current_chunk_length += line_length
+            current_chunk_lines.append(line)
+            
+            if (current_chunk_length >= self.max_block_chars * self.max_chars_tolerance_factor or
+                i == len(lines) - 1):
+                chunk_content = "\n".join(current_chunk_lines)
+                if len(chunk_content.strip()) >= self.min_block_chars:
+                    segment_hash = get_file_hash(file_path) + str(chunk_start_line)
+                    block = CodeBlock(
+                        file_path=file_path,
+                        identifier=None,
+                        type="chunk",
+                        start_line=chunk_start_line,
+                        end_line=chunk_start_line + len(current_chunk_lines) - 1,
+                        content=chunk_content,
+                        file_hash=file_hash,
+                        segment_hash=segment_hash
+                    )
+                    blocks.append(block)
+                
+                current_chunk_lines = []
+                current_chunk_length = 0
+                chunk_start_line = i + 2  # Next line (1-indexed)
+        
+        return blocks
+    
+    def _map_chunks_with_lines(self, original_text: str, chunks: List[str], file_path: str, file_hash: str) -> List[CodeBlock]:
+        """
+        Approximate start_line/end_line mapping for token chunks.
+        - Find each chunk's first occurrence from a moving cursor.
+        - start_line: count '\\n' up to found index
+        - end_line: start_line + chunk.count('\\n') (+1 if chunk doesn't end with newline)
+        - Advance cursor to found_index + max(1, len(chunk) - 1) to avoid overlap loops.
+        - If search fails, fallback to running line counters based on consumed characters.
+        """
+        blocks: List[CodeBlock] = []
+        pos = 0
+        consumed_lines = 1  # 1-indexed line counter when search fails
+        for chunk in chunks:
+            found_index = original_text.find(chunk, pos)
+            if found_index != -1:
+                start_line = original_text.count("\n", 0, found_index) + 1
+                add_one = 0 if chunk.endswith("\n") else 1
+                end_line = start_line + chunk.count("\n") + add_one - 1
+                pos = found_index + max(1, len(chunk) - 1)
+            else:
+                # Fallback: approximate using consumed_lines
+                start_line = consumed_lines
+                add_one = 0 if chunk.endswith("\n") else 1
+                end_line = start_line + chunk.count("\n") + add_one - 1
+                # Update consumed_lines by counting lines in chunk
+                consumed_lines = end_line + 1
+            
+            if len(chunk.strip()) >= self.min_block_chars:
+                segment_hash = get_file_hash(file_path) + f"{start_line}"
+                blocks.append(
+                    CodeBlock(
+                        file_path=file_path,
+                        identifier=None,
+                        type="chunk",
+                        start_line=start_line,
+                        end_line=end_line,
+                        content=chunk,
+                        file_hash=file_hash,
+                        segment_hash=segment_hash,
+                    )
+                )
+        return blocks
+    
+    def _chunk_text_treesitter(self, text: str, file_path: str, file_hash: str) -> List[CodeBlock]:
+        """Extract semantic blocks using Tree-sitter with performance optimizations."""
+        # Check file size limit
+        max_size = getattr(self.config, "tree_sitter_max_file_size_bytes", 512 * 1024)
+        if len(text.encode('utf-8')) > max_size:
+            raise Exception("File too large for Tree-sitter parsing")
+        
+        # Smart file filtering (like ignore patterns)
+        if not self._should_process_file_for_treesitter(file_path):
+            raise Exception("File filtered out by Tree-sitter configuration")
+        
+        # Map file extension to language
+        language_key = self._get_language_key_for_path(file_path)
+        if not language_key:
+            raise Exception("Unsupported language for Tree-sitter parsing")
+        
+        # Load Tree-sitter parser
+        parser = self._get_tree_sitter_parser(language_key)
+        if not parser:
+            raise Exception("Failed to load Tree-sitter parser")
+        
+        # Parse the text with performance optimizations
+        try:
+            tree = parser.parse(bytes(text, "utf8"))
+            root_node = tree.root_node
+            
+            # Use efficient query-based extraction instead of naive traversal
+            blocks = self._extract_semantic_blocks_efficient(root_node, text, file_path, file_hash, language_key)
+            
+            # Apply limits to prevent overwhelming results
+            max_blocks = getattr(self.config, "tree_sitter_max_blocks_per_file", 100)
+            if len(blocks) > max_blocks:
+                print(f"Warning: Limiting Tree-sitter blocks from {len(blocks)} to {max_blocks} for {file_path}")
+                blocks = blocks[:max_blocks]
+            
+            return blocks
+        except Exception as e:
+            raise Exception(f"Tree-sitter parsing failed: {e}")
+    
+    def _get_language_key_for_path(self, file_path: str) -> Optional[str]:
+        """Map file extension to Tree-sitter language key."""
+        ext = os.path.splitext(file_path)[1].lower()
+        extension_to_language = {
+            '.py': 'python',
+            '.js': 'javascript',
+            '.ts': 'typescript',
+            '.tsx': 'tsx',
+            '.jsx': 'javascript',
+            '.go': 'go',
+            '.java': 'java',
+            '.cpp': 'cpp',
+            '.cc': 'cpp',
+            '.cxx': 'cpp',
+            '.c': 'c',
+            '.h': 'c',
+            '.hpp': 'cpp',
+            '.rs': 'rust',
+            '.cs': 'csharp',
+            '.rb': 'ruby',
+            '.php': 'php',
+            '.kt': 'kotlin',
+            '.kts': 'kotlin',
+            '.swift': 'swift',
+            '.lua': 'lua',
+            '.json': 'json',
+            '.yaml': 'yaml',
+            '.yml': 'yaml',
+            '.md': 'markdown',
+            '.markdown': 'markdown',
+            '.html': 'html',
+            '.css': 'css',
+            '.scss': 'scss',
+        }
+        return extension_to_language.get(ext)
+    
+    def _get_tree_sitter_parser(self, language_key: str):
+        """Get or create a cached Tree-sitter parser for a language."""
+        try:
+            # Check if we already have a cached parser
+            if language_key in self._tree_sitter_parsers:
+                return self._tree_sitter_parsers[language_key]
+            
+            # Import tree-sitter-language-pack
+            import tree_sitter_language_pack as tsl
+            from tree_sitter import Parser
+            
+            # Get language and create parser
+            language = tsl.get_language(language_key)
+            parser = Parser()
+            parser.set_language(language)
+            
+            # Cache the parser
+            self._tree_sitter_parsers[language_key] = parser
+            return parser
+        except Exception as e:
+            print(f"Warning: Failed to load Tree-sitter parser for {language_key}: {e}")
+            return None
+    
+    def _should_process_file_for_treesitter(self, file_path: str) -> bool:
+    
+    def _get_language_key_for_path(self, file_path: str) -> Optional[str]:
+        """Map file extension to Tree-sitter language key."""
+        ext = os.path.splitext(file_path)[1].lower()
+        extension_to_language = {
+            '.py': 'python',
+            '.js': 'javascript',
+            '.ts': 'typescript',
+            '.tsx': 'tsx',
+            '.jsx': 'javascript',
+            '.go': 'go',
+            '.java': 'java',
+            '.cpp': 'cpp',
+            '.cc': 'cpp',
+            '.cxx': 'cpp',
+            '.c': 'c',
+            '.h': 'c',
+            '.hpp': 'cpp',
+            '.rs': 'rust',
+            '.cs': 'csharp',
+            '.rb': 'ruby',
+            '.php': 'php',
+            '.kt': 'kotlin',
+            '.kts': 'kotlin',
+            '.swift': 'swift',
+            '.lua': 'lua',
+            '.json': 'json',
+            '.yaml': 'yaml',
+            '.yml': 'yaml',
+            '.md': 'markdown',
+            '.markdown': 'markdown',
+            '.html': 'html',
+            '.css': 'css',
+            '.scss': 'scss',
+        }
+        return extension_to_language.get(ext)
+    
+    def _get_tree_sitter_parser(self, language_key: str):
+        """Get or create a cached Tree-sitter parser for a language."""
+        try:
+            # Check if we already have a cached parser
+            if language_key in self._tree_sitter_parsers:
+                return self._tree_sitter_parsers[language_key]
+            
+            # Import tree-sitter-language-pack
+            import tree_sitter_language_pack as tsl
+            from tree_sitter import Parser
+            
+            # Get language and create parser
+            language = tsl.get_language(language_key)
+            parser = Parser()
+            parser.set_language(language)
+            
+            # Cache the parser
+            self._tree_sitter_parsers[language_key] = parser
+            return parser
+        except Exception as e:
+            print(f"Warning: Failed to load Tree-sitter parser for {language_key}: {e}")
+            return None
+    
+    def _extract_semantic_blocks_efficient(self, root_node, text: str, file_path: str, file_hash: str, language_key: str) -> List[CodeBlock]:
+            
+            # Apply limits to prevent overwhelming results
+            max_blocks = getattr(self.config, "tree_sitter_max_blocks_per_file", 100)
+            if len(blocks) > max_blocks:
+                print(f"Warning: Limiting Tree-sitter blocks from {len(blocks)} to {max_blocks} for {file_path}")
+                blocks = blocks[:max_blocks]
+            
+            return blocks
+        except Exception as e:
+            raise Exception(f"Tree-sitter parsing failed: {e}")
+    
+    def _get_language_key_for_path(self, file_path: str) -> Optional[str]:
+        """Map file extension to Tree-sitter language key."""
+        ext = os.path.splitext(file_path)[1].lower()
+        extension_to_language = {
+            '.py': 'python',
+            '.js': 'javascript',
+            '.ts': 'typescript',
+            '.tsx': 'tsx',
+            '.jsx': 'javascript',
+            '.go': 'go',
+            '.java': 'java',
+            '.cpp': 'cpp',
+            '.cc': 'cpp',
+            '.cxx': 'cpp',
+            '.c': 'c',
+            '.h': 'c',
+            '.hpp': 'cpp',
+            '.rs': 'rust',
+            '.cs': 'csharp',
+            '.rb': 'ruby',
+            '.php': 'php',
+            '.kt': 'kotlin',
+            '.kts': 'kotlin',
+            '.swift': 'swift',
+            '.lua': 'lua',
+            '.json': 'json',
+            '.yaml': 'yaml',
+            '.yml': 'yaml',
+            '.md': 'markdown',
+            '.markdown': 'markdown',
+            '.html': 'html',
+            '.css': 'css',
+            '.scss': 'scss',
+        }
+        return extension_to_language.get(ext)
+    
+    def _get_tree_sitter_parser(self, language_key: str):
+        """Get or create a cached Tree-sitter parser for a language."""
+        try:
+            # Check if we already have a cached parser
+            if language_key in self._tree_sitter_parsers:
+                return self._tree_sitter_parsers[language_key]
+            
+            # Import tree-sitter-language-pack
+            import tree_sitter_language_pack as tsl
+            from tree_sitter import Parser
+            
+            # Get language and create parser
+            language = tsl.get_language(language_key)
+            parser = Parser()
+            parser.set_language(language)
+            
+            # Cache the parser
+            self._tree_sitter_parsers[language_key] = parser
+            return parser
+        except Exception as e:
+            print(f"Warning: Failed to load Tree-sitter parser for {language_key}: {e}")
+            return None
+    
+    def _get_language_key_for_path(self, file_path: str) -> Optional[str]:
+        """Map file extension to Tree-sitter language key."""
+        ext = os.path.splitext(file_path)[1].lower()
+        extension_to_language = {
+            '.py': 'python',
+            '.js': 'javascript',
+            '.ts': 'typescript',
+            '.tsx': 'tsx',
+            '.jsx': 'javascript',
+            '.go': 'go',
+            '.java': 'java',
+            '.cpp': 'cpp',
+            '.cc': 'cpp',
+            '.cxx': 'cpp',
+            '.c': 'c',
+            '.h': 'c',
+            '.hpp': 'cpp',
+            '.rs': 'rust',
+            '.cs': 'csharp',
+            '.rb': 'ruby',
+            '.php': 'php',
+            '.kt': 'kotlin',
+            '.kts': 'kotlin',
+            '.swift': 'swift',
+            '.lua': 'lua',
+            '.json': 'json',
+            '.yaml': 'yaml',
+            '.yml': 'yaml',
+            '.md': 'markdown',
+            '.markdown': 'markdown',
+            '.html': 'html',
+            '.css': 'css',
+            '.scss': 'scss',
+        }
+        return extension_to_language.get(ext)
+    
+    def _get_tree_sitter_parser(self, language_key: str):
+        """Get or create a cached Tree-sitter parser for a language."""
+        try:
+            # Check if we already have a cached parser
+            if language_key in self._tree_sitter_parsers:
+                return self._tree_sitter_parsers[language_key]
+            
+            # Import tree-sitter-language-pack
+            import tree_sitter_language_pack as tsl
+            from tree_sitter import Parser
+            
+            # Get language and create parser
+            language = tsl.get_language(language_key)
+            parser = Parser()
+            parser.set_language(language)
+            
+            # Cache the parser
+            self._tree_sitter_parsers[language_key] = parser
+            return parser
+        except Exception as e:
+            print(f"Warning: Failed to load Tree-sitter parser for {language_key}: {e}")
+            return None
+    
+    def _should_process_file_for_treesitter(self, file_path: str) -> bool:
+        """Apply smart filtering like ignore patterns."""
+        # Skip test files
+        skip_test_files = getattr(self.config, "tree_sitter_skip_test_files", True)
+        if skip_test_files:
+            test_patterns = ['test', 'spec', '_test', 'tests']
+            if any(pattern in file_path.lower() for pattern in test_patterns):
+                return False
+        
+        # Skip example files
+        skip_examples = getattr(self.config, "tree_sitter_skip_examples", True)
+        if skip_examples:
+            example_patterns = ['example', 'sample', 'demo']
+            if any(pattern in file_path.lower() for pattern in example_patterns):
+                return False
+        
+        # Skip patterns from config (like ignore patterns)
+        skip_patterns = getattr(self.config, "tree_sitter_skip_patterns", [])
+        for pattern in skip_patterns:
+            if pattern in file_path or file_path.endswith(pattern.lstrip('*')):
+                return False
+        
+        # Skip generated/build directories
+        generated_dirs = ['target/', 'build/', 'dist/', 'node_modules/', '__pycache__/']
+        if any(gen_dir in file_path for gen_dir in generated_dirs):
+            return False
+        
+        return True
+    
+    def _extract_semantic_blocks_efficient(self, root_node, text: str, file_path: str, file_hash: str, language_key: str) -> List[CodeBlock]:
+        """Efficiently extract semantic blocks using Tree-sitter queries."""
+        blocks: List[CodeBlock] = []
+        
+        try:
+            # Import tree-sitter-language-pack
+            import tree_sitter_language_pack as tsl
+            
+            # Get language-specific queries
+            queries = self._get_queries_for_language(language_key)
+            if not queries:
+                # Fallback to node-type based extraction with limits
+                return self._extract_with_limits(root_node, text, file_path, file_hash, language_key)
+            
+            language = tsl.get_language(language_key)
+            query = language.query(queries)
+            
+            # Execute query - ONLY gets relevant nodes
+            captures = query.captures(root_node)
+            
+            processed_nodes = set()  # Avoid duplicates
+            counters = {}  # Track counts per type
+            
+            for node, capture_name in captures:
+                # Avoid processing the same node multiple times
+                node_key = f"{node.start_byte}:{node.end_byte}"
+                if node_key in processed_nodes:
+                    continue
+                processed_nodes.add(node_key)
+                
+                # Apply per-type limits
+                type_limit = self._get_limit_for_node_type(capture_name, language_key)
+                current_count = counters.get(capture_name, 0)
+                if current_count >= type_limit:
+                    continue
+                counters[capture_name] = current_count + 1
+                
+                # Extract block
+                block = self._create_block_from_node(node, text, file_path, file_hash, capture_name)
+                if block:
+                    blocks.append(block)
+            
+            return blocks
+        except Exception as e:
+            print(f"Warning: Efficient Tree-sitter extraction failed, falling back to limited extraction: {e}")
+            return self._extract_with_limits(root_node, text, file_path, file_hash, language_key)
+    
+    def _get_queries_for_language(self, language_key: str) -> Optional[str]:
+        """Get Tree-sitter queries for a specific language."""
+        queries = {
+            'python': '''
+                (function_definition name: (identifier) @name) @function
+                (class_definition name: (identifier) @name) @class
+                (module) @module
+            ''',
+            'javascript': '''
+                (function_declaration name: (identifier) @name) @function
+                (method_definition name: (property_identifier) @name) @method
+                (class_declaration name: (identifier) @name) @class
+                (arrow_function) @function
+            ''',
+            'typescript': '''
+                (function_declaration name: (identifier) @name) @function
+                (method_definition name: (property_identifier) @name) @method
+                (class_declaration name: (identifier) @name) @class
+                (interface_declaration name: (type_identifier) @name) @interface
+                (type_alias_declaration name: (type_identifier) @name) @type
+            ''',
+            'rust': '''
+                (function_item name: (identifier) @name) @function
+                (struct_item name: (type_identifier) @name) @struct
+                (enum_item name: (type_identifier) @name) @enum
+                (trait_item name: (type_identifier) @name) @trait
+                (impl_item) @impl
+            ''',
+            'go': '''
+                (function_declaration name: (identifier) @name) @function
+                (method_declaration name: (field_identifier) @name) @method
+                (type_declaration) @type
+            ''',
+        }
+        return queries.get(language_key)
+    
+    def _get_limit_for_node_type(self, node_type: str, language_key: str) -> int:
+        """Get extraction limits for specific node types."""
+        limits = {
+            'function': getattr(self.config, "tree_sitter_max_functions_per_file", 50),
+            'method': getattr(self.config, "tree_sitter_max_functions_per_file", 50),
+            'class': getattr(self.config, "tree_sitter_max_classes_per_file", 20),
+            'struct': getattr(self.config, "tree_sitter_max_classes_per_file", 20),
+            'enum': getattr(self.config, "tree_sitter_max_classes_per_file", 20),
+            'interface': getattr(self.config, "tree_sitter_max_classes_per_file", 20),
+            'trait': getattr(self.config, "tree_sitter_max_classes_per_file", 20),
+            'impl': getattr(self.config, "tree_sitter_max_impl_blocks_per_file", 30),
+        }
+        return limits.get(node_type, 20)  # Default limit
+    
+    def _extract_with_limits(self, root_node, text: str, file_path: str, file_hash: str, language_key: str) -> List[CodeBlock]:
+        """Extract blocks with limits when queries aren't available."""
+        blocks: List[CodeBlock] = []
+        
+        # Define node types to extract based on language with strict limits
+        node_types = self._get_node_types_for_language(language_key)
+        
+        # Apply strict limits to prevent performance issues
+        max_total_blocks = min(
+            getattr(self.config, "tree_sitter_max_blocks_per_file", 100),
+            50  # Hard cap for fallback
+        )
+        
+        def traverse_node(node, depth=0):
+            # Prevent deep recursion
+            if depth > 5:
+                return
+            
+            # Check if this node type should be extracted
+            if node.type in node_types and len(blocks) < max_total_blocks:
+                # Extract the content with size limits
+                content = text[node.start_byte:node.end_byte]
+                if len(content.strip()) >= self.min_block_chars:
+                    # Create identifier based on node type and position
+                    identifier = f"{node.type}:{node.start_point[0] + 1}"
+                    
+                    # Create segment hash
+                    segment_hash = file_hash + f"{node.start_point[0] + 1}"
+                    
+                    block = CodeBlock(
+                        file_path=file_path,
+                        identifier=identifier,
+                        type=node.type,
+                        start_line=node.start_point[0] + 1,
+                        end_line=node.end_point[0] + 1,
+                        content=content,
+                        file_hash=file_hash,
+                        segment_hash=segment_hash
+                    )
+                    blocks.append(block)
+            
+            # Traverse children with depth limit
+            if len(blocks) < max_total_blocks:
+                for child in node.children:
+                    traverse_node(child, depth + 1)
+        
+        traverse_node(root_node)
+        return blocks[:max_total_blocks]
+    
+    def _create_block_from_node(self, node, text: str, file_path: str, file_hash: str, node_type: str) -> Optional[CodeBlock]:
+        """Create a CodeBlock from a Tree-sitter node."""
+        try:
+            content = text[node.start_byte:node.end_byte]
+            
+            # Check minimum character requirement
+            min_chars = getattr(self.config, "tree_sitter_min_block_chars", self.min_block_chars)
+            if len(content.strip()) < (min_chars or self.min_block_chars):
+                return None
+            
+            # Create identifier based on node properties
+            identifier = f"{node_type}:{node.start_point[0] + 1}"
+            
+            # Create segment hash
+            segment_hash = file_hash + f"{node.start_point[0] + 1}"
+            
+            return CodeBlock(
+                file_path=file_path,
+                identifier=identifier,
+                type=node_type,
+                start_line=node.start_point[0] + 1,
+                end_line=node.end_point[0] + 1,
+                content=content,
+                file_hash=file_hash,
+                segment_hash=segment_hash
+            )
+        except Exception:
+            return None

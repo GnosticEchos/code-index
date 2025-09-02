@@ -1,0 +1,45 @@
+{
+  "search_min_score": 0.1,
+  "search_max_results": 10,
+  "search_file_type_weights": {
+    ".vue": 1.85,
+    ".ts": 1.45,
+    ".tsx": 1.25,
+    ".surql": 1.35,
+    ".rs": 1.25,
+    ".js": 1.10,
+    ".css": 0.35,
+    ".json": 0.30,
+    ".md": 0.10,
+    ".txt": 0.50
+  },
+  "search_path_boosts": [
+    { "pattern": "src/", "weight": 1.55 },
+    { "pattern": "src/components/", "weight": 1.85 },
+    { "pattern": "src/components/preferences/daisyThemesRaw/", "weight": 0.30 },
+    { "pattern": "src/locale/", "weight": 0.15 },
+    { "pattern": "src/views/", "weight": 1.25 },
+    { "pattern": "components/", "weight": 1.25 },
+    { "pattern": "views/", "weight": 1.15 },
+    { "pattern": "pages/", "weight": 1.15 },
+    { "pattern": "routes/", "weight": 1.10 },
+    { "pattern": "models/", "weight": 1.10 },
+    { "pattern": "middleware/", "weight": 1.10 },
+    { "pattern": "public/styles/", "weight": 0.05 },
+    { "pattern": "docs/", "weight": 0.05 },
+    { "pattern": "console-export", "weight": 0.60 },
+    { "pattern": "Daisy_llms.txt", "weight": 0.60 }
+  ],
+  "search_language_boosts": {
+    "vue": 1.65,
+    "typescript": 1.30,
+    "css": 0.50,
+    "json": 0.55,
+    "rust": 1.05
+  },
+  "search_exclude_patterns": [
+    "console-export",
+    "Daisy_llms.txt"
+  ],
+  "search_snippet_preview_chars": 200
+}
