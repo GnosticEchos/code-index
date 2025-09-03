@@ -58,8 +58,8 @@ const myVar: Status = 'active';
         
         for i, block in enumerate(semantic_blocks):
             print(f"  {i+1}. {block.type}: {block.content[:60]}...")
-            
-        return True
+
+        assert True  # Test passed
         
     except Exception as e:
         print(f"❌ TypeScript parsing failed: {e}")
@@ -106,8 +106,8 @@ const test = "code block";
         # Markdown should use fallback since we don't have specific semantic queries
         for i, block in enumerate(blocks):
             print(f"  {i+1}. {block.type}: {block.content[:50]}...")
-            
-        return True
+
+        assert True  # Test passed
         
     except Exception as e:
         print(f"❌ Markdown parsing failed: {e}")

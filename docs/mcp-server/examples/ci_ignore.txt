@@ -1,0 +1,90 @@
+# CI/CD ignore patterns for code indexing
+# Use with exclude_files_path configuration option
+# Optimized for fast indexing in automated environments
+
+# Version control
+.git/
+.svn/
+.hg/
+
+# Dependencies (skip for speed)
+node_modules/
+vendor/
+target/
+__pycache__/
+
+# Build outputs
+build/
+dist/
+out/
+bin/
+obj/
+
+# Test files (skip for speed in CI)
+test/
+tests/
+__tests__/
+spec/
+*.test.js
+*.test.ts
+*.test.py
+*.spec.js
+*.spec.ts
+*.spec.py
+*_test.go
+*_test.rs
+
+# Documentation (skip for speed)
+docs/
+doc/
+documentation/
+*.md
+*.rst
+
+# Configuration files (usually not needed for code analysis)
+*.json
+*.yaml
+*.yml
+*.toml
+*.ini
+*.cfg
+
+# Cache and temporary files
+.cache/
+tmp/
+temp/
+*.tmp
+*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Coverage and reports
+coverage/
+.nyc_output/
+htmlcov/
+
+# Large or binary files
+*.zip
+*.tar.gz
+*.exe
+*.dll
+*.so
+*.dylib
+*.jpg
+*.png
+*.gif
+*.pdf
+
+# Lock files
+package-lock.json
+yarn.lock
+Cargo.lock
+Pipfile.lock

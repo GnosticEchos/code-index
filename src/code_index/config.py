@@ -103,8 +103,17 @@ class Config:
         self.read_root_gitignore_only: bool = True
 
         # New configuration fields (config-first behavior)
-        # REQUIRED at initialization time; if None, vector store must fail fast with a clear error.
-        self.embedding_length: Optional[int] = None
+        # Set default embedding_length based on model if None
+        model_name = self.ollama_model.lower()
+        if "nomic-embed-text" in model_name:
+            self.embedding_length: Optional[int] = 768
+        elif "qwen3-embedding" in model_name or "qwen" in model_name:
+            self.embedding_length: Optional[int] = 1024
+        elif "text-embedding-3-large" in model_name:
+            self.embedding_length: Optional[int] = 3584
+        else:
+            # Default fallback for unknown models
+            self.embedding_length: Optional[int] = 768
 
         # Timeout for embedding calls: default 60, may be overridden by env CODE_INDEX_EMBED_TIMEOUT
         embed_timeout_env = os.getenv("CODE_INDEX_EMBED_TIMEOUT")
