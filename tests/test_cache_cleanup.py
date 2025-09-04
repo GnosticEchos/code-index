@@ -45,8 +45,9 @@ def test_single_collection_delete_cache_cleanup(monkeypatch, tmp_path: Path, cap
     cc.delete_collection.callback(f"ws-{canon_id}")
 
     # Assert: targeted cache file removed, unrelated remains
-    assert not target.exists(), "Expected targeted cache file to be removed"
-    assert other.exists(), "Unrelated cache file should remain"
+    import os
+    assert not os.path.exists(str(target)), "Expected targeted cache file to be removed"
+    assert os.path.exists(str(other)), "Unrelated cache file should remain"
 
     # Assert: INFO logs mention 1 file removed
     msgs = "\n".join(r.message for r in caplog.records if r.name == "code_index.cache")
@@ -92,8 +93,9 @@ def test_global_clear_cache_cleanup(monkeypatch, tmp_path: Path, caplog):
     # Assert: all cache_*.json files removed, unrelated files remain
     remaining_cache = list(tmp_path.glob("cache_*.json"))
     assert remaining_cache == [], f"Expected all cache_*.json files removed, found: {remaining_cache}"
-    assert unrelated_txt.exists(), "Unrelated .txt file should remain"
-    assert unrelated_cache_named.exists(), "Unrelated file that only contains 'cache' in name should remain"
+    import os
+    assert os.path.exists(str(unrelated_txt)), "Unrelated .txt file should remain"
+    assert os.path.exists(str(unrelated_cache_named)), "Unrelated file that only contains 'cache' in name should remain"
 
     # Assert: INFO logs mention correct count removed
     msgs = "\n".join(r.message for r in caplog.records if r.name == "code_index.cache")
@@ -134,7 +136,8 @@ def test_clear_all_dry_run(monkeypatch, tmp_path: Path, caplog):
     cc.clear_all_collections.callback(yes=True, dry_run=True, keep_metadata=False)
 
     # Assert: cache files remain
-    assert c1.exists() and c2.exists(), "Dry run should not delete any cache files"
+    import os
+    assert os.path.exists(str(c1)) and os.path.exists(str(c2)), "Dry run should not delete any cache files"
     # Assert: no deletion attempts happened
     assert DummyClient.called is False, "Dry run should not call delete_collection()"
 

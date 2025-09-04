@@ -1,0 +1,148 @@
+# Large repository ignore patterns for code indexing
+# Use with exclude_files_path configuration option
+# Optimized for performance with large codebases
+
+# Version control
+.git/
+.svn/
+.hg/
+.bzr/
+
+# Dependencies and packages
+node_modules/
+vendor/
+packages/
+.packages/
+jspm_packages/
+bower_components/
+
+# Build outputs and artifacts
+target/
+build/
+dist/
+out/
+bin/
+obj/
+release/
+debug/
+.next/
+.nuxt/
+.output/
+.vercel/
+.netlify/
+
+# Cache directories
+.cache/
+.parcel-cache/
+.vite/
+.webpack/
+.rollup.cache/
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.tox/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage reports
+coverage/
+.nyc_output/
+htmlcov/
+.coverage
+*.cover
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Large binary files (adjust size as needed)
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.dmg
+*.iso
+*.img
+
+# Media files (usually not needed for code search)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.ico
+*.svg
+*.mp3
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+
+# Documentation builds
+docs/_build/
+site/
+_site/
+
+# Package manager files
+package-lock.json
+yarn.lock
+Cargo.lock
+Pipfile.log
+poetry.lock
+
+# Environment files
+.env
+.env.*
+*.env
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Compiled files
+*.o
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+*.class
+*.pyc
+*.pyo
+*.pyd
