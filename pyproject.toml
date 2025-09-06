@@ -28,10 +28,12 @@ dependencies = [
     "tree-sitter-language-pack==0.9.0",
     "langchain-text-splitters>=0.2.0",
     "pygments>=2.13.0",
+    "fastmcp>=2.12.0",
 ]
 
 [project.scripts]
 code-index = "code_index.cli:cli"
+code-index-mcp = "code_index.mcp_server.server:sync_main"
 
 [project.optional-dependencies]
 dev = [

@@ -1,0 +1,99 @@
+{
+  "embedding_length": 768,
+  "ollama_base_url": "http://localhost:11434",
+  "ollama_model": "nomic-embed-text:latest",
+  "qdrant_url": "http://localhost:6333",
+  "qdrant_api_key": null,
+  
+  "extensions": [".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs", ".vue", ".svelte", ".astro", ".md", ".json", ".yaml", ".yml"],
+  "max_file_size_bytes": 1048576,
+  "auto_extensions": false,
+  "exclude_files_path": "js_ignore.txt",
+  
+  "chunking_strategy": "treesitter",
+  "use_tree_sitter": true,
+  "tree_sitter_max_file_size_bytes": 524288,
+  "tree_sitter_max_blocks_per_file": 120,
+  "tree_sitter_skip_test_files": true,
+  
+  "batch_segment_threshold": 60,
+  "embed_timeout_seconds": 120,
+  
+  "search_min_score": 0.4,
+  "search_max_results": 50,
+  "search_snippet_preview_chars": 180,
+  
+  "search_file_type_weights": {
+    ".ts": 1.60,
+    ".tsx": 1.55,
+    ".js": 1.30,
+    ".jsx": 1.35,
+    ".vue": 1.40,
+    ".svelte": 1.30,
+    ".astro": 1.25,
+    ".mjs": 1.20,
+    ".cjs": 1.15,
+    ".json": 0.70,
+    ".yaml": 0.65,
+    ".yml": 0.65,
+    ".md": 0.80,
+    ".test.js": 0.20,
+    ".test.ts": 0.20,
+    ".spec.js": 0.20,
+    ".spec.ts": 0.20,
+    ".stories.js": 0.30,
+    ".stories.ts": 0.30,
+    "package.json": 0.80,
+    "tsconfig.json": 0.75
+  },
+  
+  "search_path_boosts": [
+    {"pattern": "src/", "boost": 1.50},
+    {"pattern": "lib/", "boost": 1.30},
+    {"pattern": "components/", "boost": 1.45},
+    {"pattern": "pages/", "boost": 1.35},
+    {"pattern": "routes/", "boost": 1.35},
+    {"pattern": "utils/", "boost": 1.25},
+    {"pattern": "helpers/", "boost": 1.20},
+    {"pattern": "services/", "boost": 1.30},
+    {"pattern": "api/", "boost": 1.40},
+    {"pattern": "hooks/", "boost": 1.25},
+    {"pattern": "composables/", "boost": 1.25},
+    {"pattern": "store/", "boost": 1.30},
+    {"pattern": "stores/", "boost": 1.30},
+    {"pattern": "types/", "boost": 1.20},
+    {"pattern": "interfaces/", "boost": 1.15},
+    {"pattern": "models/", "boost": 1.25},
+    {"pattern": "test/", "boost": 0.25},
+    {"pattern": "tests/", "boost": 0.25},
+    {"pattern": "__tests__/", "boost": 0.25},
+    {"pattern": "stories/", "boost": 0.35},
+    {"pattern": "docs/", "boost": 0.80},
+    {"pattern": "node_modules/", "boost": 0.05},
+    {"pattern": "dist/", "boost": 0.05},
+    {"pattern": "build/", "boost": 0.05},
+    {"pattern": ".next/", "boost": 0.05},
+    {"pattern": ".nuxt/", "boost": 0.05}
+  ],
+  
+  "search_language_boosts": {
+    "typescript": 1.50,
+    "javascript": 1.30,
+    "vue": 1.40,
+    "svelte": 1.25,
+    "markdown": 0.80
+  },
+  
+  "search_exclude_patterns": [
+    "node_modules",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    ".output",
+    "coverage",
+    ".cache",
+    ".parcel-cache",
+    ".vite"
+  ]
+}

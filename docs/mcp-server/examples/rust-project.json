@@ -1,0 +1,76 @@
+{
+  "embedding_length": 768,
+  "ollama_base_url": "http://localhost:11434",
+  "ollama_model": "nomic-embed-text:latest",
+  "qdrant_url": "http://localhost:6333",
+  "qdrant_api_key": null,
+  
+  "extensions": [".rs", ".toml", ".md", ".txt", ".yaml", ".yml"],
+  "max_file_size_bytes": 1048576,
+  "auto_extensions": false,
+  "exclude_files_path": "rust_ignore.txt",
+  
+  "chunking_strategy": "treesitter",
+  "use_tree_sitter": true,
+  "tree_sitter_max_file_size_bytes": 524288,
+  "tree_sitter_max_blocks_per_file": 150,
+  "tree_sitter_skip_test_files": true,
+  
+  "batch_segment_threshold": 50,
+  "embed_timeout_seconds": 120,
+  
+  "search_min_score": 0.4,
+  "search_max_results": 50,
+  "search_snippet_preview_chars": 200,
+  
+  "search_file_type_weights": {
+    ".rs": 1.60,
+    "Cargo.toml": 1.30,
+    "Cargo.lock": 0.40,
+    ".toml": 0.90,
+    ".md": 0.80,
+    ".txt": 0.70,
+    ".yaml": 0.65,
+    ".yml": 0.65,
+    "lib.rs": 1.70,
+    "main.rs": 1.65,
+    "mod.rs": 1.50,
+    "build.rs": 1.20
+  },
+  
+  "search_path_boosts": [
+    {"pattern": "src/", "boost": 1.60},
+    {"pattern": "lib/", "boost": 1.40},
+    {"pattern": "core/", "boost": 1.50},
+    {"pattern": "utils/", "boost": 1.25},
+    {"pattern": "modules/", "boost": 1.35},
+    {"pattern": "services/", "boost": 1.30},
+    {"pattern": "api/", "boost": 1.35},
+    {"pattern": "cli/", "boost": 1.20},
+    {"pattern": "config/", "boost": 1.15},
+    {"pattern": "macros/", "boost": 1.25},
+    {"pattern": "proc_macros/", "boost": 1.20},
+    {"pattern": "tests/", "boost": 0.40},
+    {"pattern": "benches/", "boost": 0.30},
+    {"pattern": "examples/", "boost": 0.60},
+    {"pattern": "docs/", "boost": 0.80},
+    {"pattern": "target/", "boost": 0.05}
+  ],
+  
+  "search_language_boosts": {
+    "rust": 1.50,
+    "toml": 0.90,
+    "markdown": 0.80
+  },
+  
+  "search_exclude_patterns": [
+    "target",
+    "Cargo.lock",
+    "*.pdb",
+    "*.exe",
+    "*.dll",
+    "*.so",
+    "*.dylib",
+    ".cargo"
+  ]
+}

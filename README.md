@@ -18,10 +18,127 @@ A standalone code indexing tool that uses Ollama for embeddings and Qdrant for v
 - Smart ignore patterns (community templates, project .gitignore, global ignores)
 - Memory-mapped file reading (mmap) for improved large-file performance (config-only)
 - KiloCode-compatible collection naming and payload fields
+- **MCP Server**: Full Model Context Protocol server with tools for indexing, searching, and managing collections
 
 Notes:
 - No synonym-expansion query rewriting or interactive search prompts are implemented.
 - No built-in concurrent batch scheduler/resumer; batch processing is supported via a workspace list file.
+
+## MCP Server
+
+This tool includes a complete **Model Context Protocol (MCP) server** that provides AI assistants with powerful code indexing and search capabilities. The MCP server exposes three main tools that can be used by any MCP-compatible client.
+
+### MCP Tools
+
+## 🛠️ MCP Tools Overview
+
+| Category          | Tool                  | Description                                |
+|-------------------|------------------------|--------------------------------------------|
+| 📊 **Indexing**   | `index`                | Index code files for semantic search       |
+|                   |                        | Long-running operation with progress tracking |
+| 🔍 **Search**     | `search`               | Perform semantic searches on indexed code |
+|                   |                        | Natural language queries with ranking     |
+| 📋 **Management** | `collections`          | Manage indexed collections                |
+|                   |                        | List, delete, prune with safety confirmations |
+
+### Index Tool
+Indexes code files in workspaces for semantic search. This is a long-running operation that processes files and creates vector embeddings.
+
+**Parameters:**
+- `workspace` (str): Path to the directory to index (default: current directory)
+- `config` (str): Path to configuration file (auto-created if missing)
+- `workspacelist` (str): Path to file containing workspace paths for batch indexing
+- `embed_timeout` (int): Override embedding timeout in seconds (default: 60)
+- `chunking_strategy` (str): Strategy for splitting code: "lines", "tokens", or "treesitter"
+- `use_tree_sitter` (bool): Enable semantic code structure analysis with Tree-sitter
+
+**Examples:**
+```python
+# Basic indexing
+index(workspace="./my-project")
+
+# Semantic indexing with Tree-sitter
+index(workspace="./rust-project", use_tree_sitter=true, chunking_strategy="treesitter")
+
+# Batch processing multiple workspaces
+index(workspacelist="./workspaces.txt", embed_timeout=120)
+```
+
+### Search Tool
+Performs semantic searches on indexed code repositories using natural language queries.
+
+**Parameters:**
+- `query` (str, required): Natural language search query
+- `workspace` (str): Path to the workspace to search (default: current directory)
+- `min_score` (float): Minimum similarity score threshold (0.0-1.0, default: 0.4)
+- `max_results` (int): Maximum number of results to return (1-500, default: 50)
+
+**Examples:**
+```python
+# Basic search
+search(query="authentication middleware")
+
+# Precise search with custom thresholds
+search(query="database connection", min_score=0.6, max_results=20)
+```
+
+### Collections Tool
+Manages indexed code collections with comprehensive operations and safety confirmations.
+
+**Parameters:**
+- `subcommand` (str, required): Operation to perform (list, info, delete, prune, clear-all)
+- `collection_name` (str): Name of collection (required for info/delete)
+- `older_than_days` (int): Age threshold for prune operation (default: 30)
+- `yes` (bool): Skip confirmation prompts for destructive operations
+- `detailed` (bool): Include detailed information in results
+
+**Examples:**
+```python
+# List all collections
+collections(subcommand="list")
+
+# Get detailed collection information
+collections(subcommand="info", collection_name="ws-abc123def456")
+
+# Delete a collection (with confirmation)
+collections(subcommand="delete", collection_name="ws-abc123def456", yes=true)
+```
+
+### MCP Client Configuration
+
+To use the MCP server with any MCP-compatible client, add this configuration to your client's MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "code_index_mcp_server": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/absolute/path/to/your/code_index/project",
+        "run",
+        "code-index-mcp"
+      ]
+    }
+  }
+}
+```
+
+**Configuration Notes:**
+- Replace `/absolute/path/to/your/code_index/project` with the actual absolute path to your project
+- The server name `code_index_mcp_server` can be customized
+- Ensure `uv` is installed and available in your PATH
+- The server will validate Ollama and Qdrant connectivity on startup
+
+**Optional Environment Variables:**
+- `OLLAMA_BASE_URL`: Ollama server URL (default: `http://localhost:11434`)
+- `QDRANT_URL`: Qdrant server URL (default: `http://localhost:6333`)
+- `QDRANT_API_KEY`: Qdrant API key (optional)
+
+**Testing Your Setup:**
+1. Start Ollama and Qdrant services
+2. Run `uv run code-index-mcp` to start the server
+3. Test with `collections(subcommand="list")` in your MCP client
 
 ## KiloCode Compatibility
 
@@ -38,6 +155,7 @@ See the CLI entry points [cli.index()](src/code_index/cli.py#L154), [cli.search(
 - Ollama with an embedding model available
 - Qdrant server
 - Optional: uv for environment management
+- FastMCP for MCP server functionality (included in dependencies)
 
 ## Windows Development Notes
 
@@ -102,6 +220,9 @@ code-index index
 
 # Search indexed code
 code-index search "function to parse JSON"
+
+# Start MCP server for AI assistant integration
+uv run code-index-mcp
 
 # Global reset: delete ALL collections and clear cache (destructive)
 code-index collections clear-all --yes
@@ -194,6 +315,89 @@ Manages Qdrant collections and metadata mapping.
 - prune: Delete collections older than the specified days (default: 30)
 
 See collection commands in [collections_commands.py](src/code_index/collections_commands.py).
+
+## MCP Usage Examples
+
+Once your MCP server is configured and running, AI assistants can use these tools:
+
+### Basic Workflow
+1. **Index a codebase:**
+   ```
+   index(workspace="./my-project", use_tree_sitter=true, chunking_strategy="treesitter")
+   ```
+
+2. **Search for code:**
+   ```
+   search(query="authentication logic", min_score=0.5)
+   ```
+
+3. **Manage collections:**
+   ```
+   collections(subcommand="list")
+   ```
+
+### Advanced Examples
+
+**Large Repository Indexing:**
+```python
+# For large repositories, use line-based chunking for speed
+index(
+    workspace="/path/to/large-repo",
+    chunking_strategy="lines",
+    batch_segment_threshold=100,
+    embed_timeout=120
+)
+```
+
+**Precise Code Search:**
+```python
+# Find specific implementation patterns
+search(
+    query="JWT token validation",
+    min_score=0.7,
+    max_results=10
+)
+```
+
+**Batch Processing:**
+```python
+# Index multiple projects at once
+index(workspacelist="/path/to/workspace-list.txt")
+```
+
+**Collection Management:**
+```python
+# Clean up old collections
+collections(subcommand="prune", older_than_days=30, yes=true)
+
+# Get detailed collection info
+collections(subcommand="info", collection_name="ws-abc123def456", detailed=true)
+```
+
+### MCP Client Integration
+
+The MCP server integrates seamlessly with AI assistants that support the Model Context Protocol:
+
+- **VSCode with MCP extension**: Configure using the JSON settings above
+- **Other MCP clients**: Use the same configuration format
+- **AI assistants**: Can now index, search, and manage code collections through natural language
+
+### Troubleshooting MCP
+
+**Server won't start:**
+- Ensure Ollama and Qdrant services are running
+- Check that all dependencies are installed with `uv pip install -e .`
+- Verify configuration file exists and is valid
+
+**Search returns no results:**
+- Make sure the workspace has been indexed first
+- Try lowering `min_score` (e.g., from 0.4 to 0.2)
+- Check that the collection exists with `collections(subcommand="list")`
+
+**Indexing is slow:**
+- Use `chunking_strategy="lines"` for faster processing
+- Increase `batch_segment_threshold` for larger batches
+- Consider using `use_mmap_file_reading=true` for large files
 
 ## Configuration
 
@@ -350,8 +554,9 @@ Operational notes:
 ## Development
 
 - Primary entry points: [src/code_index/cli.py](src/code_index/cli.py)
+- MCP server entry point: [src/code_index/mcp_server/server.py](src/code_index/mcp_server/server.py)
 - Tests (if present) may adjust search thresholds for specific scenarios
-- See also: [pyproject.toml](pyproject.toml) for dependencies and the console script entrypoint
+- See also: [pyproject.toml](pyproject.toml) for dependencies and console script entrypoints (`code-index` and `code-index-mcp`)
 
 ## License
 

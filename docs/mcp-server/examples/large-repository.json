@@ -1,0 +1,65 @@
+{
+  "embedding_length": 768,
+  "ollama_base_url": "http://localhost:11434",
+  "ollama_model": "nomic-embed-text:latest",
+  "qdrant_url": "http://localhost:6333",
+  "qdrant_api_key": null,
+  
+  "extensions": [".py", ".js", ".ts", ".rs", ".go", ".java", ".cpp", ".c", ".h"],
+  "max_file_size_bytes": 262144,
+  "auto_extensions": false,
+  "exclude_files_path": "large_repo_ignore.txt",
+  
+  "chunking_strategy": "tokens",
+  "token_chunk_size": 600,
+  "token_chunk_overlap": 100,
+  "tree_sitter_max_file_size_bytes": 131072,
+  
+  "batch_segment_threshold": 20,
+  "embed_timeout_seconds": 180,
+  
+  "search_min_score": 0.5,
+  "search_max_results": 50,
+  "search_snippet_preview_chars": 150,
+  
+  "search_file_type_weights": {
+    ".py": 1.4,
+    ".js": 1.2,
+    ".ts": 1.3,
+    ".rs": 1.25,
+    ".go": 1.15,
+    ".java": 1.1,
+    ".cpp": 1.05,
+    ".c": 1.0,
+    ".h": 0.95,
+    ".test.js": 0.2,
+    ".spec.ts": 0.2,
+    ".test.py": 0.15
+  },
+  
+  "search_path_boosts": [
+    {"pattern": "src/", "boost": 1.3},
+    {"pattern": "lib/", "boost": 1.2},
+    {"pattern": "core/", "boost": 1.4},
+    {"pattern": "api/", "boost": 1.25},
+    {"pattern": "services/", "boost": 1.2},
+    {"pattern": "utils/", "boost": 1.1},
+    {"pattern": "test/", "boost": 0.3},
+    {"pattern": "tests/", "boost": 0.3},
+    {"pattern": "docs/", "boost": 0.7},
+    {"pattern": "examples/", "boost": 0.5},
+    {"pattern": "vendor/", "boost": 0.1},
+    {"pattern": "node_modules/", "boost": 0.05},
+    {"pattern": "target/", "boost": 0.05}
+  ],
+  
+  "search_exclude_patterns": [
+    "node_modules",
+    "vendor",
+    "target",
+    "dist",
+    "build",
+    ".git",
+    ".cache"
+  ]
+}
