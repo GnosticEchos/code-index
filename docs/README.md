@@ -163,8 +163,8 @@ MIT
 - You must set a dimension that matches your embedding model:
   - In config file: `"embedding_length": 768` (example)
   - If missing, initialization fails with a clear error.
-- File: [config.py](code_index/src/code_index/config.py:1)
-- Enforcement: [QdrantVectorStore.initialize()](code_index/src/code_index/vector_store.py:80)
+- File: [config.py](../src/code_index/config.py#L1)
+- Enforcement: [QdrantVectorStore.initialize](../src/code_index/vector_store.py#L80)
 
 ### Token-based Chunking
 - Enable LangChain-based token chunking via config:
@@ -173,19 +173,19 @@ MIT
   - `"token_chunk_overlap": 200`
 - Approximate line mapping is preserved for UI display.
 - Fallback: If langchain-text-splitters is unavailable, tool falls back to line-based with a warning.
-- File: [parser.py](code_index/src/code_index/parser.py:1)
+- File: [parser.py](../src/code_index/parser.py#L1)
 
 ### Auto-extensions (Pygments)
 - When `"auto_extensions": true`, extensions from Pygments lexers are merged into your configured list.
 - If Pygments is missing, a non-fatal warning is logged and configured extensions are used unchanged.
-- Files: [utils.py](code_index/src/code_index/utils.py:78), [scanner.py](code_index/src/code_index/scanner.py:1)
+- Files: [utils.py](../src/code_index/utils.py#L78), [scanner.py](../src/code_index/scanner.py#L1)
 
 ### Exclude File List
 - Exclude arbitrary files using a newline-separated list (relative to workspace):
   - `"exclude_files_path": "ignore_files.txt"`
 - Absolute paths inside the file are normalized to relative paths.
 - Comments beginning with `#` and blank lines are ignored.
-- File: [scanner.py](code_index/src/code_index/scanner.py:1)
+- File: [scanner.py](../src/code_index/scanner.py#L1)
 
 ### Timeout, Retry-list, and Logging
 - Configure embedding timeout by:
@@ -196,7 +196,7 @@ MIT
 - Retry only failed files:
   - `code-index index --workspace <root> --retry-list timeout_files.txt --embed-timeout 180`
   - In retry-list mode, the tool skips scanning the workspace and processes only the listed files, still respecting excludes, extension filters, size limits, and binary checks.
-- Files: [embedder.py](code_index/src/code_index/embedder.py:1), [cli.py](code_index/src/code_index/cli.py:1)
+- Files: [embedder.py](../src/code_index/embedder.py#L1), [cli.py](../src/code_index/cli.py#L1)
 
 ## Examples
 

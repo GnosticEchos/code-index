@@ -30,7 +30,7 @@ This tool produces Qdrant collections KiloCode can use directly:
 - Payload fields match KiloCode expectations: filePath, codeChunk, startLine, endLine, type
 - Both tools can use the same collections without duplication
 
-See the CLI entry points [cli.index()](src/code_index/cli.py:154), [cli.search()](src/code_index/cli.py:471), and collection commands in [collections_commands.py](src/code_index/collections_commands.py) including collections clear-all.
+See the CLI entry points [cli.index()](src/code_index/cli.py#L154), [cli.search()](src/code_index/cli.py#L471), and collection commands in [collections_commands.py](src/code_index/collections_commands.py) including collections clear-all.
 
 ## Requirements
 
@@ -115,8 +115,8 @@ Tip:
 Full reference: [docs/cli-reference.md](docs/cli-reference.md)
 
 Primary entry points:
-- [cli.index()](src/code_index/cli.py:154)
-- [cli.search()](src/code_index/cli.py:471)
+- [cli.index()](src/code_index/cli.py#L154)
+- [cli.search()](src/code_index/cli.py#L471)
 
 ### Index Command
 
@@ -124,7 +124,7 @@ Primary entry points:
 code-index index [--workspace PATH] [--config FILE] [--workspacelist FILE] \
                  [--embed-timeout SECONDS] [--retry-list FILE] [--timeout-log FILE] \
                  [--ignore-config FILE] [--ignore-override-pattern PATTERN] \
-                 [--auto-ignore-detection] \
+                 [--auto-ignore-detection]
                  [--use-tree-sitter] [--chunking-strategy lines|tokens|treesitter]
 ```
 
@@ -173,7 +173,7 @@ Options:
 - --json: Output results as JSON; snippet preview length uses config.search_snippet_preview_chars (default: 160)
 
 Implementation details:
-- Vector search and ranking: [vector_store.QdrantVectorStore.search()](src/code_index/vector_store.py:300)
+- Vector search and ranking: [vector_store.QdrantVectorStore.search()](src/code_index/vector_store.py#L300)
 - Adjusted scores apply file-type, path, and language weighting from configuration
 
 ### Collections Management
@@ -197,7 +197,7 @@ See collection commands in [collections_commands.py](src/code_index/collections_
 
 ## Configuration
 
-JSON-first configuration (default file: code_index.json). See [config.Config](src/code_index/config.py:9) for fields and defaults.
+JSON-first configuration (default file: code_index.json). See [config.Config](src/code_index/config.py#L9) for fields and defaults.
 
 Example:
 ```json
@@ -324,16 +324,16 @@ These settings are available in your `code_index.json`:
 1. File Scanning
    - Recursively scans the directory for supported files, honoring ignore patterns (community templates, .gitignore, and global rules when enabled).
 2. File Reading
-   - Chooses traditional or memory-mapped reading based on config thresholds; gracefully falls back on errors. See [parser.CodeParser](src/code_index/parser.py:13).
+   - Chooses traditional or memory-mapped reading based on config thresholds; gracefully falls back on errors. See [parser.CodeParser](src/code_index/parser.py#L13).
 3. Chunking
    - Splits files into code blocks using the configured strategy:
-     - Line-based ([chunking.LineChunkingStrategy](src/code_index/chunking.py:53))
-     - Token-based via LangChain ([chunking.TokenChunkingStrategy](src/code_index/chunking.py:101))
-     - Tree-sitter semantic blocks with robust multi-API fallbacks ([chunking.TreeSitterChunkingStrategy](src/code_index/chunking.py:163))
+     - Line-based ([chunking.LineChunkingStrategy](src/code_index/chunking.py#L53))
+     - Token-based via LangChain ([chunking.TokenChunkingStrategy](src/code_index/chunking.py#L101))
+     - Tree-sitter semantic blocks with robust multi-API fallbacks ([chunking.TreeSitterChunkingStrategy](src/code_index/chunking.py#L163))
 4. Embedding Generation
-   - Uses Ollama’s /api/embed with configurable timeouts. See [embedder.OllamaEmbedder](src/code_index/embedder.py:9).
+   - Uses Ollama’s /api/embed with configurable timeouts. See [embedder.OllamaEmbedder](src/code_index/embedder.py#L9).
 5. Vector Storage
-   - Stores vectors and KiloCode-compatible payloads in Qdrant with path segment indexes for filtering. See [vector_store.QdrantVectorStore](src/code_index/vector_store.py:13).
+   - Stores vectors and KiloCode-compatible payloads in Qdrant with path segment indexes for filtering. See [vector_store.QdrantVectorStore](src/code_index/vector_store.py#L13).
 6. Caching
    - Caches file hashes to skip unchanged files.
 7. Search
