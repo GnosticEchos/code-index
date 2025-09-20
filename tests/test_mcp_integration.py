@@ -151,20 +151,13 @@ class TestMCPProtocolIntegration:
             mock_server = Mock()
             lifespan_gen = server._lifespan_manager(mock_server)
             
-            # Start phase
-            await lifespan_gen.__anext__()
+            # Start phase - use async with instead of __anext__
+            async with lifespan_gen:
+                # Verify initialization
+                mock_resource_manager.initialize.assert_called_once()
+                mock_resource_manager.register_shutdown_handler.assert_called_once()
             
-            # Verify initialization
-            mock_resource_manager.initialize.assert_called_once()
-            mock_resource_manager.register_shutdown_handler.assert_called_once()
-            
-            # Shutdown phase
-            try:
-                await lifespan_gen.__anext__()
-            except StopAsyncIteration:
-                pass
-            
-            # Verify shutdown
+            # Verify shutdown was called
             mock_resource_manager.shutdown.assert_called_once()
 
 

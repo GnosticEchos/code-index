@@ -172,6 +172,7 @@ class TestCodeIndexMCPServer:
         with patch('src.code_index.embedder.OllamaEmbedder') as mock_embedder_class:
             mock_embedder = Mock()
             mock_embedder.validate_configuration.return_value = {"valid": True}
+            mock_embedder_class.return_value = mock_embedder
             with patch('src.code_index.vector_store.QdrantVectorStore') as mock_qdrant_class:
                 mock_qdrant_class.side_effect = Exception("Qdrant connection failed")
                 
@@ -181,28 +182,21 @@ class TestCodeIndexMCPServer:
 
     @pytest.mark.asyncio
     async def test_register_tools(self, temp_config_file, mock_fastmcp):
-        """Test tool registration with proper async context manager handling."""
+        """Test tool registration functionality."""
         server = CodeIndexMCPServer(temp_config_file)
         server._mcp = mock_fastmcp
         
-# Mock the tool modules with proper context manager handling
-        with patch('src.code_index.mcp_server.tools.index_tool.index') as index_tool, \
-             patch('src.code_index.mcp_server.tools.search_tool.search') as search_tool, \
-             patch('src.code_index.mcp_server.tools.search_tool.create_search_tool_description') as search_tool_description, \
-             patch('src.code_index.mcp_server.tools.collections_tool.collections') as collections_tool, \
-             patch('src.code_index.mcp_server.tools.collections_tool.create_collections_tool_description') as collections_tool_description:
-            
-            # Register tools
-            server._register_tools()
-            
-            # Verify all three tools were registered
-            assert mock_fastmcp.tool.call_count == 3
-            
-            # Check tool names
-            registered_tools = [call[1]['name'] for call in mock_fastmcp.tool.call_args_list]
-            assert 'index' in registered_tools
-            assert 'search' in registered_tools
-            assert 'collections' in registered_tools
+        # Register tools
+        server._register_tools()
+        
+        # Verify all three tools were registered
+        assert mock_fastmcp.tool.call_count == 3
+        
+        # Check tool names
+        registered_tools = [call[1]['name'] for call in mock_fastmcp.tool.call_args_list]
+        assert 'index' in registered_tools
+        assert 'search' in registered_tools
+        assert 'collections' in registered_tools
 
     @pytest.mark.asyncio
     async def test_lifespan_manager(self, temp_config_file, mock_resource_manager):
