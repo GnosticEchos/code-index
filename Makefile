@@ -21,4 +21,5 @@ clean:
 	rm -rf dist/
 	rm -rf *.egg-info/
 	find . -type f -name "*.pyc" -delete
-	find . -type d -name "__pycache__" -delete
+	find . -type d -name "__pycache__" -delete# Temporary change for stashing
+# Temporary change for stashing
