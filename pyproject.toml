@@ -30,6 +30,8 @@ dependencies = [
     "pygments>=2.13.0",
     "fastmcp>=2.12.0",
     "whats-that-code",
+    "psutil>=7.1.0",
+    "chardet>=5.2.0"
 ]
 
 [project.scripts]

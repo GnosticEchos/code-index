@@ -6,11 +6,9 @@ import logging
 from typing import List, Set, Tuple
 from code_index.config import Config
 from code_index.smart_ignore_manager import SmartIgnoreManager
-from code_index.utils import (
-    is_binary_file,
-    normalize_path,
-    augment_extensions_with_pygments,
-)
+from code_index.file_processing import FileProcessingService
+from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from code_index.path_utils import PathUtils
 
 logger = logging.getLogger(__name__)
 
@@ -21,45 +19,24 @@ class DirectoryScanner:
     def __init__(self, config: Config):
         """Initialize directory scanner with configuration."""
         self.config = config
-        self.workspace_path = os.path.abspath(config.workspace_path)
+        # Initialize path utilities first
+        self.path_utils = PathUtils(ErrorHandler())
+        self.workspace_path = self.path_utils.normalize_path(config.workspace_path)
         self.ignore_manager = SmartIgnoreManager(self.workspace_path, config)
+        # Initialize file processing service
+        self.file_processor = FileProcessingService(ErrorHandler())
     
     def _load_exclude_list(self) -> Set[str]:
         """Load exclude list as normalized relative paths from workspace root."""
-        excluded: Set[str] = set()
+        # Use the file processing service initialized in the class
         path = getattr(self.config, "exclude_files_path", None)
-        if not path:
-            return excluded
-        # Allow absolute or relative path to exclude file
-        exclude_file_path = path
-        if not os.path.isabs(exclude_file_path):
-            exclude_file_path = os.path.join(self.workspace_path, exclude_file_path)
-        if not os.path.exists(exclude_file_path):
-            return excluded
-        try:
-            with open(exclude_file_path, "r", encoding="utf-8", errors="ignore") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    # Normalize each line to relpath
-                    if os.path.isabs(line):
-                        rel = os.path.relpath(line, self.workspace_path)
-                    else:
-                        rel = line
-                    # Normalize consistently
-                    rel = os.path.normpath(rel)
-                    excluded.add(rel)
-        except (OSError, IOError):
-            # Non-fatal: treat as no excludes
-            return excluded
-        return excluded
+        return self.file_processor.load_exclude_list(self.workspace_path, path, "load_exclude_list")
 
     def _compute_extension_set(self) -> Set[str]:
         """Compute effective extension set with optional auto-augmentation."""
         base = [e.lower() for e in getattr(self.config, "extensions", [])]
         if getattr(self.config, "auto_extensions", False):
-            base = augment_extensions_with_pygments(base)
+            base = self.file_processor.augment_extensions_with_pygments(base)
         return set(base)
     
     def _should_skip_dot_file(self, name: str) -> bool:
@@ -84,8 +61,8 @@ class DirectoryScanner:
         """
         if directory is None:
             directory = self.workspace_path
-        
-        directory = os.path.abspath(directory)
+
+        directory = self.path_utils.normalize_path(directory)
         file_paths: List[str] = []
         skipped_count = 0
         
@@ -104,7 +81,7 @@ class DirectoryScanner:
             original_dirs = list(dirs)
             dirs[:] = []
             for d in original_dirs:
-                dir_path = os.path.join(root, d)
+                dir_path = self.path_utils.join_path(root, d)
                 if not self.ignore_manager.should_ignore_file(dir_path):
                     dirs.append(d)
                 else:
@@ -116,9 +93,9 @@ class DirectoryScanner:
                 files = [f for f in files if not self._should_skip_dot_file(f)]
 
             for file in files:
-                file_path = os.path.join(root, file)
-                rel_path = os.path.relpath(file_path, self.workspace_path)
-                rel_norm = os.path.normpath(rel_path)
+                file_path = self.path_utils.resolve_workspace_path(self.path_utils.join_path(root, file), self.workspace_path)
+                rel_path = self.path_utils.calculate_relative_path(file_path, self.workspace_path)
+                rel_norm = self.path_utils.normalize_path(rel_path)
 
                 # Check exclude list (normalized)
                 if rel_norm in excluded_relpaths:
@@ -145,14 +122,14 @@ class DirectoryScanner:
                     continue
                 
                 # Check extension support (case-insensitive)
-                _, ext = os.path.splitext(file.lower())
+                ext = self.path_utils.get_file_extension(file)
                 if ext not in ext_set:
                     logger.debug("Skipping file: %s (extension %s not in %s)", file_path, ext, ext_set)
                     skipped_count += 1
                     continue
                 
                 # Check if file is binary
-                if is_binary_file(file_path):
+                if self.file_processor.is_binary_file(file_path):
                     logger.debug("Skipping file: %s (binary)", file_path)
                     skipped_count += 1
                     continue

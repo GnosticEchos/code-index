@@ -12,7 +12,6 @@ def test_imports():
     """Test that all modules can be imported."""
     try:
         from code_index.config import Config
-        from code_index.utils import get_file_hash
         from code_index.cache import CacheManager
         from code_index.scanner import DirectoryScanner
         from code_index.parser import CodeParser, CodeBlock

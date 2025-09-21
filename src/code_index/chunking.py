@@ -10,8 +10,8 @@ from weakref import WeakValueDictionary
 
 from code_index.config import Config
 from code_index.models import CodeBlock
-from code_index.utils import get_file_hash
 from code_index.treesitter_queries import get_queries_for_language as get_ts_queries
+from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity, error_handler
 
 class TreeSitterError(Exception):
     """Base exception for Tree-sitter related errors."""
@@ -117,10 +117,14 @@ class TokenChunkingStrategy(ChunkingStrategy):
             if not chunks:
                 return []
             return self._map_chunks_with_lines(text, chunks, file_path, file_hash)
-        except Exception:
-            print(
-                "Warning: Token-based chunking requested but 'langchain-text-splitters' is not available; falling back to line-based splitting."
+        except Exception as e:
+            error_context = ErrorContext(
+                component="chunking",
+                operation="token_chunking",
+                file_path=file_path
             )
+            error_response = error_handler.handle_error(e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM)
+            print(f"Warning: {error_response.message}")
             return LineChunkingStrategy(self.config).chunk(text, file_path, file_hash)
 
     def _map_chunks_with_lines(
@@ -203,7 +207,18 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
             if blocks:
                 return blocks
             self._debug(f"No Tree-sitter blocks for {file_path} (lang={language_key}); fallback to line-based.")
-            print(f"Warning: Tree-sitter parsing failed for {file_path}, falling back to line-based splitting.")
+            error_context = ErrorContext(
+                component="chunking",
+                operation="tree_sitter_chunking",
+                file_path=file_path
+            )
+            error_response = error_handler.handle_error(
+                Exception("No Tree-sitter blocks found, falling back to line-based splitting"),
+                error_context,
+                ErrorCategory.PARSING,
+                ErrorSeverity.LOW
+            )
+            print(f"Warning: {error_response.message}")
             return LineChunkingStrategy(self.config).chunk(text, file_path, file_hash)
         except TreeSitterLanguageError as e:
             # Expected error for unsupported languages
@@ -215,12 +230,23 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
             return LineChunkingStrategy(self.config).chunk(text, file_path, file_hash)
         except TreeSitterError as e:
             # Other Tree-sitter specific errors
-            print(f"Warning: Tree-sitter parsing error for {file_path}: {e}")
+            error_context = ErrorContext(
+                component="chunking",
+                operation="tree_sitter_chunking",
+                file_path=file_path
+            )
+            error_response = error_handler.handle_error(e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM)
+            print(f"Warning: {error_response.message}")
             return LineChunkingStrategy(self.config).chunk(text, file_path, file_hash)
         except Exception as e:
             # Unexpected errors
-            print(f"Warning: Unexpected Tree-sitter parsing error for {file_path}: {e}")
-            traceback.print_exc()
+            error_context = ErrorContext(
+                component="chunking",
+                operation="tree_sitter_chunking",
+                file_path=file_path
+            )
+            error_response = error_handler.handle_error(e, error_context, ErrorCategory.PARSING, ErrorSeverity.HIGH)
+            print(f"Warning: {error_response.message}")
             return LineChunkingStrategy(self.config).chunk(text, file_path, file_hash)
 
     def chunk_batch(self, files: List[Dict[str, Any]]) -> Dict[str, List[CodeBlock]]:
@@ -261,12 +287,29 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
                         results[file_info['file_path']] = blocks
                     else:
                         self._debug(f"No Tree-sitter blocks for {file_info['file_path']} (lang={language_key}); fallback to line-based.")
-                        print(f"Warning: Tree-sitter parsing failed for {file_info['file_path']}, falling back to line-based splitting.")
+                        error_context = ErrorContext(
+                            component="chunking",
+                            operation="tree_sitter_batch_chunking",
+                            file_path=file_info['file_path']
+                        )
+                        error_response = error_handler.handle_error(
+                            Exception("No Tree-sitter blocks found in batch processing, falling back to line-based splitting"),
+                            error_context,
+                            ErrorCategory.PARSING,
+                            ErrorSeverity.LOW
+                        )
+                        print(f"Warning: {error_response.message}")
                         results[file_info['file_path']] = LineChunkingStrategy(self.config).chunk(
                             file_info['text'], file_info['file_path'], file_info['file_hash']
                         )
                 except TreeSitterError as e:
-                    print(f"Warning: Tree-sitter batch processing failed for {file_info['file_path']}: {e}")
+                    error_context = ErrorContext(
+                        component="chunking",
+                        operation="tree_sitter_batch_chunking",
+                        file_path=file_info['file_path']
+                    )
+                    error_response = error_handler.handle_error(e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM)
+                    print(f"Warning: {error_response.message}")
                     # Fallback to line-based in batch mode to avoid recursion
                     results[file_info['file_path']] = LineChunkingStrategy(self.config).chunk(
                         file_info['text'], file_info['file_path'], file_info['file_hash']
@@ -308,7 +351,18 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
 
             max_blocks = getattr(self.config, "tree_sitter_max_blocks_per_file", 100)
             if len(blocks) > max_blocks:
-                print(f"Warning: Limiting Tree-sitter blocks from {len(blocks)} to {max_blocks} for {file_path}")
+                error_context = ErrorContext(
+                    component="chunking",
+                    operation="tree_sitter_block_limiting",
+                    file_path=file_path
+                )
+                error_response = error_handler.handle_error(
+                    Exception(f"Limiting Tree-sitter blocks from {len(blocks)} to {max_blocks}"),
+                    error_context,
+                    ErrorCategory.CONFIGURATION,
+                    ErrorSeverity.LOW
+                )
+                print(f"Warning: {error_response.message}")
                 blocks = blocks[:max_blocks]
 
             return blocks
@@ -633,7 +687,13 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
             self._tree_sitter_parsers[language_key] = parser
             return parser
         except Exception as e:
-            print(f"Warning: Failed to load Tree-sitter parser for {language_key}: {e}")
+            error_context = ErrorContext(
+                component="chunking",
+                operation="tree_sitter_parser_loading",
+                metadata={"language_key": language_key}
+            )
+            error_response = error_handler.handle_error(e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM)
+            print(f"Warning: {error_response.message}")
             return None
 
     def cleanup_resources(self):
@@ -1044,11 +1104,25 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
             return blocks
 
         except TreeSitterQueryError as e:
-            print(f"Warning: Tree-sitter query execution failed: {e}")
+            error_context = ErrorContext(
+                component="chunking",
+                operation="tree_sitter_query_execution",
+                file_path=file_path,
+                metadata={"language_key": language_key}
+            )
+            error_response = error_handler.handle_error(e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM)
+            print(f"Warning: {error_response.message}")
             self._debug(f"Query error; using limited extraction for {file_path}")
             return self._extract_with_limits(root_node, text, file_path, file_hash, language_key)
         except Exception as e:
-            print(f"Warning: Efficient Tree-sitter extraction failed, falling back to limited extraction: {e}")
+            error_context = ErrorContext(
+                component="chunking",
+                operation="tree_sitter_efficient_extraction",
+                file_path=file_path,
+                metadata={"language_key": language_key}
+            )
+            error_response = error_handler.handle_error(e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM)
+            print(f"Warning: {error_response.message}")
             self._debug(f"Efficient extraction error; using limited extraction for {file_path}")
             return self._extract_with_limits(root_node, text, file_path, file_hash, language_key)
 
@@ -1086,7 +1160,13 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
             self._query_cache[language_key] = query
             return query
         except Exception as e:
-            print(f"Warning: Failed to compile Tree-sitter query for {language_key}: {e}")
+            error_context = ErrorContext(
+                component="chunking",
+                operation="tree_sitter_query_compilation",
+                metadata={"language_key": language_key}
+            )
+            error_response = error_handler.handle_error(e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM)
+            print(f"Warning: {error_response.message}")
             return None
 
     def _get_queries_for_language(self, language_key: str) -> Optional[str]:

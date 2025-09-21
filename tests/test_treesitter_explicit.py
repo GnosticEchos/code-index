@@ -66,8 +66,10 @@ if __name__ == "__main__":
             content = f.read()
         
         # Calculate file hash
-        from code_index.utils import get_file_hash
-        file_hash = get_file_hash(python_file)
+        from code_index.file_processing import FileProcessingService
+        from code_index.errors import ErrorHandler
+        file_processor = FileProcessingService(ErrorHandler("test"))
+        file_hash = file_processor.get_file_hash(python_file)
         
         # Test Tree-sitter chunking directly
         try:

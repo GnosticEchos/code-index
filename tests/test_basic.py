@@ -5,7 +5,8 @@ import os
 import tempfile
 import pytest
 from code_index.config import Config
-from code_index.utils import get_file_hash, is_binary_file, is_supported_file
+from code_index.file_processing import FileProcessingService
+from code_index.errors import ErrorHandler
 from code_index.cache import CacheManager
 
 
@@ -27,8 +28,10 @@ def test_file_hash():
         temp_file = f.name
     
     try:
+        # Initialize file processing service with error handler
+        file_processor = FileProcessingService(ErrorHandler("test"))
         # Calculate hash
-        file_hash = get_file_hash(temp_file)
+        file_hash = file_processor.get_file_hash(temp_file)
         assert isinstance(file_hash, str)
         assert len(file_hash) == 64  # SHA256 hash length
     finally:
@@ -49,11 +52,13 @@ def test_binary_file_detection():
         binary_file = f.name
     
     try:
+        # Initialize file processing service with error handler
+        file_processor = FileProcessingService(ErrorHandler("test"))
         # Text file should not be detected as binary
-        assert not is_binary_file(text_file)
+        assert not file_processor.is_binary_file(text_file)
         
         # Binary file should be detected as binary
-        assert is_binary_file(binary_file)
+        assert file_processor.is_binary_file(binary_file)
     finally:
         # Clean up
         os.unlink(text_file)
@@ -62,17 +67,19 @@ def test_binary_file_detection():
 
 def test_supported_files():
     """Test supported file detection."""
+    # Initialize file processing service with error handler
+    file_processor = FileProcessingService(ErrorHandler("test"))
     # Test supported files
-    assert is_supported_file("test.py")
-    assert is_supported_file("test.js")
-    assert is_supported_file("test.rs")
-    assert is_supported_file("test.vue")
-    assert is_supported_file("test.surql")
+    assert file_processor.is_supported_file("test.py")
+    assert file_processor.is_supported_file("test.js")
+    assert file_processor.is_supported_file("test.rs")
+    assert file_processor.is_supported_file("test.vue")
+    assert file_processor.is_supported_file("test.surql")
     
     # Test unsupported files
-    assert not is_supported_file("test.exe")
-    assert not is_supported_file("test.dll")
-    assert not is_supported_file("test.bin")
+    assert not file_processor.is_supported_file("test.exe")
+    assert not file_processor.is_supported_file("test.dll")
+    assert not file_processor.is_supported_file("test.bin")
 
 
 def test_cache_manager():

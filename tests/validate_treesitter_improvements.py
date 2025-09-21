@@ -28,7 +28,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from code_index.config import Config
 from code_index.parser import CodeParser
 from code_index.chunking import TreeSitterChunkingStrategy, LineChunkingStrategy
-from code_index.utils import get_file_hash
 
 
 class TreeSitterImprovementsTester:

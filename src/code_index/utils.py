@@ -16,20 +16,6 @@ def get_file_hash(file_path: str) -> str:
     return hash_sha256.hexdigest()
 
 
-def is_binary_file(file_path: str) -> bool:
-    """Check if a file is binary by reading a sample of its content."""
-    try:
-        with open(file_path, "rb") as f:
-            chunk = f.read(1024)
-            if b"\x00" in chunk:
-                return True
-            # Check if the chunk contains mostly printable characters
-            printable_chars = sum(1 for byte in chunk if 32 <= byte <= 126 or byte in (9, 10, 13))
-            return printable_chars / len(chunk) < 0.7 if chunk else False
-    except (IOError, OSError):
-        # If we can't read the file, assume it's binary
-        return True
-
 
 def load_gitignore_patterns(directory: str) -> Set[str]:
     """Load .gitignore patterns from a directory."""

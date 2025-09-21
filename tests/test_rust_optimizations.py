@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from code_index.config import Config
 from code_index.chunking import TreeSitterChunkingStrategy
-from code_index.utils import get_file_hash
 
 def test_rust_file_processing():
     """Test processing of Rust files with optimizations."""

@@ -5,9 +5,10 @@ import os
 import mmap
 from typing import List, Dict, Any, Optional
 from code_index.config import Config
-from code_index.utils import get_file_hash
 from code_index.chunking import ChunkingStrategy
 from code_index.models import CodeBlock
+from code_index.file_processing import FileProcessingService
+from code_index.errors import ErrorHandler
 
 
 class CodeParser:
@@ -33,7 +34,8 @@ class CodeParser:
             content = self._read_file_content(file_path)
             
             # Calculate file hash
-            file_hash = get_file_hash(file_path)
+            file_processor = FileProcessingService(ErrorHandler("parser"))
+            file_hash = file_processor.get_file_hash(file_path)
             
             # Choose chunking strategy
             return self.chunking_strategy.chunk(text=content, file_path=file_path, file_hash=file_hash)

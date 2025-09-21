@@ -4,13 +4,8 @@ Enhanced directory scanner with smart ignore pattern integration.
 import os
 from typing import List, Set, Tuple
 from code_index.config import Config
-from code_index.utils import (
-    is_binary_file,
-    load_gitignore_patterns,
-    matches_pattern,
-    normalize_path,
-    augment_extensions_with_pygments,
-)
+from code_index.file_processing import FileProcessingService
+from code_index.errors import ErrorHandler
 from code_index.smart_ignore_manager import SmartIgnoreManager
 
 
@@ -24,9 +19,12 @@ class EnhancedDirectoryScanner:
         
         # Initialize smart ignore manager
         self.ignore_manager = SmartIgnoreManager(
-            self.workspace_path, 
+            self.workspace_path,
             config=getattr(config, '__dict__', {})
         )
+        
+        # Initialize file processing service with error handler
+        self.file_processor = FileProcessingService(ErrorHandler("enhanced_scanner"))
     
     def _load_exclude_list(self) -> Set[str]:
         """Load exclude list as normalized relative paths from workspace root."""
@@ -63,9 +61,10 @@ class EnhancedDirectoryScanner:
         """Compute effective extension set with optional auto-augmentation."""
         base = [e.lower() for e in getattr(self.config, "extensions", [])]
         if getattr(self.config, "auto_extensions", False):
-            base = augment_extensions_with_pygments(base)
+            base = self.file_processor.augment_extensions_with_pygments(base)
         return set(base)
-def _should_skip_dot_file(self, name: str) -> bool:
+
+    def _should_skip_dot_file(self, name: str) -> bool:
         """Check if a file/directory should be skipped as a dot file."""
         if not getattr(self.config, 'skip_dot_files', True):
             return False
@@ -93,7 +92,7 @@ def _should_skip_dot_file(self, name: str) -> bool:
         skipped_count = 0
         
         # Load traditional ignore patterns and excludes
-        ignore_patterns = load_gitignore_patterns(directory)
+        ignore_patterns = self.file_processor.load_gitignore_patterns(directory)
         excluded_relpaths = self._load_exclude_list()
         ext_set = self._compute_extension_set()
         
@@ -104,7 +103,7 @@ def _should_skip_dot_file(self, name: str) -> bool:
                 dirs[:] = [d for d in dirs if not self._should_skip_dot_file(d)]
             
             # Remove ignored directories (traditional approach)
-            dirs[:] = [d for d in dirs if not matches_pattern(os.path.join(root, d), ignore_patterns, directory)]
+            dirs[:] = [d for d in dirs if not self.file_processor.matches_pattern(os.path.join(root, d), ignore_patterns, directory)]
             
             # Early filtering: remove dot files except .gitignore
             if getattr(self.config, 'skip_dot_files', True):
@@ -121,7 +120,7 @@ def _should_skip_dot_file(self, name: str) -> bool:
                     continue
 
                 # Check if file should be ignored by traditional .gitignore patterns
-                if matches_pattern(file_path, ignore_patterns, directory):
+                if self.file_processor.matches_pattern(file_path, ignore_patterns, directory):
                     skipped_count += 1
                     continue
                 
@@ -146,7 +145,7 @@ def _should_skip_dot_file(self, name: str) -> bool:
                     continue
                 
                 # Check if file is binary
-                if is_binary_file(file_path):
+                if self.file_processor.is_binary_file(file_path):
                     skipped_count += 1
                     continue
                 

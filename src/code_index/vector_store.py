@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional
 from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, MatchValue
 from code_index.config import Config
+from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 
 
 class QdrantVectorStore:
@@ -122,7 +123,13 @@ class QdrantVectorStore:
             )
         except Exception as e:
             # If we can't store metadata, continue without it
-            print(f"Warning: Could not store collection metadata: {e}")
+            error_context = ErrorContext(
+                component="vector_store",
+                operation="store_collection_metadata",
+                metadata={"collection_name": self.collection_name}
+            )
+            error_response = error_handler.handle_error(e, error_context, ErrorCategory.DATABASE, ErrorSeverity.LOW)
+            print(f"Warning: {error_response.message}")
             pass
 
     def initialize(self) -> bool:
@@ -298,7 +305,13 @@ class QdrantVectorStore:
                 points=point_structs
             )
         except Exception as e:
-            raise Exception(f"Failed to upsert points: {e}")
+            error_context = ErrorContext(
+                component="vector_store",
+                operation="upsert_points",
+                metadata={"collection_name": self.collection_name, "points_count": len(point_structs)}
+            )
+            error_response = error_handler.handle_error(e, error_context, ErrorCategory.DATABASE, ErrorSeverity.HIGH)
+            raise Exception(f"Failed to upsert points: {error_response.message}")
 
     def _is_payload_valid(self, payload: Dict[str, Any]) -> bool:
         """Check if payload is valid (KiloCode-compatible)."""
@@ -421,7 +434,13 @@ class QdrantVectorStore:
                 points_selector=Filter(must=must_conditions)
             )
         except Exception as e:
-            raise Exception(f"Failed to delete points by file path: {e}")
+            error_context = ErrorContext(
+                component="vector_store",
+                operation="delete_points_by_file_path",
+                metadata={"collection_name": self.collection_name, "file_path": file_path}
+            )
+            error_response = error_handler.handle_error(e, error_context, ErrorCategory.DATABASE, ErrorSeverity.MEDIUM)
+            raise Exception(f"Failed to delete points by file path: {error_response.message}")
 
     def clear_collection(self) -> None:
         """Clear all points from collection."""
@@ -431,7 +450,13 @@ class QdrantVectorStore:
                 points_selector=Filter()
             )
         except Exception as e:
-            raise Exception(f"Failed to clear collection: {e}")
+            error_context = ErrorContext(
+                component="vector_store",
+                operation="clear_collection",
+                metadata={"collection_name": self.collection_name}
+            )
+            error_response = error_handler.handle_error(e, error_context, ErrorCategory.DATABASE, ErrorSeverity.MEDIUM)
+            raise Exception(f"Failed to clear collection: {error_response.message}")
 
     def delete_collection(self) -> None:
         """Delete the entire collection."""

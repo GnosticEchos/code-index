@@ -10,6 +10,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from code_index.config import Config
 from code_index.parser import CodeParser
+from code_index.file_processing import FileProcessingService
+from code_index.errors import ErrorHandler
 
 
 def simple_treesitter_test():
@@ -46,8 +48,8 @@ def simple_treesitter_test():
             content = f.read()
         
         # Calculate file hash
-        from code_index.utils import get_file_hash
-        file_hash = get_file_hash(test_file)
+        file_processor = FileProcessingService(ErrorHandler("test"))
+        file_hash = file_processor.get_file_hash(test_file)
         
         # Test language key detection
         try:

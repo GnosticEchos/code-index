@@ -18,13 +18,18 @@ from code_index.vector_store import QdrantVectorStore
 from code_index.cache import CacheManager
 from code_index.collections import CollectionManager
 from code_index.collections_commands import list_collections, collection_info, delete_collection, prune_collections, clear_all_collections
-from code_index.utils import get_file_hash, is_binary_file, augment_extensions_with_pygments
 from code_index.chunking import (
     ChunkingStrategy,
     LineChunkingStrategy,
     TokenChunkingStrategy,
     TreeSitterChunkingStrategy,
 )
+from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from code_index.file_processing import FileProcessingService
+from code_index.path_utils import PathUtils
+
+# Global error handler instance
+error_handler = ErrorHandler()
 
 
 @click.group()
@@ -79,88 +84,50 @@ collections.add_command(clear_all_collections, name='clear-all')
 
 def _load_path_list(path_file: str, workspace: str) -> List[str]:
     """Load newline-separated paths; normalize to relpath from workspace. Ignore blank/comment lines."""
-    results: List[str] = []
-    if not path_file or not os.path.exists(path_file):
-        return results
-    try:
-        with open(path_file, "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                s = line.strip()
-                if not s or s.startswith("#"):
-                    continue
-                if os.path.isabs(s):
-                    rel = os.path.relpath(s, workspace)
-                else:
-                    rel = s
-                results.append(os.path.normpath(rel))
-    except (OSError, IOError):
-        return results
-    return results
+    # Initialize file processing service with error handler
+    file_processor = FileProcessingService(error_handler)
+    return file_processor.load_path_list(path_file, workspace, "load_path_list")
 
 
 def _load_workspace_list(workspace_list_file: str) -> List[str]:
     """Load workspace list file containing directory paths. Skip empty lines and comments."""
-    workspaces: List[str] = []
-    if not workspace_list_file or not os.path.exists(workspace_list_file):
-        return workspaces
-    
-    try:
-        with open(workspace_list_file, "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                # Validate that the path exists and is a directory
-                if os.path.exists(line) and os.path.isdir(line):
-                    workspaces.append(os.path.normpath(line))
-                else:
-                    print(f"Warning: Invalid directory path in workspace list: {line}")
-    except (OSError, IOError) as e:
-        print(f"Error reading workspace list file {workspace_list_file}: {e}")
-    
-    return workspaces
+    # Initialize file processing service with error handler
+    file_processor = FileProcessingService(error_handler)
+    return file_processor.load_workspace_list(workspace_list_file, "load_workspace_list")
 
 
 def _write_timeout_log(paths: Set[str], log_path: str) -> None:
     """Write unique, sorted list of timed-out file paths to log file."""
     if not log_path:
         return
-    # Ensure directory exists
-    os.makedirs(os.path.dirname(log_path) or ".", exist_ok=True)
+
+    # Initialize file processing service with error handler
+    file_processor = FileProcessingService(error_handler)
+
+    # Ensure directory exists using PathUtils
+    path_utils = PathUtils(error_handler)
+    log_dir = path_utils.normalize_path(os.path.dirname(log_path) or ".")
+    os.makedirs(log_dir, exist_ok=True)
+
     lines = sorted(paths)
     try:
+        # Use FileProcessingService to write the file
+        content = "\n".join(lines)
+        if lines:
+            content += "\n"
+
+        # Write file using FileProcessingService (we'll need to add this method)
         with open(log_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
-            if lines:
-                f.write("\n")
+            f.write(content)
     except (OSError, IOError):
         print(f"Warning: Could not write timeout log to {log_path}")
 
 
 def _load_exclude_list(workspace_path: str, exclude_files_path: str | None) -> Set[str]:
     """Load exclude list as normalized relative paths from workspace root."""
-    excluded: Set[str] = set()
-    if not exclude_files_path:
-        return excluded
-    exclude_file_path = exclude_files_path
-    if not os.path.isabs(exclude_file_path):
-        exclude_file_path = os.path.join(workspace_path, exclude_file_path)
-    if not os.path.exists(exclude_file_path):
-        return excluded
-    try:
-        with open(exclude_file_path, "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if os.path.isabs(line):
-                    rel = os.path.relpath(line, workspace_path)
-                else:
-                    rel = line
-                excluded.add(os.path.normpath(rel))
-    except (OSError, IOError):
-        return excluded
-    return excluded
+    # Initialize file processing service with error handler
+    file_processor = FileProcessingService(error_handler)
+    return file_processor.load_exclude_list(workspace_path, exclude_files_path, "load_exclude_list")
 
 
 @cli.command()
@@ -232,11 +199,14 @@ def index(workspace: str, config: str, workspacelist: str | None, embed_timeout:
 
 
 def _process_single_workspace(workspace: str, config: str, embed_timeout: int | None, retry_list: str | None,
-                             timeout_log: str | None, ignore_config: str | None, ignore_override_pattern: str | None,
-                             auto_ignore_detection: bool, use_tree_sitter: bool, chunking_strategy: str | None) -> tuple[int, int, int]:
+                              timeout_log: str | None, ignore_config: str | None, ignore_override_pattern: str | None,
+                              auto_ignore_detection: bool, use_tree_sitter: bool, chunking_strategy: str | None) -> tuple[int, int, int]:
     """Process a single workspace and return (processed_count, total_blocks, timed_out_files_count)."""
-    # Load configuration
-    if os.path.exists(config):
+    # Initialize FileProcessingService for this function
+    file_processor = FileProcessingService(error_handler)
+
+    # Load configuration using FileProcessingService
+    if file_processor.validate_file_path(config):
         cfg = Config.from_file(config)
     else:
         cfg = Config()
@@ -282,6 +252,9 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
     vector_store = QdrantVectorStore(cfg)
     cache_manager = CacheManager(cfg.workspace_path, cfg)
     
+    # Initialize PathUtils for centralized path operations
+    path_utils = PathUtils(error_handler, cfg.workspace_path)
+    
     # Validate configuration
     print("Validating configuration...")
     validation_result = embedder.validate_configuration()
@@ -297,7 +270,12 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
         vector_store.initialize()
         print("Vector store initialized.")
     except Exception as e:
-        print(f"Error initializing vector store: {e}")
+        error_context = ErrorContext(
+            component="cli",
+            operation="initialize_vector_store"
+        )
+        error_response = error_handler.handle_error(e, error_context, ErrorCategory.DATABASE, ErrorSeverity.CRITICAL)
+        print(f"Error: {error_response.message}")
         sys.exit(1)
     
     # If retry-list is supplied, process ONLY those paths and SKIP full workspace scan
@@ -310,40 +288,26 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
         excluded_relpaths = _load_exclude_list(cfg.workspace_path, getattr(cfg, "exclude_files_path", None))
         base_exts = [e.lower() for e in getattr(cfg, "extensions", [])]
         if getattr(cfg, "auto_extensions", False):
-            base_exts = augment_extensions_with_pygments(base_exts)
+            base_exts = file_processor.augment_extensions_with_pygments(base_exts)
         ext_set = set(base_exts)
 
-        chosen_abs: List[str] = []
-        for rel in retry_rel:
-            abs_candidate = rel if os.path.isabs(rel) else os.path.join(cfg.workspace_path, rel)
-            if not os.path.exists(abs_candidate):
-                print(f"Warning: retry-list file not found on disk, skipping: {rel}")
-                continue
-            rel_norm = os.path.normpath(os.path.relpath(abs_candidate, cfg.workspace_path))
-            # Respect exclude list
-            if rel_norm in excluded_relpaths:
-                continue
-            # Respect size limit
-            try:
-                if os.path.getsize(abs_candidate) > cfg.max_file_size_bytes:
-                    continue
-            except (OSError, IOError):
-                continue
-            # Respect extension filtering
-            _, ext = os.path.splitext(abs_candidate.lower())
-            if ext not in ext_set:
-                continue
-            # Skip binary files
-            if is_binary_file(abs_candidate):
-                continue
-            chosen_abs.append(abs_candidate)
+        # Filter files using centralized FileProcessingService
+        criteria = {
+            "workspace_path": cfg.workspace_path,
+            "exclude_patterns": excluded_relpaths,
+            "extensions": ext_set,
+            "max_file_size": cfg.max_file_size_bytes,
+            "skip_binary": True
+        }
+
+        chosen_abs = file_processor.filter_files_by_criteria(retry_rel, criteria)
 
         if not chosen_abs:
             print("No retry-list files to process after filtering.")
             return (0, 0, 0)
 
         file_paths = chosen_abs
-        bypass_cache_for = {os.path.normpath(os.path.relpath(p, cfg.workspace_path)) for p in chosen_abs}
+        bypass_cache_for = {path_utils.get_workspace_relative_path(p) or path_utils.normalize_path(p) for p in chosen_abs}
         print(f"Found {len(file_paths)} files from retry list to process")
     else:
         # Scan directory to get set of valid files (respects .gitignore/size/extensions/excludes)
@@ -360,18 +324,18 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
     
     with tqdm(total=len(file_paths), desc="Processing files") as pbar:
         for file_path in file_paths:
-            rel_path = os.path.normpath(os.path.relpath(file_path, cfg.workspace_path))
+            rel_path = path_utils.get_workspace_relative_path(file_path) or path_utils.normalize_path(file_path)
             try:
                 # Check if file has changed (unless bypassed due to retry-list)
                 if rel_path not in bypass_cache_for:
-                    current_hash = get_file_hash(file_path)
+                    current_hash = file_processor.get_file_hash(file_path)
                     cached_hash = cache_manager.get_hash(file_path)
                     if current_hash == cached_hash:
                         # File hasn't changed, skip processing
                         pbar.update(1)
                         continue
                 else:
-                    current_hash = get_file_hash(file_path)
+                    current_hash = file_processor.get_file_hash(file_path)
 
                 # Parse file into blocks
                 blocks = parser.parse_file(file_path)
@@ -404,7 +368,13 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
                         print(f"Timeout: Embedding request timed out for {rel_path}")
                         break
                     except Exception as e:
-                        print(f"Warning: Failed to embed batch for {rel_path}: {e}")
+                        error_context = ErrorContext(
+                            component="cli",
+                            operation="embed_batch",
+                            file_path=rel_path
+                        )
+                        error_response = error_handler.handle_network_error(e, error_context, "Ollama")
+                        print(f"Warning: {error_response.message}")
                         embedding_failed = True
                         break
 
@@ -452,7 +422,13 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
                         pbar.update(1)
                         continue
                     else:
-                        print(f"Warning: Failed to upsert points for {rel_path}: {e}")
+                        error_context = ErrorContext(
+                            component="cli",
+                            operation="upsert_points",
+                            file_path=rel_path
+                        )
+                        error_response = error_handler.handle_error(e, error_context, ErrorCategory.DATABASE, ErrorSeverity.MEDIUM)
+                        print(f"Warning: {error_response.message}")
                         # Do not cache, allow retry on next run
                         pbar.update(1)
                         continue
@@ -466,16 +442,20 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
                 pbar.set_postfix({"blocks": total_blocks})
                 
             except Exception as e:
-                print(f"Warning: Failed to process file {rel_path}: {e}")
+                error_context = ErrorContext(
+                    component="cli",
+                    operation="process_file",
+                    file_path=rel_path
+                )
+                error_response = error_handler.handle_file_error(e, error_context, "file_processing")
+                print(f"Warning: {error_response.message}")
                 pbar.update(1)
     
     # Write timeout log if any
     timeout_log_path = cfg.timeout_log_path
     if timeout_log_path and timed_out_files:
-        # Normalize log path to absolute
-        log_path_abs = timeout_log_path
-        if not os.path.isabs(log_path_abs):
-            log_path_abs = os.path.join(cfg.workspace_path, timeout_log_path)
+        # Normalize log path to absolute using PathUtils
+        log_path_abs = path_utils.resolve_path(timeout_log_path) or path_utils.join_path(cfg.workspace_path, timeout_log_path)
         _write_timeout_log(timed_out_files, log_path_abs)
 
     print(f"Processed {processed_count} files with {total_blocks} code blocks.")
@@ -495,8 +475,9 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
 @click.argument('query')
 def search(workspace: str, config: str, min_score: float, max_results: int, json_output: bool, query: str):
     """Search indexed code using semantic similarity."""
-    # Load configuration
-    if os.path.exists(config):
+    # Load configuration using FileProcessingService
+    file_processor = FileProcessingService(error_handler)
+    if file_processor.validate_file_path(config):
         cfg = Config.from_file(config)
     else:
         cfg = Config()

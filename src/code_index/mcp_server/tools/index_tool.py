@@ -15,6 +15,8 @@ from ...config import Config
 from ..core.config_manager import MCPConfigurationManager
 from ..core.operation_estimator import OperationEstimator
 from ..core.progress_reporter import ProgressReporter
+from ...file_processing import FileProcessingService
+from ...errors import ErrorHandler
 
 
 class IndexToolValidator:
@@ -611,7 +613,8 @@ async def _execute_indexing(
     from ...embedder import OllamaEmbedder
     from ...vector_store import QdrantVectorStore
     from ...cache import CacheManager
-    from ...utils import get_file_hash, is_binary_file
+    from ...file_processing import FileProcessingService
+    from ...errors import ErrorHandler
     from ...chunking import (
         LineChunkingStrategy,
         TokenChunkingStrategy,
@@ -710,7 +713,8 @@ async def _execute_indexing(
                 
                 try:
                     # Check if file has changed
-                    current_hash = get_file_hash(file_path)
+                    file_processor = FileProcessingService(ErrorHandler("mcp_index"))
+                    current_hash = file_processor.get_file_hash(file_path)
                     cached_hash = cache_manager.get_hash(file_path)
                     if current_hash == cached_hash:
                         # File hasn't changed, skip processing
