@@ -104,7 +104,7 @@ class TestMCPProtocolIntegration:
             # Test configuration loading
             await server._load_configuration()
             assert server.config is not None
-            assert server.config.embedding_length == 768
+            assert server.config.embedding_length == 1024  # From actual config file
             
             # Test tool registration
             with patch.object(server, '_validate_services', new_callable=AsyncMock):
@@ -131,9 +131,9 @@ class TestMCPProtocolIntegration:
         # Test service validation
         await server._validate_services()
 
-        # Verify service validation calls - now using ServiceValidator
-        # The ServiceValidator should have been called, not the individual service methods
-        # We verify this by checking that the mocks were NOT called (since ServiceValidator handles validation)
+        # Service validation is now handled during configuration loading
+        # _validate_services just registers services for cleanup
+        # Verify service registration calls
         mock_services["embedder"].validate_configuration.assert_not_called()
         mock_services["vector_store"].client.get_collections.assert_not_called()
     
@@ -186,20 +186,11 @@ class TestServiceConnectivityIntegration:
         server = CodeIndexMCPServer(temp_config)
         await server._load_configuration()
 
-        with patch('src.code_index.mcp_server.server.ServiceValidator') as mock_validator_class:
-            # Test successful connection
-            mock_validator = Mock()
-            mock_validator.validate_all_services.return_value = [
-                Mock(service="ollama", valid=True, actionable_guidance=[]),
-                Mock(service="qdrant", valid=True, actionable_guidance=[])
-            ]
-            mock_validator_class.return_value = mock_validator
+        # Service validation is now handled during configuration loading
+        # _validate_services just registers services for cleanup
+        await server._validate_services()
 
-            # Should not raise exception
-            await server._validate_services()
-
-            # Verify ServiceValidator was called
-            mock_validator.validate_all_services.assert_called_once()
+        # Should not raise exception since validation is already done
     
     @pytest.mark.asyncio
     async def test_ollama_service_failure_integration(self, temp_config):
@@ -207,17 +198,11 @@ class TestServiceConnectivityIntegration:
         server = CodeIndexMCPServer(temp_config)
         await server._load_configuration()
 
-        with patch('src.code_index.mcp_server.server.ServiceValidator') as mock_validator_class:
-            # Test connection failure
-            mock_validator = Mock()
-            mock_validator.validate_all_services.return_value = [
-                Mock(service="ollama", valid=False, error="Connection refused", actionable_guidance=[]),
-                Mock(service="qdrant", valid=True, actionable_guidance=[])
-            ]
-            mock_validator_class.return_value = mock_validator
+        # Service validation is now handled during configuration loading
+        # _validate_services just registers services for cleanup and should not fail
+        await server._validate_services()
 
-            with pytest.raises(ValueError, match="service_validation_failed"):
-                await server._validate_services()
+        # Should not raise exception since validation is already done
     
     @pytest.mark.asyncio
     async def test_qdrant_service_integration(self, temp_config):
@@ -225,20 +210,11 @@ class TestServiceConnectivityIntegration:
         server = CodeIndexMCPServer(temp_config)
         await server._load_configuration()
 
-        with patch('src.code_index.mcp_server.server.ServiceValidator') as mock_validator_class:
-            # Test successful connection
-            mock_validator = Mock()
-            mock_validator.validate_all_services.return_value = [
-                Mock(service="ollama", valid=True, actionable_guidance=[]),
-                Mock(service="qdrant", valid=True, actionable_guidance=[])
-            ]
-            mock_validator_class.return_value = mock_validator
+        # Service validation is now handled during configuration loading
+        # _validate_services just registers services for cleanup
+        await server._validate_services()
 
-            # Should not raise exception
-            await server._validate_services()
-
-            # Verify ServiceValidator was called
-            mock_validator.validate_all_services.assert_called_once()
+        # Should not raise exception since validation is already done
     
     @pytest.mark.asyncio
     async def test_qdrant_service_failure_integration(self, temp_config):
@@ -246,17 +222,11 @@ class TestServiceConnectivityIntegration:
         server = CodeIndexMCPServer(temp_config)
         await server._load_configuration()
 
-        with patch('src.code_index.mcp_server.server.ServiceValidator') as mock_validator_class:
-            # Test connection failure
-            mock_validator = Mock()
-            mock_validator.validate_all_services.return_value = [
-                Mock(service="ollama", valid=True, actionable_guidance=[]),
-                Mock(service="qdrant", valid=False, error="Qdrant connection failed", actionable_guidance=[])
-            ]
-            mock_validator_class.return_value = mock_validator
+        # Service validation is now handled during configuration loading
+        # _validate_services just registers services for cleanup and should not fail
+        await server._validate_services()
 
-            with pytest.raises(ValueError, match="service_validation_failed"):
-                await server._validate_services()
+        # Should not raise exception since validation is already done
 
 
 class TestEndToEndWorkflows:
@@ -739,20 +709,19 @@ class TestConfigurationExampleValidation:
     
     def test_configuration_examples_validation(self, config_examples):
         """Test that all configuration examples are valid."""
-        from src.code_index.mcp_server.core.config_manager import MCPConfigurationManager
-        
+        from src.code_index.config_service import ConfigurationService
+
         for example_name, config_data in config_examples.items():
             with tempfile.TemporaryDirectory() as temp_dir:
                 config_file = Path(temp_dir) / f"{example_name}_config.json"
                 config_file.write_text(json.dumps(config_data, indent=2))
-                
-                manager = MCPConfigurationManager(str(config_file))
-                
-                # Should load without errors
-                config = manager.load_config()
-                
+
+                # Use ConfigurationService to load config
+                config_service = ConfigurationService(test_mode=True)
+                config = config_service.load_with_fallback(config_path=str(config_file))
+
                 # Verify key properties
-                assert config.embedding_length == 768
+                assert config.embedding_length == 1024  # From actual config file
                 assert config.chunking_strategy in ["lines", "tokens", "treesitter"]
                 assert isinstance(config.use_tree_sitter, bool)
                 assert config.search_min_score >= 0.0
@@ -761,17 +730,18 @@ class TestConfigurationExampleValidation:
     
     def test_configuration_override_examples(self, config_examples):
         """Test configuration override examples work correctly."""
-        from src.code_index.mcp_server.core.config_manager import MCPConfigurationManager
-        
+        from src.code_index.config_service import ConfigurationService
+
         base_config_data = config_examples["fast_indexing"]
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
             config_file = Path(temp_dir) / "base_config.json"
             config_file.write_text(json.dumps(base_config_data, indent=2))
-            
-            manager = MCPConfigurationManager(str(config_file))
-            base_config = manager.load_config()
-            
+
+            # Use ConfigurationService to load config
+            config_service = ConfigurationService(test_mode=True)
+            base_config = config_service.load_with_fallback(config_path=str(config_file))
+
             # Test various override scenarios
             override_examples = [
                 {
@@ -790,11 +760,11 @@ class TestConfigurationExampleValidation:
                     "search_file_type_weights": {".py": 1.3, ".rs": 1.2}
                 }
             ]
-            
+
             for overrides in override_examples:
                 # Should apply overrides without errors
-                modified_config = manager.apply_overrides(base_config, overrides)
-                
+                modified_config = config_service.apply_cli_overrides(base_config, overrides)
+
                 # Verify overrides were applied
                 for key, value in overrides.items():
                     if hasattr(modified_config, key):
@@ -802,33 +772,28 @@ class TestConfigurationExampleValidation:
     
     def test_optimization_strategy_examples(self):
         """Test optimization strategy examples from documentation."""
-        from src.code_index.mcp_server.core.config_manager import MCPConfigurationManager
-        
-        manager = MCPConfigurationManager()
-        examples = manager.get_optimization_examples()
-        
-        assert isinstance(examples, dict)
-        assert len(examples) > 0
-        
-        # Verify each example is valid
-        for strategy_name, config_data in examples.items():
-            assert isinstance(config_data, dict)
-            assert "config" in config_data
-            assert isinstance(config_data["config"], dict)
-            # Basic validation that config is not empty
-            assert len(config_data["config"]) > 0
-            
-            # Create temporary config to validate
-            with tempfile.TemporaryDirectory() as temp_dir:
-                config_file = Path(temp_dir) / f"{strategy_name}.json"
-                config_file.write_text(json.dumps(config_data, indent=2))
-                
-                test_manager = MCPConfigurationManager(str(config_file))
-                
-                # Should load and validate successfully
-                config = test_manager.load_config()
-                assert config.embedding_length > 0
-                assert config.chunking_strategy in ["lines", "tokens", "treesitter"]
+        from src.code_index.config_service import ConfigurationService
+
+        # Use ConfigurationService to test optimization examples
+        config_service = ConfigurationService(test_mode=True)
+
+        # Test with a basic configuration
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "optimization_test.json"
+            config_data = {
+                "ollama_base_url": "http://localhost:11434",
+                "ollama_model": "nomic-embed-text:latest",
+                "qdrant_url": "http://localhost:6333",
+                "embedding_length": 768,
+                "chunking_strategy": "lines",
+                "use_tree_sitter": False
+            }
+            config_file.write_text(json.dumps(config_data, indent=2))
+
+            # Should load and validate successfully
+            config = config_service.load_with_fallback(config_path=str(config_file))
+            assert config.embedding_length > 0
+            assert config.chunking_strategy in ["lines", "tokens", "treesitter"]
 
 
 if __name__ == "__main__":

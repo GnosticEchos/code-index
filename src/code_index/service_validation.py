@@ -297,7 +297,7 @@ class ServiceValidator:
             guidance = [
                 "Check Ollama service logs for detailed errors",
                 "Verify API endpoint compatibility",
-                "Test with curl: curl http://localhost:11434/api/tags",
+                f"Test with curl: curl {base_url}/api/tags",
                 "Restart Ollama service if necessary"
             ]
 

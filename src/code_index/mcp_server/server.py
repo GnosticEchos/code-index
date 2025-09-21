@@ -10,12 +10,55 @@ import sys
 import logging
 from typing import Optional
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from fastmcp import FastMCP
 from ..config import Config
+from ..config_service import ConfigurationService
 from ..service_validation import ServiceValidator
 from .core.config_manager import MCPConfigurationManager
 from .core.error_handler import error_handler
+
+
+class MCPErrorHandlerAdapter:
+    """Adapter to make MCPErrorHandler compatible with ErrorHandler interface."""
+
+    def __init__(self, mcp_error_handler):
+        self.mcp_error_handler = mcp_error_handler
+
+    def handle_error(self, error, context, category=None, severity=None, include_stack_trace=True):
+        """Adapt MCPErrorHandler methods to ErrorHandler interface."""
+        # Map ErrorCategory to MCP error handling methods
+        if category and hasattr(category, 'value'):
+            category_str = category.value
+        else:
+            category_str = "unknown"
+
+        # Use appropriate MCP error handler method based on category
+        if category_str == "configuration":
+            response = self.mcp_error_handler.handle_configuration_error(error, context.additional_data if context.additional_data else {})
+        elif category_str == "network":
+            response = self.mcp_error_handler.handle_service_connection_error(
+                context.additional_data.get("service", "unknown") if context.additional_data else "unknown",
+                error,
+                context.additional_data if context.additional_data else {}
+            )
+        else:
+            response = self.mcp_error_handler.handle_unknown_error(error, context.additional_data if context.additional_data else {})
+
+        # Convert MCP response to ErrorResponse format
+        from ..errors import ErrorResponse, ErrorCategory, ErrorSeverity
+        return ErrorResponse(
+            error=True,
+            error_type=type(error).__name__,
+            category=category or ErrorCategory.UNKNOWN,
+            severity=severity or ErrorSeverity.MEDIUM,
+            message=response.get("message", str(error)),
+            context=context,
+            timestamp=datetime.now(),
+            recovery_suggestions=[],
+            actionable_guidance=response.get("actionable_guidance", [])
+        )
 from .core.resource_manager import resource_manager
 
 
@@ -131,10 +174,20 @@ class CodeIndexMCPServer:
             self.logger.error(f"Error cleaning up server resources: {e}")
     
     async def _load_configuration(self) -> None:
-        """Load and validate configuration."""
+        """Load and validate configuration using centralized ConfigurationService."""
         try:
-            self.config = self.config_manager.load_config()
-            self.logger.info("Configuration loaded and validated successfully")
+            # Initialize ConfigurationService for centralized configuration management
+            # Use adapter to make MCPErrorHandler compatible with ErrorHandler interface
+            error_adapter = MCPErrorHandlerAdapter(error_handler)
+            config_service = ConfigurationService(error_adapter)
+
+            # Load configuration with fallback mechanisms
+            self.config = config_service.load_with_fallback(
+                config_path=self.config_path,
+                workspace_path="."
+            )
+
+            self.logger.info("Configuration loaded and validated successfully using ConfigurationService")
         except ValueError as e:
             error_response = error_handler.handle_configuration_error(e, {"config_file": self.config_path})
             self.logger.error(f"Configuration validation failed: {error_response['message']}")
@@ -175,45 +228,8 @@ class CodeIndexMCPServer:
         if not self.config:
             raise ValueError("Configuration must be loaded before validating services")
 
-        # Use centralized ServiceValidator
-        service_validator = ServiceValidator(error_handler)
-        validation_results = service_validator.validate_all_services(self.config)
-
-        # Check for validation failures
-        failed_validations = [result for result in validation_results if not result.valid]
-
-        if failed_validations:
-            # Log validation failures with detailed information
-            self.logger.error("Service validation failed:")
-            for result in failed_validations:
-                self.logger.error(f"  - {result.service}: {result.error}")
-                if result.actionable_guidance:
-                    for guidance in result.actionable_guidance:
-                        self.logger.error(f"    Guidance: {guidance}")
-
-            # Combine all validation errors into a single structured response
-            combined_error = {
-                "error": True,
-                "error_type": "service_validation_failed",
-                "message": "One or more services failed validation",
-                "validation_results": [result.to_dict() for result in validation_results],
-                "failed_services": [result.service for result in failed_validations],
-                "actionable_guidance": [
-                    "Check that all required services are running",
-                    "Verify service URLs and authentication in configuration",
-                    "Review individual service errors for specific guidance"
-                ]
-            }
-
-            self.logger.error(f"Service validation failed: {combined_error['message']}")
-            raise ValueError(str(combined_error))
-
-        # Log successful validations
-        for result in validation_results:
-            if result.valid:
-                self.logger.info(f"{result.service} service validation successful ({result.response_time_ms}ms)")
-
-        # Register service connections for cleanup
+        # ConfigurationService handles validation internally, so services are already validated
+        # Just register service connections for cleanup
         try:
             from ..embedder import OllamaEmbedder
             from ..vector_store import QdrantVectorStore

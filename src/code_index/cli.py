@@ -11,6 +11,7 @@ from typing import List, Set
 from requests.exceptions import ReadTimeout
 
 from code_index.config import Config
+from code_index.config_service import ConfigurationService
 from code_index.scanner import DirectoryScanner
 from code_index.parser import CodeParser
 from code_index.embedder import OllamaEmbedder
@@ -200,39 +201,36 @@ def index(workspace: str, config: str, workspacelist: str | None, embed_timeout:
 
 
 def _process_single_workspace(workspace: str, config: str, embed_timeout: int | None, retry_list: str | None,
-                              timeout_log: str | None, ignore_config: str | None, ignore_override_pattern: str | None,
-                              auto_ignore_detection: bool, use_tree_sitter: bool, chunking_strategy: str | None) -> tuple[int, int, int]:
+                               timeout_log: str | None, ignore_config: str | None, ignore_override_pattern: str | None,
+                               auto_ignore_detection: bool, use_tree_sitter: bool, chunking_strategy: str | None) -> tuple[int, int, int]:
     """Process a single workspace and return (processed_count, total_blocks, timed_out_files_count)."""
-    # Initialize FileProcessingService for this function
-    file_processor = FileProcessingService(error_handler)
+    # Initialize ConfigurationService for centralized configuration management
+    config_service = ConfigurationService(error_handler)
 
-    # Load configuration using FileProcessingService
-    if file_processor.validate_file_path(config):
-        cfg = Config.from_file(config)
-    else:
-        cfg = Config()
-        cfg.workspace_path = workspace
-        cfg.save(config)
-    
-    # Update workspace path if specified
-    if workspace != '.':
-        cfg.workspace_path = workspace
-
-    # Apply CLI overrides
+    # Prepare CLI overrides
+    cli_overrides = {}
     if embed_timeout is not None:
-        try:
-            cfg.embed_timeout_seconds = int(embed_timeout)
-        except ValueError:
-            pass
+        cli_overrides['embed_timeout_seconds'] = embed_timeout
     if timeout_log:
-        cfg.timeout_log_path = timeout_log
-    
-    # Apply ignore-related CLI overrides
+        cli_overrides['timeout_log_path'] = timeout_log
     if ignore_config:
-        cfg.ignore_config_path = ignore_config
+        cli_overrides['ignore_config_path'] = ignore_config
     if ignore_override_pattern:
-        cfg.ignore_override_pattern = ignore_override_pattern
-    cfg.auto_ignore_detection = auto_ignore_detection
+        cli_overrides['ignore_override_pattern'] = ignore_override_pattern
+    if auto_ignore_detection is not None:
+        cli_overrides['auto_ignore_detection'] = auto_ignore_detection
+    if use_tree_sitter:
+        cli_overrides['use_tree_sitter'] = True
+        cli_overrides['chunking_strategy'] = 'treesitter'
+    elif chunking_strategy:
+        cli_overrides['chunking_strategy'] = chunking_strategy
+
+    # Load configuration with fallback and CLI overrides
+    cfg = config_service.load_with_fallback(
+        config_path=config,
+        workspace_path=workspace,
+        overrides=cli_overrides
+    )
 
     # Determine chunking strategy
     strategy_name = chunking_strategy or getattr(cfg, "chunking_strategy", "lines")
@@ -256,22 +254,7 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
     # Initialize PathUtils for centralized path operations
     path_utils = PathUtils(error_handler, cfg.workspace_path)
 
-    # Validate services using centralized ServiceValidator
-    print("Validating services...")
-    service_validator = ServiceValidator(error_handler)
-    validation_results = service_validator.validate_all_services(cfg)
-
-    # Check for validation failures
-    failed_validations = [result for result in validation_results if not result.valid]
-    if failed_validations:
-        print("Service validation failed:")
-        for result in failed_validations:
-            print(f"  - {result.service}: {result.error}")
-            if result.actionable_guidance:
-                print(f"    Guidance: {result.actionable_guidance[0]}")
-        sys.exit(1)
-
-    print("All services validated successfully.")
+    # ConfigurationService handles validation internally, so services are already validated
     
     # Initialize vector store (will fail fast if embedding_length missing)
     print("Initializing vector store...")
@@ -484,42 +467,28 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
 @click.argument('query')
 def search(workspace: str, config: str, min_score: float, max_results: int, json_output: bool, query: str):
     """Search indexed code using semantic similarity."""
-    # Load configuration using FileProcessingService
-    file_processor = FileProcessingService(error_handler)
-    if file_processor.validate_file_path(config):
-        cfg = Config.from_file(config)
-    else:
-        cfg = Config()
-        cfg.workspace_path = workspace
-        cfg.save(config)
-    
-    # Update workspace path if specified
-    if workspace != '.':
-        cfg.workspace_path = workspace
-    
-    # Apply CLI overrides
+    # Initialize ConfigurationService for centralized configuration management
+    config_service = ConfigurationService(error_handler)
+
+    # Prepare CLI overrides for search parameters
+    cli_overrides = {}
     if min_score is not None:
-        cfg.search_min_score = min_score
+        cli_overrides['search_min_score'] = min_score
     if max_results is not None:
-        cfg.search_max_results = max_results
+        cli_overrides['search_max_results'] = max_results
+
+    # Load configuration with fallback and CLI overrides
+    cfg = config_service.load_with_fallback(
+        config_path=config,
+        workspace_path=workspace,
+        overrides=cli_overrides
+    )
     
     # Initialize components
     embedder = OllamaEmbedder(cfg)
     vector_store = QdrantVectorStore(cfg)
 
-    # Validate services using centralized ServiceValidator
-    service_validator = ServiceValidator(error_handler)
-    validation_results = service_validator.validate_all_services(cfg)
-
-    # Check for validation failures
-    failed_validations = [result for result in validation_results if not result.valid]
-    if failed_validations:
-        print("Service validation failed:")
-        for result in failed_validations:
-            print(f"  - {result.service}: {result.error}")
-            if result.actionable_guidance:
-                print(f"    Guidance: {result.actionable_guidance[0]}")
-        sys.exit(1)
+    # ConfigurationService handles validation internally, so services are already validated
     
     # Generate query embedding
     try:
