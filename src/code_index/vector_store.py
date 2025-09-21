@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, MatchValue
 from code_index.config import Config
-from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity, error_handler
 from code_index.service_validation import ValidationResult
 
 # Conditional import for Qdrant client
@@ -433,7 +433,7 @@ class QdrantVectorStore:
             error_context = ErrorContext(
                 component="vector_store",
                 operation="upsert_points",
-                metadata={"collection_name": self.collection_name, "points_count": len(point_structs)}
+                additional_data={"collection_name": self.collection_name, "points_count": len(point_structs)}
             )
             error_response = error_handler.handle_error(e, error_context, ErrorCategory.DATABASE, ErrorSeverity.HIGH)
             raise Exception(f"Failed to upsert points: {error_response.message}")
@@ -562,7 +562,7 @@ class QdrantVectorStore:
             error_context = ErrorContext(
                 component="vector_store",
                 operation="delete_points_by_file_path",
-                metadata={"collection_name": self.collection_name, "file_path": file_path}
+                additional_data={"collection_name": self.collection_name, "file_path": file_path}
             )
             error_response = error_handler.handle_error(e, error_context, ErrorCategory.DATABASE, ErrorSeverity.MEDIUM)
             raise Exception(f"Failed to delete points by file path: {error_response.message}")
@@ -578,7 +578,7 @@ class QdrantVectorStore:
             error_context = ErrorContext(
                 component="vector_store",
                 operation="clear_collection",
-                metadata={"collection_name": self.collection_name}
+                additional_data={"collection_name": self.collection_name}
             )
             error_response = error_handler.handle_error(e, error_context, ErrorCategory.DATABASE, ErrorSeverity.MEDIUM)
             raise Exception(f"Failed to clear collection: {error_response.message}")

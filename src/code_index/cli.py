@@ -29,6 +29,7 @@ from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSe
 from code_index.file_processing import FileProcessingService
 from code_index.path_utils import PathUtils
 from code_index.service_validation import ServiceValidator
+from code_index.services import IndexingService
 
 # Global error handler instance
 error_handler = ErrorHandler()
@@ -201,9 +202,9 @@ def index(workspace: str, config: str, workspacelist: str | None, embed_timeout:
 
 
 def _process_single_workspace(workspace: str, config: str, embed_timeout: int | None, retry_list: str | None,
-                               timeout_log: str | None, ignore_config: str | None, ignore_override_pattern: str | None,
-                               auto_ignore_detection: bool, use_tree_sitter: bool, chunking_strategy: str | None) -> tuple[int, int, int]:
-    """Process a single workspace and return (processed_count, total_blocks, timed_out_files_count)."""
+                                timeout_log: str | None, ignore_config: str | None, ignore_override_pattern: str | None,
+                                auto_ignore_detection: bool, use_tree_sitter: bool, chunking_strategy: str | None) -> tuple[int, int, int]:
+    """Process a single workspace using IndexingService and return (processed_count, total_blocks, timed_out_files_count)."""
     # Initialize ConfigurationService for centralized configuration management
     config_service = ConfigurationService(error_handler)
 
@@ -232,230 +233,45 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
         overrides=cli_overrides
     )
 
-    # Determine chunking strategy
-    strategy_name = chunking_strategy or getattr(cfg, "chunking_strategy", "lines")
-    if use_tree_sitter:
-        strategy_name = "treesitter"
+    # Initialize IndexingService
+    indexing_service = IndexingService(error_handler)
 
-    if strategy_name == "treesitter":
-        chunking_strategy_impl = TreeSitterChunkingStrategy(cfg)
-    elif strategy_name == "tokens":
-        chunking_strategy_impl = TokenChunkingStrategy(cfg)
+    # Execute indexing using the service
+    result = indexing_service.index_workspace(workspace, cfg)
+
+    # Display results
+    if result.is_successful():
+        print(f"Successfully processed {result.processed_files} files with {result.total_blocks} code blocks.")
     else:
-        chunking_strategy_impl = LineChunkingStrategy(cfg)
+        print(f"Indexing completed with errors: {len(result.errors)} errors")
+        for error in result.errors[:5]:  # Show first 5 errors
+            print(f"  - {error}")
+        if len(result.errors) > 5:
+            print(f"  ... and {len(result.errors) - 5} more errors")
 
-    # Initialize components (embedder will read updated cfg)
-    scanner = DirectoryScanner(cfg)
-    parser = CodeParser(cfg, chunking_strategy_impl)
-    embedder = OllamaEmbedder(cfg)
-    vector_store = QdrantVectorStore(cfg)
-    cache_manager = CacheManager(cfg.workspace_path, cfg)
-    
-    # Initialize PathUtils for centralized path operations
-    path_utils = PathUtils(error_handler, cfg.workspace_path)
+    if result.has_warnings():
+        print(f"Warnings: {len(result.warnings)} warnings")
+        for warning in result.warnings[:3]:  # Show first 3 warnings
+            print(f"  - {warning}")
+        if len(result.warnings) > 3:
+            print(f"  ... and {len(result.warnings) - 3} more warnings")
 
-    # ConfigurationService handles validation internally, so services are already validated
-    
-    # Initialize vector store (will fail fast if embedding_length missing)
-    print("Initializing vector store...")
-    try:
-        vector_store.initialize()
-        print("Vector store initialized.")
-    except Exception as e:
-        error_context = ErrorContext(
-            component="cli",
-            operation="initialize_vector_store"
-        )
-        error_response = error_handler.handle_error(e, error_context, ErrorCategory.DATABASE, ErrorSeverity.CRITICAL)
-        print(f"Error: {error_response.message}")
-        sys.exit(1)
-    
-    # If retry-list is supplied, process ONLY those paths and SKIP full workspace scan
-    bypass_cache_for: Set[str] = set()
-    if retry_list:
-        print(f"Using retry list: {retry_list} (skipping workspace scan)")
-        retry_rel = _load_path_list(retry_list, cfg.workspace_path)
+    if result.timed_out_files:
+        print(f"Timeouts: {len(result.timed_out_files)} file(s) timed out")
 
-        # Load excludes and effective extensions (with optional auto-augmentation)
-        excluded_relpaths = _load_exclude_list(cfg.workspace_path, getattr(cfg, "exclude_files_path", None))
-        base_exts = [e.lower() for e in getattr(cfg, "extensions", [])]
-        if getattr(cfg, "auto_extensions", False):
-            base_exts = file_processor.augment_extensions_with_pygments(base_exts)
-        ext_set = set(base_exts)
+        # Write timeout log if specified
+        if timeout_log:
+            # Normalize log path to absolute using PathUtils
+            path_utils = PathUtils(error_handler, cfg.workspace_path)
+            log_path_abs = path_utils.resolve_path(timeout_log) or path_utils.join_path(cfg.workspace_path, timeout_log)
+            _write_timeout_log(set(result.timed_out_files), log_path_abs)
+            print(f"Timeout log written to: {log_path_abs}")
 
-        # Filter files using centralized FileProcessingService
-        criteria = {
-            "workspace_path": cfg.workspace_path,
-            "exclude_patterns": excluded_relpaths,
-            "extensions": ext_set,
-            "max_file_size": cfg.max_file_size_bytes,
-            "skip_binary": True
-        }
-
-        chosen_abs = file_processor.filter_files_by_criteria(retry_rel, criteria)
-
-        if not chosen_abs:
-            print("No retry-list files to process after filtering.")
-            return (0, 0, 0)
-
-        file_paths = chosen_abs
-        bypass_cache_for = {path_utils.get_workspace_relative_path(p) or path_utils.normalize_path(p) for p in chosen_abs}
-        print(f"Found {len(file_paths)} files from retry list to process")
-    else:
-        # Scan directory to get set of valid files (respects .gitignore/size/extensions/excludes)
-        print(f"Scanning directory: {cfg.workspace_path}")
-        scanned_paths, skipped_count = scanner.scan_directory()
-        file_paths = scanned_paths
-        print(f"Found {len(file_paths)} files to process ({skipped_count} skipped)")
-
-    # Process files
-    print("Processing files...")
-    processed_count = 0
-    total_blocks = 0
-    timed_out_files: Set[str] = set()
-    
-    with tqdm(total=len(file_paths), desc="Processing files") as pbar:
-        for file_path in file_paths:
-            rel_path = path_utils.get_workspace_relative_path(file_path) or path_utils.normalize_path(file_path)
-            try:
-                # Check if file has changed (unless bypassed due to retry-list)
-                if rel_path not in bypass_cache_for:
-                    current_hash = file_processor.get_file_hash(file_path)
-                    cached_hash = cache_manager.get_hash(file_path)
-                    if current_hash == cached_hash:
-                        # File hasn't changed, skip processing
-                        pbar.update(1)
-                        continue
-                else:
-                    current_hash = file_processor.get_file_hash(file_path)
-
-                # Parse file into blocks
-                blocks = parser.parse_file(file_path)
-                if not blocks:
-                    # Update cache even if no blocks were generated (unless bypass? decide to still cache)
-                    cache_manager.update_hash(file_path, current_hash)
-                    pbar.update(1)
-                    continue
-                
-                # Generate embeddings
-                texts = [block.content for block in blocks if block.content.strip()]
-                if not texts:
-                    cache_manager.update_hash(file_path, current_hash)
-                    pbar.update(1)
-                    continue
-                
-                # Batch embeddings for efficiency
-                batch_size = cfg.batch_segment_threshold
-                all_embeddings: List[List[float]] = []
-                embedding_failed = False
-                
-                for i in range(0, len(texts), batch_size):
-                    batch_texts = texts[i:i + batch_size]
-                    try:
-                        embedding_response = embedder.create_embeddings(batch_texts)
-                        all_embeddings.extend(embedding_response["embeddings"])
-                    except ReadTimeout:
-                        timed_out_files.add(rel_path)
-                        embedding_failed = True
-                        print(f"Timeout: Embedding request timed out for {rel_path}")
-                        break
-                    except Exception as e:
-                        error_context = ErrorContext(
-                            component="cli",
-                            operation="embed_batch",
-                            file_path=rel_path
-                        )
-                        error_response = error_handler.handle_network_error(e, error_context, "Ollama")
-                        print(f"Warning: {error_response.message}")
-                        embedding_failed = True
-                        break
-
-                if embedding_failed or len(all_embeddings) < len(texts) and len(all_embeddings) == 0:
-                    # Do not cache as processed to allow retry
-                    pbar.update(1)
-                    continue
-                
-                # Prepare points for vector store
-                points = []
-                for i, block in enumerate(blocks):
-                    if i >= len(all_embeddings):
-                        break
-                    import uuid
-                    point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{file_path}:{block.start_line}:{block.end_line}"))
-                    point = {
-                        "id": point_id,
-                        "vector": all_embeddings[i],
-                        "payload": {
-                            "filePath": rel_path,
-                            "codeChunk": block.content,
-                            "startLine": block.start_line,
-                            "endLine": block.end_line,
-                            "type": block.type,
-                            "embedding_model": embedder.model_identifier
-                        }
-                    }
-                    points.append(point)
-                
-                # Delete existing points for this file and upsert new ones
-                try:
-                    vector_store.delete_points_by_file_path(rel_path)
-                except Exception:
-                    # Ignore errors if file wasn't previously indexed
-                    pass
-                
-                try:
-                    vector_store.upsert_points(points)
-                except Exception as e:
-                    msg = str(e).lower()
-                    if "timed out" in msg:
-                        timed_out_files.add(rel_path)
-                        print(f"Timeout: Upsert timed out for {rel_path}")
-                        # Do not cache to allow retry
-                        pbar.update(1)
-                        continue
-                    else:
-                        error_context = ErrorContext(
-                            component="cli",
-                            operation="upsert_points",
-                            file_path=rel_path
-                        )
-                        error_response = error_handler.handle_error(e, error_context, ErrorCategory.DATABASE, ErrorSeverity.MEDIUM)
-                        print(f"Warning: {error_response.message}")
-                        # Do not cache, allow retry on next run
-                        pbar.update(1)
-                        continue
-                
-                # Update cache
-                cache_manager.update_hash(file_path, current_hash)
-                
-                processed_count += 1
-                total_blocks += len(blocks)
-                pbar.update(1)
-                pbar.set_postfix({"blocks": total_blocks})
-                
-            except Exception as e:
-                error_context = ErrorContext(
-                    component="cli",
-                    operation="process_file",
-                    file_path=rel_path
-                )
-                error_response = error_handler.handle_file_error(e, error_context, "file_processing")
-                print(f"Warning: {error_response.message}")
-                pbar.update(1)
-    
-    # Write timeout log if any
-    timeout_log_path = cfg.timeout_log_path
-    if timeout_log_path and timed_out_files:
-        # Normalize log path to absolute using PathUtils
-        log_path_abs = path_utils.resolve_path(timeout_log_path) or path_utils.join_path(cfg.workspace_path, timeout_log_path)
-        _write_timeout_log(timed_out_files, log_path_abs)
-
-    print(f"Processed {processed_count} files with {total_blocks} code blocks.")
-    print(f"Timeouts: {len(timed_out_files)} file(s). Timeout log: {timeout_log_path}")
+    print(f"Processing time: {result.processing_time_seconds:.2f} seconds")
     print("To retry only failed files with a longer timeout, run: "
           "code-index index --workspace <...> --retry-list <timeout_log> --embed-timeout <seconds>")
-    
-    return processed_count, total_blocks, len(timed_out_files)
+
+    return result.processed_files, result.total_blocks, len(result.timed_out_files)
 
 
 @cli.command()
