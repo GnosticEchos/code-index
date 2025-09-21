@@ -9,6 +9,15 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, MatchValue
 from code_index.config import Config
 from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from code_index.service_validation import ValidationResult
+
+# Conditional import for Qdrant client
+try:
+    from qdrant_client import QdrantClient
+    QDRANT_AVAILABLE = True
+except ImportError:
+    QDRANT_AVAILABLE = False
+    QdrantClient = None
 
 
 class QdrantVectorStore:
@@ -59,6 +68,122 @@ class QdrantVectorStore:
         # Vector size comes from configuration (config-first).
         # It will be validated during initialize(); must be a positive integer.
         self.vector_size: Optional[int] = config.embedding_length
+
+    def validate_configuration(self) -> ValidationResult:
+        """
+        Validate Qdrant configuration and connectivity.
+
+        Returns:
+            ValidationResult with detailed validation status
+        """
+        import time
+        start_time = time.time()
+
+        # Check if Qdrant client is available
+        if not QDRANT_AVAILABLE:
+            error_msg = "Qdrant client not available - please install qdrant-client package"
+            guidance = [
+                "Install Qdrant client: pip install qdrant-client",
+                "Verify Qdrant service installation",
+                "Check Python environment and dependencies"
+            ]
+
+            return ValidationResult(
+                service="qdrant",
+                valid=False,
+                error=error_msg,
+                details={"error_type": "missing_dependency"},
+                response_time_ms=int((time.time() - start_time) * 1000),
+                actionable_guidance=guidance
+            )
+
+        try:
+            # Test basic connectivity
+            client = QdrantClient(url=self._url, api_key=self._api_key)
+
+            # Get collections to verify service is responsive
+            collections = client.get_collections()
+
+            # Validate collection operations
+            collection_count = len(collections.collections)
+            collection_names = [col.name for col in collections.collections]
+
+            # Test collection creation capability
+            test_collection_name = "code_index_validation_test"
+            test_created = False
+
+            try:
+                # Try to create a test collection
+                if test_collection_name not in collection_names:
+                    client.create_collection(
+                        collection_name=test_collection_name,
+                        vectors_config={
+                            "size": 1,
+                            "distance": "Cosine"
+                        }
+                    )
+                    test_created = True
+
+                # Clean up test collection
+                if test_created:
+                    client.delete_collection(test_collection_name)
+
+            except Exception as e:
+                # Test collection operations might fail due to permissions
+                # This is not necessarily a critical error
+                pass
+
+            return ValidationResult(
+                service="qdrant",
+                valid=True,
+                details={
+                    "url": self._url,
+                    "collection_count": collection_count,
+                    "collection_names": collection_names,
+                    "response_time_ms": int((time.time() - start_time) * 1000)
+                },
+                response_time_ms=int((time.time() - start_time) * 1000)
+            )
+
+        except Exception as e:
+            error_msg = f"Qdrant service error: {str(e)}"
+            guidance = [
+                "Verify Qdrant service is running",
+                "Check Qdrant URL and API key configuration",
+                "Test connection: docker ps | grep qdrant",
+                "Check Qdrant service logs for errors"
+            ]
+
+            # Categorize the error for better guidance
+            error_str = str(e).lower()
+            if "connection" in error_str or "timeout" in error_str:
+                guidance.insert(0, "Check network connectivity to Qdrant service")
+            elif "unauthorized" in error_str or "forbidden" in error_str:
+                guidance.insert(0, "Verify API key permissions")
+            elif "not found" in error_str:
+                guidance.insert(0, "Check Qdrant service URL and port")
+
+            return ValidationResult(
+                service="qdrant",
+                valid=False,
+                error=error_msg,
+                details={
+                    "url": self._url,
+                    "error_type": "connection_error"
+                },
+                response_time_ms=int((time.time() - start_time) * 1000),
+                actionable_guidance=guidance
+            )
+
+    def validate_configuration_and_raise(self) -> None:
+        """
+        Validate Qdrant configuration and raise exception if invalid.
+
+        This method maintains backward compatibility with code that expects
+        exceptions to be raised on validation failures.
+        """
+        result = self.validate_configuration()
+        result.raise_for_errors()
 
     def _generate_collection_name(self) -> str:
         """Generate collection name based on workspace path.

@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 
 from fastmcp import FastMCP
 from ..config import Config
+from ..service_validation import ServiceValidator
 from .core.config_manager import MCPConfigurationManager
 from .core.error_handler import error_handler
 from .core.resource_manager import resource_manager
@@ -173,79 +174,58 @@ class CodeIndexMCPServer:
         """Validate connectivity to required services (Ollama, Qdrant)."""
         if not self.config:
             raise ValueError("Configuration must be loaded before validating services")
-        
-        validation_errors = []
-        
-        # Validate Ollama service
-        try:
-            from ..embedder import OllamaEmbedder
-            embedder = OllamaEmbedder(self.config)
-            
-            # Register Ollama connection for cleanup
-            resource_manager.register_ollama_connection(embedder)
-            
-            ollama_result = embedder.validate_configuration()
-            
-            if not ollama_result.get("valid", False):
-                # Use error handler for structured error response
-                context = {
-                    "base_url": self.config.ollama_base_url,
-                    "model": self.config.ollama_model
-                }
-                error_response = error_handler.handle_service_connection_error(
-                    "Ollama", 
-                    Exception(ollama_result.get("error", "Unknown error")), 
-                    context
-                )
-                validation_errors.append(error_response)
-            else:
-                self.logger.info("Ollama service validation successful")
-                
-        except Exception as e:
-            context = {
-                "base_url": self.config.ollama_base_url,
-                "model": self.config.ollama_model
-            }
-            error_response = error_handler.handle_service_connection_error("Ollama", e, context)
-            validation_errors.append(error_response)
-        
-        # Validate Qdrant service
-        try:
-            from ..vector_store import QdrantVectorStore
-            vector_store = QdrantVectorStore(self.config)
-            
-            # Register Qdrant connection for cleanup
-            resource_manager.register_qdrant_connection(vector_store)
-            
-            # Test connection by getting collections
-            collections = vector_store.client.get_collections()
-            self.logger.info(f"Qdrant service validation successful - found {len(collections.collections)} collections")
-            
-        except Exception as e:
-            context = {
-                "qdrant_url": self.config.qdrant_url,
-                "api_key": self.config.qdrant_api_key
-            }
-            error_response = error_handler.handle_service_connection_error("Qdrant", e, context)
-            validation_errors.append(error_response)
-        
-        # Raise error if any service validation failed
-        if validation_errors:
+
+        # Use centralized ServiceValidator
+        service_validator = ServiceValidator(error_handler)
+        validation_results = service_validator.validate_all_services(self.config)
+
+        # Check for validation failures
+        failed_validations = [result for result in validation_results if not result.valid]
+
+        if failed_validations:
+            # Log validation failures with detailed information
+            self.logger.error("Service validation failed:")
+            for result in failed_validations:
+                self.logger.error(f"  - {result.service}: {result.error}")
+                if result.actionable_guidance:
+                    for guidance in result.actionable_guidance:
+                        self.logger.error(f"    Guidance: {guidance}")
+
             # Combine all validation errors into a single structured response
             combined_error = {
                 "error": True,
                 "error_type": "service_validation_failed",
                 "message": "One or more services failed validation",
-                "validation_errors": validation_errors,
+                "validation_results": [result.to_dict() for result in validation_results],
+                "failed_services": [result.service for result in failed_validations],
                 "actionable_guidance": [
                     "Check that all required services are running",
                     "Verify service URLs and authentication in configuration",
                     "Review individual service errors for specific guidance"
                 ]
             }
-            
+
             self.logger.error(f"Service validation failed: {combined_error['message']}")
             raise ValueError(str(combined_error))
+
+        # Log successful validations
+        for result in validation_results:
+            if result.valid:
+                self.logger.info(f"{result.service} service validation successful ({result.response_time_ms}ms)")
+
+        # Register service connections for cleanup
+        try:
+            from ..embedder import OllamaEmbedder
+            from ..vector_store import QdrantVectorStore
+
+            embedder = OllamaEmbedder(self.config)
+            vector_store = QdrantVectorStore(self.config)
+
+            resource_manager.register_ollama_connection(embedder)
+            resource_manager.register_qdrant_connection(vector_store)
+
+        except Exception as e:
+            self.logger.warning(f"Failed to register service connections for cleanup: {e}")
 
 
 async def main() -> None:

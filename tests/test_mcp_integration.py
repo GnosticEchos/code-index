@@ -124,16 +124,18 @@ class TestMCPProtocolIntegration:
         """Test MCP server service validation integration."""
         config_path = os.path.join(temp_workspace, "code_index.json")
         server = CodeIndexMCPServer(config_path)
-        
+
         # Load configuration
         await server._load_configuration()
-        
+
         # Test service validation
         await server._validate_services()
-        
-        # Verify service validation calls
-        mock_services["embedder"].validate_configuration.assert_called_once()
-        mock_services["vector_store"].client.get_collections.assert_called_once()
+
+        # Verify service validation calls - now using ServiceValidator
+        # The ServiceValidator should have been called, not the individual service methods
+        # We verify this by checking that the mocks were NOT called (since ServiceValidator handles validation)
+        mock_services["embedder"].validate_configuration.assert_not_called()
+        mock_services["vector_store"].client.get_collections.assert_not_called()
     
     @pytest.mark.asyncio
     async def test_mcp_server_lifespan_management(self, temp_workspace):
@@ -183,41 +185,37 @@ class TestServiceConnectivityIntegration:
         """Test Ollama service integration."""
         server = CodeIndexMCPServer(temp_config)
         await server._load_configuration()
-        
-        with patch('src.code_index.embedder.OllamaEmbedder') as mock_embedder_class:
+
+        with patch('src.code_index.mcp_server.server.ServiceValidator') as mock_validator_class:
             # Test successful connection
-            mock_embedder = Mock()
-            mock_embedder.validate_configuration.return_value = {"valid": True}
-            mock_embedder_class.return_value = mock_embedder
-            
-            with patch('src.code_index.vector_store.QdrantVectorStore') as mock_vector_store_class:
-                mock_vector_store = Mock()
-                mock_collections = Mock()
-                mock_collections.collections = []
-                mock_vector_store.client.get_collections.return_value = mock_collections
-                mock_vector_store_class.return_value = mock_vector_store
-                
-                # Should not raise exception
-                await server._validate_services()
-                
-                # Verify Ollama validation was called
-                mock_embedder.validate_configuration.assert_called_once()
+            mock_validator = Mock()
+            mock_validator.validate_all_services.return_value = [
+                Mock(service="ollama", valid=True, actionable_guidance=[]),
+                Mock(service="qdrant", valid=True, actionable_guidance=[])
+            ]
+            mock_validator_class.return_value = mock_validator
+
+            # Should not raise exception
+            await server._validate_services()
+
+            # Verify ServiceValidator was called
+            mock_validator.validate_all_services.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_ollama_service_failure_integration(self, temp_config):
         """Test Ollama service failure integration."""
         server = CodeIndexMCPServer(temp_config)
         await server._load_configuration()
-        
-        with patch('src.code_index.embedder.OllamaEmbedder') as mock_embedder_class:
+
+        with patch('src.code_index.mcp_server.server.ServiceValidator') as mock_validator_class:
             # Test connection failure
-            mock_embedder = Mock()
-            mock_embedder.validate_configuration.return_value = {
-                "valid": False,
-                "error": "Connection refused"
-            }
-            mock_embedder_class.return_value = mock_embedder
-            
+            mock_validator = Mock()
+            mock_validator.validate_all_services.return_value = [
+                Mock(service="ollama", valid=False, error="Connection refused", actionable_guidance=[]),
+                Mock(service="qdrant", valid=True, actionable_guidance=[])
+            ]
+            mock_validator_class.return_value = mock_validator
+
             with pytest.raises(ValueError, match="service_validation_failed"):
                 await server._validate_services()
     
@@ -226,43 +224,39 @@ class TestServiceConnectivityIntegration:
         """Test Qdrant service integration."""
         server = CodeIndexMCPServer(temp_config)
         await server._load_configuration()
-        
-        with patch('src.code_index.embedder.OllamaEmbedder') as mock_embedder_class:
-            mock_embedder = Mock()
-            mock_embedder.validate_configuration.return_value = {"valid": True}
-            mock_embedder_class.return_value = mock_embedder
-            
-            with patch('src.code_index.vector_store.QdrantVectorStore') as mock_vector_store_class:
-                # Test successful connection
-                mock_vector_store = Mock()
-                mock_collections = Mock()
-                mock_collections.collections = []
-                mock_vector_store.client.get_collections.return_value = mock_collections
-                mock_vector_store_class.return_value = mock_vector_store
-                
-                # Should not raise exception
-                await server._validate_services()
-                
-                # Verify Qdrant validation was called
-                mock_vector_store.client.get_collections.assert_called_once()
+
+        with patch('src.code_index.mcp_server.server.ServiceValidator') as mock_validator_class:
+            # Test successful connection
+            mock_validator = Mock()
+            mock_validator.validate_all_services.return_value = [
+                Mock(service="ollama", valid=True, actionable_guidance=[]),
+                Mock(service="qdrant", valid=True, actionable_guidance=[])
+            ]
+            mock_validator_class.return_value = mock_validator
+
+            # Should not raise exception
+            await server._validate_services()
+
+            # Verify ServiceValidator was called
+            mock_validator.validate_all_services.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_qdrant_service_failure_integration(self, temp_config):
         """Test Qdrant service failure integration."""
         server = CodeIndexMCPServer(temp_config)
         await server._load_configuration()
-        
-        with patch('src.code_index.embedder.OllamaEmbedder') as mock_embedder_class:
-            mock_embedder = Mock()
-            mock_embedder.validate_configuration.return_value = {"valid": True}
-            mock_embedder_class.return_value = mock_embedder
-            
-            with patch('src.code_index.vector_store.QdrantVectorStore') as mock_vector_store_class:
-                # Test connection failure
-                mock_vector_store_class.side_effect = Exception("Qdrant connection failed")
-                
-                with pytest.raises(ValueError, match="service_validation_failed"):
-                    await server._validate_services()
+
+        with patch('src.code_index.mcp_server.server.ServiceValidator') as mock_validator_class:
+            # Test connection failure
+            mock_validator = Mock()
+            mock_validator.validate_all_services.return_value = [
+                Mock(service="ollama", valid=True, actionable_guidance=[]),
+                Mock(service="qdrant", valid=False, error="Qdrant connection failed", actionable_guidance=[])
+            ]
+            mock_validator_class.return_value = mock_validator
+
+            with pytest.raises(ValueError, match="service_validation_failed"):
+                await server._validate_services()
 
 
 class TestEndToEndWorkflows:

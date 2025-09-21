@@ -27,6 +27,7 @@ from code_index.chunking import (
 from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from code_index.file_processing import FileProcessingService
 from code_index.path_utils import PathUtils
+from code_index.service_validation import ServiceValidator
 
 # Global error handler instance
 error_handler = ErrorHandler()
@@ -254,15 +255,23 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
     
     # Initialize PathUtils for centralized path operations
     path_utils = PathUtils(error_handler, cfg.workspace_path)
-    
-    # Validate configuration
-    print("Validating configuration...")
-    validation_result = embedder.validate_configuration()
-    if not validation_result["valid"]:
-        print(f"Error: {validation_result['error']}")
+
+    # Validate services using centralized ServiceValidator
+    print("Validating services...")
+    service_validator = ServiceValidator(error_handler)
+    validation_results = service_validator.validate_all_services(cfg)
+
+    # Check for validation failures
+    failed_validations = [result for result in validation_results if not result.valid]
+    if failed_validations:
+        print("Service validation failed:")
+        for result in failed_validations:
+            print(f"  - {result.service}: {result.error}")
+            if result.actionable_guidance:
+                print(f"    Guidance: {result.actionable_guidance[0]}")
         sys.exit(1)
-    
-    print("Configuration is valid.")
+
+    print("All services validated successfully.")
     
     # Initialize vector store (will fail fast if embedding_length missing)
     print("Initializing vector store...")
@@ -497,11 +506,19 @@ def search(workspace: str, config: str, min_score: float, max_results: int, json
     # Initialize components
     embedder = OllamaEmbedder(cfg)
     vector_store = QdrantVectorStore(cfg)
-    
-    # Validate configuration
-    validation_result = embedder.validate_configuration()
-    if not validation_result["valid"]:
-        print(f"Error: {validation_result['error']}")
+
+    # Validate services using centralized ServiceValidator
+    service_validator = ServiceValidator(error_handler)
+    validation_results = service_validator.validate_all_services(cfg)
+
+    # Check for validation failures
+    failed_validations = [result for result in validation_results if not result.valid]
+    if failed_validations:
+        print("Service validation failed:")
+        for result in failed_validations:
+            print(f"  - {result.service}: {result.error}")
+            if result.actionable_guidance:
+                print(f"    Guidance: {result.actionable_guidance[0]}")
         sys.exit(1)
     
     # Generate query embedding
