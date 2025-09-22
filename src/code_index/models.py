@@ -230,3 +230,224 @@ class SearchResult:
             "warnings": self.warnings,
             "summary": self.get_summary()
         }
+
+
+@dataclass
+class FileStatus:
+    """Result for file processing status queries."""
+
+    file_path: str
+    is_processed: bool
+    last_modified: Optional[datetime] = None
+    file_size_bytes: Optional[int] = None
+    processing_time_seconds: Optional[float] = None
+    error_message: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self):
+        """Initialize optional fields."""
+        if self.metadata is None:
+            self.metadata = {}
+
+    def is_successful(self) -> bool:
+        """Check if file processing was successful."""
+        return self.is_processed and self.error_message is None
+
+    def has_error(self) -> bool:
+        """Check if there was an error during processing."""
+        return self.error_message is not None
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Get a summary of the file status."""
+        return {
+            "file_path": self.file_path,
+            "is_processed": self.is_processed,
+            "last_modified": self.last_modified.isoformat() if self.last_modified else None,
+            "file_size_bytes": self.file_size_bytes,
+            "processing_time_seconds": self.processing_time_seconds,
+            "successful": self.is_successful(),
+            "has_error": self.has_error()
+        }
+
+
+@dataclass
+class ProcessingStats:
+    """Result for processing statistics queries."""
+
+    total_files: int
+    processed_files: int
+    failed_files: int
+    total_blocks: int
+    average_processing_time_seconds: float
+    last_processing_timestamp: Optional[datetime] = None
+    workspace_path: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self):
+        """Initialize optional fields."""
+        if self.metadata is None:
+            self.metadata = {}
+
+    def get_success_rate(self) -> float:
+        """Get the success rate as a percentage."""
+        if self.total_files == 0:
+            return 0.0
+        return (self.processed_files / self.total_files) * 100.0
+
+    def get_failure_rate(self) -> float:
+        """Get the failure rate as a percentage."""
+        if self.total_files == 0:
+            return 0.0
+        return (self.failed_files / self.total_files) * 100.0
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Get a summary of the processing statistics."""
+        return {
+            "total_files": self.total_files,
+            "processed_files": self.processed_files,
+            "failed_files": self.failed_files,
+            "total_blocks": self.total_blocks,
+            "average_processing_time_seconds": self.average_processing_time_seconds,
+            "success_rate_percent": self.get_success_rate(),
+            "failure_rate_percent": self.get_failure_rate(),
+            "last_processing_timestamp": self.last_processing_timestamp.isoformat() if self.last_processing_timestamp else None,
+            "workspace_path": self.workspace_path
+        }
+
+
+@dataclass
+class WorkspaceStatus:
+    """Result for workspace status queries."""
+
+    workspace_path: str
+    is_valid: bool
+    total_files: int
+    indexed_files: int
+    last_indexing_timestamp: Optional[datetime] = None
+    indexing_progress_percent: float = 0.0
+    errors: Optional[List[str]] = None
+    warnings: Optional[List[str]] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self):
+        """Initialize optional fields."""
+        if self.errors is None:
+            self.errors = []
+        if self.warnings is None:
+            self.warnings = []
+        if self.metadata is None:
+            self.metadata = {}
+
+    def is_indexed(self) -> bool:
+        """Check if workspace has been indexed."""
+        return self.indexed_files > 0
+
+    def has_issues(self) -> bool:
+        """Check if there are any errors or warnings."""
+        return len(self.errors) > 0 or len(self.warnings) > 0
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Get a summary of the workspace status."""
+        return {
+            "workspace_path": self.workspace_path,
+            "is_valid": self.is_valid,
+            "total_files": self.total_files,
+            "indexed_files": self.indexed_files,
+            "indexing_progress_percent": self.indexing_progress_percent,
+            "last_indexing_timestamp": self.last_indexing_timestamp.isoformat() if self.last_indexing_timestamp else None,
+            "is_indexed": self.is_indexed(),
+            "has_issues": self.has_issues(),
+            "errors": len(self.errors),
+            "warnings": len(self.warnings)
+        }
+
+
+@dataclass
+class ServiceHealth:
+    """Result for service health queries."""
+
+    service_name: str
+    is_healthy: bool
+    response_time_ms: Optional[int] = None
+    last_check_timestamp: Optional[datetime] = None
+    error_message: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self):
+        """Initialize optional fields."""
+        if self.metadata is None:
+            self.metadata = {}
+
+    def is_available(self) -> bool:
+        """Check if service is available."""
+        return self.is_healthy
+
+    def has_error(self) -> bool:
+        """Check if there was an error during health check."""
+        return self.error_message is not None
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Get a summary of the service health."""
+        return {
+            "service_name": self.service_name,
+            "is_healthy": self.is_healthy,
+            "response_time_ms": self.response_time_ms,
+            "last_check_timestamp": self.last_check_timestamp.isoformat() if self.last_check_timestamp else None,
+            "is_available": self.is_available(),
+            "has_error": self.has_error(),
+            "error_message": self.error_message
+        }
+
+
+@dataclass
+class SystemStatus:
+    """Result for system status queries."""
+
+    overall_health: str  # "healthy", "degraded", "unhealthy"
+    total_services: int
+    healthy_services: int
+    degraded_services: int
+    unhealthy_services: int
+    total_workspaces: int
+    indexed_workspaces: int
+    system_uptime_seconds: Optional[float] = None
+    last_status_check: Optional[datetime] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self):
+        """Initialize optional fields."""
+        if self.metadata is None:
+            self.metadata = {}
+
+    def is_system_healthy(self) -> bool:
+        """Check if overall system is healthy."""
+        return self.overall_health == "healthy"
+
+    def get_health_percentage(self) -> float:
+        """Get the health percentage of services."""
+        if self.total_services == 0:
+            return 0.0
+        return (self.healthy_services / self.total_services) * 100.0
+
+    def get_indexing_coverage(self) -> float:
+        """Get the indexing coverage percentage."""
+        if self.total_workspaces == 0:
+            return 0.0
+        return (self.indexed_workspaces / self.total_workspaces) * 100.0
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Get a summary of the system status."""
+        return {
+            "overall_health": self.overall_health,
+            "total_services": self.total_services,
+            "healthy_services": self.healthy_services,
+            "degraded_services": self.degraded_services,
+            "unhealthy_services": self.unhealthy_services,
+            "total_workspaces": self.total_workspaces,
+            "indexed_workspaces": self.indexed_workspaces,
+            "system_uptime_seconds": self.system_uptime_seconds,
+            "last_status_check": self.last_status_check.isoformat() if self.last_status_check else None,
+            "is_system_healthy": self.is_system_healthy(),
+            "health_percentage": self.get_health_percentage(),
+            "indexing_coverage": self.get_indexing_coverage()
+        }
