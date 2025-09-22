@@ -165,7 +165,13 @@ class TokenChunkingStrategy(ChunkingStrategy):
 
 
 class TreeSitterChunkingStrategy(ChunkingStrategy):
-    """Chunking strategy based on Tree-sitter."""
+    """
+    Chunking strategy based on Tree-sitter using composition pattern.
+
+    This refactored version uses dependency injection and composition with
+    specialized services for language detection, query management, and parser
+    management to achieve better separation of concerns and testability.
+    """
 
     def _debug(self, msg: str) -> None:
         """Conditional Tree-sitter debug logging."""
@@ -175,18 +181,40 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
         except Exception:
             pass
 
-    def __init__(self, config: Config):
+    def __init__(
+        self,
+        config: Config,
+        language_detector=None,
+        query_manager=None,
+        parser_manager=None,
+        error_handler=None
+    ):
+        """
+        Initialize the TreeSitterChunkingStrategy with dependency injection.
+
+        Args:
+            config: Configuration object
+            language_detector: Optional LanguageDetector service instance
+            query_manager: Optional TreeSitterQueryManager service instance
+            parser_manager: Optional TreeSitterParserManager service instance
+            error_handler: Optional ErrorHandler instance
+        """
         super().__init__(config)
         self.min_block_chars = 50
-        # Cache parsers per language for better performance
-        self._tree_sitter_parsers: Dict[str, Any] = {}
-        # Cache queries per language for better performance
-        self._query_cache: Dict[str, Any] = {}
+
+        # Use dependency injection for services
+        from .language_detection import LanguageDetector
+        from .query_manager import TreeSitterQueryManager
+        from .parser_manager import TreeSitterParserManager
+        from .errors import ErrorHandler
+
+        self.language_detector = language_detector or LanguageDetector(config, error_handler)
+        self.query_manager = query_manager or TreeSitterQueryManager(config, error_handler)
+        self.parser_manager = parser_manager or TreeSitterParserManager(config, error_handler)
+        self.error_handler = error_handler or ErrorHandler()
+
         # Track processed languages for batch optimization
         self._processed_languages: Set[str] = set()
-        # Cache languages and track parser-language identities to avoid mismatch
-        self._ts_languages: Dict[str, Any] = {}
-        self._parser_language_ids: Dict[str, int] = {}
 
     def chunk(self, text: str, file_path: str, file_hash: str) -> List[CodeBlock]:
         """Chunk text into blocks using Tree-sitter."""
@@ -372,353 +400,25 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
             raise TreeSitterError(f"Tree-sitter parsing failed for {file_path}: {e}")
 
     def _get_language_key_for_path(self, file_path: str) -> Optional[str]:
-        """Map file extension to Tree-sitter language key using fast detection."""
-        try:
-            from whats_that_code.extension_based import guess_by_extension
-
-            guesses = guess_by_extension(file_path)
-
-            language_mapping = {
-                'python': 'python',
-                'javascript': 'javascript',
-                'typescript': 'typescript',
-                'tsx': 'tsx',
-                'go': 'go',
-                'java': 'java',
-                'cpp': 'cpp',
-                'c': 'c',
-                'rust': 'rust',
-                'csharp': 'csharp',
-                'ruby': 'ruby',
-                'php': 'php',
-                'kotlin': 'kotlin',
-                'swift': 'swift',
-                'lua': 'lua',
-                'json': 'json',
-                'yaml': 'yaml',
-                'markdown': 'markdown',
-                'html': 'html',
-                'css': 'css',
-                'scss': 'scss',
-                'bash': 'bash',
-                'shell': 'bash',
-                'dart': 'dart',
-                'scala': 'scala',
-                'perl': 'perl',
-                'haskell': 'haskell',
-                'elixir': 'elixir',
-                'clojure': 'clojure',
-                'clojurescript': 'clojure',  # Added for .cljs files
-                'erlang': 'erlang',
-                'ocaml': 'ocaml',
-                'fsharp': 'fsharp',
-                'docker': 'dockerfile',  # Added for Dockerfile
-                'vb': 'vb',
-                'vbnet': 'vb',  # Added for .vb files
-                'r': 'r',
-                'matlab': 'matlab',
-                'julia': 'julia',
-                'groovy': 'groovy',
-                'dockerfile': 'dockerfile',
-                'makefile': 'makefile',
-                'graphql': 'graphql',  # Added for .graphql and .gql files
-                'cmake': 'cmake',
-                'protobuf': 'protobuf',
-            }
-
-            # Add support for additional languages
-            language_mapping.update({
-                # Web frameworks
-                'vue': 'vue',
-                'svelte': 'svelte',
-                'astro': 'astro',
-                # Configuration formats
-                'toml': 'toml',
-                'ini': 'ini',
-                'xml': 'xml',
-                # System and infrastructure
-                'terraform': 'terraform',
-                'thrift': 'thrift',
-                'proto': 'proto',
-                # Functional languages
-                'elm': 'elm',
-                'scheme': 'scheme',
-                'commonlisp': 'commonlisp',
-                'racket': 'racket',
-                # Shell and scripting
-                'fish': 'fish',
-                'powershell': 'powershell',
-                'zsh': 'zsh',
-                # Markup and documentation
-                'rst': 'rst',
-                'org': 'org',
-                'latex': 'latex',
-                # Database query languages
-                'sqlite': 'sqlite',
-                'mysql': 'mysql',
-                'postgresql': 'postgresql',
-                # Smart contract languages
-                'solidity': 'solidity',
-                # Hardware description languages
-                'verilog': 'verilog',
-                'vhdl': 'vhdl',
-                'systemverilog': 'systemverilog',
-                # Other programming languages
-                'zig': 'zig',
-                'nim': 'nim',
-                'v': 'v',
-                'tcl': 'tcl',
-                'clojurescript': 'clojurescript',
-                'objc': 'objc',
-                'objcpp': 'objcpp',
-                'sass': 'sass',
-                'less': 'less',
-                'hcl': 'hcl',
-                'puppet': 'puppet',
-                'capnp': 'capnp',
-                'smithy': 'smithy',
-            })
-
-            for guess in guesses:
-                if guess in language_mapping:
-                    return language_mapping[guess]
-
-            # Fall back to manual extension mapping if whats_that_code returns empty
-            return self._fallback_language_detection(file_path)
-        except Exception:
-            # Fall back to manual extension mapping if whats_that_code raises an exception
-            return self._fallback_language_detection(file_path)
+        """Map file extension to Tree-sitter language key using LanguageDetector service."""
+        return self.language_detector.detect_language(file_path)
     
-    def _fallback_language_detection(self, file_path: str) -> Optional[str]:
-        """Fallback language detection using manual extension mapping."""
-        ext = os.path.splitext(file_path)[1].lower()
-        filename = os.path.basename(file_path).lower()
-        extension_to_language = {
-            '.py': 'python',
-            '.js': 'javascript',
-            '.ts': 'typescript',
-            '.tsx': 'tsx',
-            '.jsx': 'javascript',
-            '.go': 'go',
-            '.java': 'java',
-            '.cpp': 'cpp',
-            '.cc': 'cpp',
-            '.cxx': 'cpp',
-            '.c': 'c',
-            '.h': 'c',
-            '.hpp': 'cpp',
-            '.rs': 'rust',
-            '.cs': 'csharp',
-            '.rb': 'ruby',
-            '.php': 'php',
-            '.kt': 'kotlin',
-            '.kts': 'kotlin',
-            '.swift': 'swift',
-            '.lua': 'lua',
-            '.json': 'json',
-            '.yaml': 'yaml',
-            '.yml': 'yaml',
-            '.md': 'markdown',
-            '.markdown': 'markdown',
-            '.html': 'html',
-            '.css': 'css',
-            '.scss': 'scss',
-            '.sql': 'sql',
-            '.surql': 'sql',
-            # New language extensions
-            '.sh': 'bash',
-            '.bash': 'bash',
-            '.zsh': 'bash',
-            '.dart': 'dart',
-            '.scala': 'scala',
-            '.pl': 'perl',
-            '.pm': 'perl',
-            '.hs': 'haskell',
-            '.ex': 'elixir',
-            '.exs': 'elixir',
-            '.clj': 'clojure',
-            '.cljs': 'clojure',
-            '.erl': 'erlang',
-            '.hrl': 'erlang',
-            '.ml': 'ocaml',
-            '.mli': 'ocaml',
-            '.fs': 'fsharp',
-            '.fsx': 'fsharp',
-            '.fsi': 'fsharp',
-            '.vb': 'vb',
-            '.r': 'r',
-            '.m': 'matlab',
-            '.jl': 'julia',
-            '.groovy': 'groovy',
-            '.cmake': 'cmake',
-            '.proto': 'protobuf',
-            '.graphql': 'graphql',
-            '.gql': 'graphql',
-            '.txt': None,  # Plain text files should use fallback
-        }
-        
-        # Handle special filenames without extensions
-        if filename == 'dockerfile':
-            return 'dockerfile'
-        elif filename == 'makefile':
-            return 'makefile'
-        elif filename.endswith('.cmake'):
-            return 'cmake'
-        
-        # Additional language extensions
-        additional_extensions = {
-            # Web frameworks
-            '.vue': 'vue',
-            '.svelte': 'svelte',
-            '.astro': 'astro',
-            # Configuration formats
-            '.toml': 'toml',
-            '.ini': 'ini',
-            '.xml': 'xml',
-            '.yaml': 'yaml',
-            '.yml': 'yaml',
-            # System and infrastructure
-            '.tf': 'terraform',
-            '.tfvars': 'terraform',
-            '.proto': 'proto',
-            '.thrift': 'thrift',
-            # Functional languages
-            '.elm': 'elm',
-            '.hs': 'haskell',
-            '.lhs': 'haskell',
-            '.ml': 'ocaml',
-            '.mli': 'ocaml_interface',
-            # Shell and scripting
-            '.fish': 'fish',
-            '.ps1': 'powershell',
-            '.zsh': 'zsh',
-            # Markup and documentation
-            '.rst': 'rst',
-            '.org': 'org',
-            '.tex': 'latex',
-            # Database query languages
-            '.sql': 'sql',
-            # Smart contract languages
-            '.sol': 'solidity',
-            # Hardware description languages
-            '.sv': 'systemverilog',
-            '.svh': 'systemverilog',
-            # Other programming languages
-            '.zig': 'zig',
-            '.nim': 'nim',
-            '.v': 'v',
-            '.tcl': 'tcl',
-            '.swift': 'swift',
-            '.rs': 'rust',
-            '.go': 'go',
-            '.java': 'java',
-            '.kt': 'kotlin',
-            '.scala': 'scala',
-            '.dart': 'dart',
-            '.jl': 'julia',
-            '.r': 'r',
-            '.pl': 'perl',
-            '.pm': 'perl',
-            '.lua': 'lua',
-            '.rb': 'ruby',
-            '.php': 'php',
-            '.py': 'python',
-            '.js': 'javascript',
-            '.ts': 'typescript',
-            '.tsx': 'tsx',
-            '.jsx': 'javascript',
-            '.cpp': 'cpp',
-            '.cc': 'cpp',
-            '.cxx': 'cpp',
-            '.c': 'c',
-            '.h': 'c',
-            '.hpp': 'cpp',
-            '.cs': 'csharp',
-            '.m': 'objc',
-            '.mm': 'objcpp',
-            # Markup and styling
-            '.html': 'html',
-            '.htm': 'html',
-            '.css': 'css',
-            '.scss': 'scss',
-            '.sass': 'sass',
-            '.less': 'less',
-            # Data formats
-            '.json': 'json',
-            '.csv': 'csv',
-            '.tsv': 'tsv',
-        }
-        
-        # Check additional extensions
-        if ext in additional_extensions:
-            return additional_extensions[ext]
-        
-        return extension_to_language.get(ext)
 
-    def _get_tree_sitter_language(self, language_key: str):
-        """Get or cache a Tree-sitter Language object for a language key."""
-        try:
-            if language_key in self._ts_languages:
-                return self._ts_languages[language_key]
-            import tree_sitter_language_pack as tsl
-            language = tsl.get_language(language_key)
-            self._ts_languages[language_key] = language
-            return language
-        except Exception as e:
-            self._debug(f"Failed to load Tree-sitter language for {language_key}: {e}")
-            raise
 
     def _get_tree_sitter_parser(self, language_key: str):
-        """Get or create a cached Tree-sitter parser for a language."""
-        try:
-            # Try to get from cache first
-            if language_key in self._tree_sitter_parsers:
-                return self._tree_sitter_parsers[language_key]
-
-            from tree_sitter import Parser
-
-            language = self._get_tree_sitter_language(language_key)
-            parser = Parser()
-            parser.language = language
-            # Track language identity used by parser for this language_key
-            self._parser_language_ids[language_key] = id(language)
-
-            # Store in cache
-            self._tree_sitter_parsers[language_key] = parser
-            return parser
-        except Exception as e:
-            error_context = ErrorContext(
-                component="chunking",
-                operation="tree_sitter_parser_loading",
-                metadata={"language_key": language_key}
-            )
-            error_response = error_handler.handle_error(e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM)
-            print(f"Warning: {error_response.message}")
-            return None
+        """Get a Tree-sitter parser for a language using ParserManager service."""
+        return self.parser_manager.get_parser(language_key)
 
     def cleanup_resources(self):
-        """Explicitly cleanup Tree-sitter resources."""
-        # Clear parser cache (weak references will be collected automatically)
-        try:
-            self._tree_sitter_parsers.clear()
-        except Exception:
-            pass
+        """Explicitly cleanup Tree-sitter resources using service managers."""
+        # Clean up resources using the service managers
+        parser_cleanup_count = self.parser_manager.cleanup_resources()
+        query_cleanup_count = self.query_manager.cleanup_old_queries()
 
-        # Clear language cache and identity map
-        try:
-            self._ts_languages.clear()
-        except Exception:
-            pass
-        try:
-            self._parser_language_ids.clear()
-        except Exception:
-            pass
-
-        # Clear query cache
-        try:
-            self._query_cache.clear()
-        except Exception:
-            pass
+        # Clear language cache and get count
+        language_cache_info = self.language_detector.get_cache_info()
+        self.language_detector.clear_cache()
+        language_cleanup_count = language_cache_info.get("cache_size", 0)
 
         # Clear processed languages tracking
         try:
@@ -726,7 +426,8 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
         except Exception:
             pass
 
-        print("Tree-sitter resources cleaned up successfully")
+        if getattr(self.config, "tree_sitter_debug_logging", False):
+            print(f"Tree-sitter resources cleaned up successfully: {parser_cleanup_count} parsers, {query_cleanup_count} queries, {language_cleanup_count} language cache entries")
 
     def __del__(self):
         """Destructor to ensure resources are cleaned up."""
@@ -1127,51 +828,12 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
             return self._extract_with_limits(root_node, text, file_path, file_hash, language_key)
 
     def _get_cached_query(self, language_key: str, query_text: str) -> Optional[Any]:
-        """Get cached query or compile and cache new query with compatibility fallbacks."""
-        if language_key in self._query_cache:
-            return self._query_cache[language_key]
-
-        try:
-            from tree_sitter import Query
-
-            language = self._get_tree_sitter_language(language_key)
-
-            # Try modern constructor first
-            try:
-                query = Query(language, query_text)
-                self._debug(f"Compiled TS query using Query(language, text) for lang={language_key}")
-            except Exception as e_primary:
-                # Fallback to language.query if available on this binding
-                try:
-                    if hasattr(language, "query"):
-                        query = language.query(query_text)  # type: ignore[attr-defined]
-                        self._debug(f"Compiled TS query using language.query(text) for lang={language_key}")
-                    else:
-                        raise e_primary
-                except Exception as e_fallback:
-                    raise e_fallback
-
-            # Debug: check Language object identity between parser and query for this language
-            parser_lang_id = getattr(self, "_parser_language_ids", {}).get(language_key)
-            lang_id = id(language)
-            if parser_lang_id and parser_lang_id != lang_id:
-                self._debug(f"Language identity mismatch for {language_key}: parser_lang_id={parser_lang_id} query_lang_id={lang_id}")
-
-            self._query_cache[language_key] = query
-            return query
-        except Exception as e:
-            error_context = ErrorContext(
-                component="chunking",
-                operation="tree_sitter_query_compilation",
-                metadata={"language_key": language_key}
-            )
-            error_response = error_handler.handle_error(e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM)
-            print(f"Warning: {error_response.message}")
-            return None
+        """Get cached query or compile and cache new query using QueryManager service."""
+        return self.query_manager.compile_query(language_key, query_text)
 
     def _get_queries_for_language(self, language_key: str) -> Optional[str]:
-        """Get Tree-sitter queries for a specific language."""
-        return get_ts_queries(language_key)
+        """Get Tree-sitter queries for a specific language using QueryManager service."""
+        return self.query_manager.get_query_for_language(language_key)
 
     def _get_limit_for_node_type(self, node_type: str, language_key: str) -> int:
         """Get extraction limits for specific node types."""
