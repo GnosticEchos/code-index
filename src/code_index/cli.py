@@ -11,7 +11,7 @@ from typing import List, Set
 from requests.exceptions import ReadTimeout
 
 from code_index.config import Config
-from code_index.config_service import ConfigurationService
+from code_index.config_service import ConfigurationService as ConfigurationLoaderService
 from code_index.scanner import DirectoryScanner
 from code_index.parser import CodeParser
 from code_index.embedder import OllamaEmbedder
@@ -29,7 +29,7 @@ from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSe
 from code_index.file_processing import FileProcessingService
 from code_index.path_utils import PathUtils
 from code_index.service_validation import ServiceValidator
-from code_index.services import IndexingService
+from code_index.services import IndexingService, SearchService, ConfigurationService as ConfigurationQueryService
 
 # Global error handler instance
 error_handler = ErrorHandler()
@@ -206,7 +206,7 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
                                 auto_ignore_detection: bool, use_tree_sitter: bool, chunking_strategy: str | None) -> tuple[int, int, int]:
     """Process a single workspace using IndexingService and return (processed_count, total_blocks, timed_out_files_count)."""
     # Initialize ConfigurationService for centralized configuration management
-    config_service = ConfigurationService(error_handler)
+    config_service = ConfigurationLoaderService(error_handler)
 
     # Prepare CLI overrides
     cli_overrides = {}
@@ -284,7 +284,7 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
 def search(workspace: str, config: str, min_score: float, max_results: int, json_output: bool, query: str):
     """Search indexed code using semantic similarity."""
     # Initialize ConfigurationService for centralized configuration management
-    config_service = ConfigurationService(error_handler)
+    config_service = ConfigurationLoaderService(error_handler)
 
     # Prepare CLI overrides for search parameters
     cli_overrides = {}
@@ -299,67 +299,44 @@ def search(workspace: str, config: str, min_score: float, max_results: int, json
         workspace_path=workspace,
         overrides=cli_overrides
     )
-    
-    # Initialize components
-    embedder = OllamaEmbedder(cfg)
-    vector_store = QdrantVectorStore(cfg)
 
-    # ConfigurationService handles validation internally, so services are already validated
-    
-    # Generate query embedding
-    try:
-        embedding_response = embedder.create_embeddings([query])
-        query_vector = embedding_response["embeddings"][0]
-    except Exception as e:
-        print(f"Error generating embedding for query: {e}")
-        sys.exit(1)
-    
-    # Perform search
-    try:
-        results = vector_store.search(
-            query_vector=query_vector,
-            min_score=cfg.search_min_score,
-            max_results=cfg.search_max_results
-        )
-    except Exception as e:
-        print(f"Error searching: {e}")
-        sys.exit(1)
-    
+    # Initialize SearchService
+    search_service = SearchService(error_handler)
+
+    # Execute search using the service
+    result = search_service.search_code(query, cfg)
+
     # Display results
-    if not results:
+    if not result.is_successful():
+        print(f"Search completed with errors: {len(result.errors)} errors")
+        for error in result.errors[:5]:  # Show first 5 errors
+            print(f"  - {error}")
+        if len(result.errors) > 5:
+            print(f"  ... and {len(result.errors) - 5} more errors")
+        return
+
+    if not result.has_matches():
         print("No results found.")
         return
 
     if json_output:
-        preview_len = getattr(cfg, "search_snippet_preview_chars", 160)
         output = []
-        for result in results:
-            payload = result.get("payload", {}) or {}
-            chunk = payload.get("codeChunk", "") or ""
-            snippet = (chunk[:preview_len]).replace("\n", " ")
+        for match in result.matches:
             output.append({
-                "filePath": payload.get("filePath", ""),
-                "startLine": payload.get("startLine", 0),
-                "endLine": payload.get("endLine", 0),
-                "type": payload.get("type", ""),
-                "score": float(result.get("score", 0.0) or 0.0),
-                "adjustedScore": float(result.get("adjustedScore", result.get("score", 0.0)) or 0.0),
-                "snippet": snippet,
+                "filePath": match.file_path,
+                "startLine": match.start_line,
+                "endLine": match.end_line,
+                "type": match.match_type,
+                "score": match.score,
+                "adjustedScore": match.adjusted_score,
+                "snippet": match.code_chunk[:160].replace("\n", " "),  # Preview first 160 chars
             })
         print(json.dumps(output, indent=2, ensure_ascii=False))
         return
 
-    print(f"Found {len(results)} results:")
-    preview_len = getattr(cfg, "search_snippet_preview_chars", 160)
-    for i, result in enumerate(results, 1):
-        score = float(result.get("score", 0.0) or 0.0)
-        adjusted = float(result.get("adjustedScore", score) or score)
-        payload = result.get("payload", {}) or {}
-        file_path = payload.get("filePath", "unknown")
-        start_line = payload.get("startLine", 0)
-        end_line = payload.get("endLine", payload.get("EndLine", 0))
-        content_preview = (payload.get("codeChunk", "") or "")[:preview_len].replace('\n', ' ')
-        print(f"\n{i}. Score: {score:.3f} (adj {adjusted:.3f})")
-        print(f"   File: {file_path}:{start_line}-{end_line}")
-        print(f"   Preview: {content_preview}...")
+    print(f"Found {result.total_found} results:")
+    for i, match in enumerate(result.matches, 1):
+        print(f"\n{i}. Score: {match.score:.3f} (adj {match.adjusted_score:.3f})")
+        print(f"   File: {match.file_path}:{match.start_line}-{match.end_line}")
+        print(f"   Preview: {match.code_chunk[:160].replace('\n', ' ')}...")
 

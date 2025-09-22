@@ -7,5 +7,6 @@ business logic from presentation layer concerns.
 
 from .indexing_service import IndexingService
 from .search_service import SearchService
+from .configuration_service import ConfigurationService
 
-__all__ = ['IndexingService', 'SearchService']
+__all__ = ['IndexingService', 'SearchService', 'ConfigurationService']

@@ -1,43 +1,69 @@
 from click.testing import CliRunner
 import json
 from code_index.cli import cli
-from code_index.embedder import OllamaEmbedder
-from code_index.vector_store import QdrantVectorStore
+from code_index.services import SearchService
+from code_index.models import SearchMatch
+from code_index.config_service import ConfigurationService
 
 
 def test_cli_json_schema_includes_adjusted_score(monkeypatch):
-    # Hermetic: stub embedder and vector store to avoid external services
-    monkeypatch.setattr(OllamaEmbedder, "validate_configuration", lambda self: {"valid": True})
-    monkeypatch.setattr(OllamaEmbedder, "create_embeddings", lambda self, texts: {"embeddings": [[0.0, 0.1, 0.2]]})
+    """Test CLI JSON output schema with service integration."""
 
-    # Deterministic QdrantVectorStore.search returning adjustedScore values
-    def fake_search(self, query_vector, directory_prefix=None, min_score=0.1, max_results=10):
-        return [
-            {
-                "score": 0.42,
-                "adjustedScore": 0.63,
-                "payload": {
-                    "filePath": "src/components/A.vue",
-                    "startLine": 1,
-                    "endLine": 10,
-                    "type": ".vue",
-                    "codeChunk": "..."
-                }
-            },
-            {
-                "score": 0.50,
-                "adjustedScore": 0.50,
-                "payload": {
-                    "filePath": "docs/readme.md",
-                    "startLine": 5,
-                    "endLine": 20,
-                    "type": ".md",
-                    "codeChunk": "..."
-                }
-            }
+    # Mock the SearchService to return test data
+    def fake_search_code(self, query, config):
+        matches = [
+            SearchMatch(
+                file_path="src/components/A.vue",
+                start_line=1,
+                end_line=10,
+                code_chunk="<template>...</template>",
+                match_type="vue",
+                score=0.42,
+                adjusted_score=0.63,
+                metadata={}
+            ),
+            SearchMatch(
+                file_path="docs/readme.md",
+                start_line=5,
+                end_line=20,
+                code_chunk="# Documentation...",
+                match_type="markdown",
+                score=0.50,
+                adjusted_score=0.50,
+                metadata={}
+            )
         ]
 
-    monkeypatch.setattr(QdrantVectorStore, "search", fake_search)
+        from code_index.models import SearchResult
+        return SearchResult(
+            query=query,
+            matches=matches,
+            total_found=len(matches),
+            execution_time_seconds=0.1,
+            search_method="text",
+            config_summary={},
+            errors=[],
+            warnings=[]
+        )
+
+    monkeypatch.setattr(SearchService, "search_code", fake_search_code)
+
+    # Mock the ConfigurationService to return a valid config
+    def fake_load_with_fallback(self, config_path, workspace_path, overrides=None):
+        from code_index.config import Config
+        config = Config()
+        config.workspace_path = workspace_path
+        config.ollama_base_url = "http://localhost:11434"
+        config.qdrant_url = "http://localhost:6333"
+        config.embedding_model = "nomic-embed-text"
+        config.embedding_length = 768
+        config.chunking_strategy = "lines"
+        config.search_min_score = 0.4
+        config.search_max_results = 50
+        return config
+
+    # Mock the ConfigurationService that the CLI uses (the config loader service)
+    monkeypatch.setattr(ConfigurationService, "load_with_fallback", fake_load_with_fallback)
 
     # Invoke CLI in an isolated filesystem so no real configs are mutated
     runner = CliRunner()

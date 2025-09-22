@@ -14,7 +14,7 @@ install:
 	uv pip install -e .
 
 test:
-	python -m pytest tests/ -v
+	.venv/bin/python -m pytest tests/ -v
 
 clean:
 	rm -rf build/
