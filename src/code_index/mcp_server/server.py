@@ -202,24 +202,55 @@ class CodeIndexMCPServer:
         from .tools.index_tool import index, create_index_tool_description
         from .tools.search_tool import search, create_search_tool_description
         from .tools.collections_tool import collections, create_collections_tool_description
+        import inspect
         
-        # Register index tool
-        self._mcp.tool(
-            name="index",
-            description=create_index_tool_description()
-        )(index)
+        # Register tools with proper async handling to avoid coroutine warnings
+        # FastMCP expects async functions to be registered directly
         
-        # Register search tool
-        self._mcp.tool(
-            name="search",
-            description=create_search_tool_description()
-        )(search)
+        # Register index tool (async function)
+        if inspect.iscoroutinefunction(index):
+            self._mcp.tool(
+                name="index",
+                description=create_index_tool_description()
+            )(index)
+        else:
+            # Wrap sync function if needed (shouldn't happen, but for safety)
+            async def async_index(*args, **kwargs):
+                return index(*args, **kwargs)
+            self._mcp.tool(
+                name="index",
+                description=create_index_tool_description()
+            )(async_index)
         
-        # Register collections tool
-        self._mcp.tool(
-            name="collections",
-            description=create_collections_tool_description()
-        )(collections)
+        # Register search tool (async function)
+        if inspect.iscoroutinefunction(search):
+            self._mcp.tool(
+                name="search",
+                description=create_search_tool_description()
+            )(search)
+        else:
+            # Wrap sync function if needed (shouldn't happen, but for safety)
+            async def async_search(*args, **kwargs):
+                return search(*args, **kwargs)
+            self._mcp.tool(
+                name="search",
+                description=create_search_tool_description()
+            )(async_search)
+        
+        # Register collections tool (async function)
+        if inspect.iscoroutinefunction(collections):
+            self._mcp.tool(
+                name="collections",
+                description=create_collections_tool_description()
+            )(collections)
+        else:
+            # Wrap sync function if needed (shouldn't happen, but for safety)
+            async def async_collections(*args, **kwargs):
+                return collections(*args, **kwargs)
+            self._mcp.tool(
+                name="collections",
+                description=create_collections_tool_description()
+            )(async_collections)
         
         self.logger.info("Registered index, search, and collections tools with MCP server")
     

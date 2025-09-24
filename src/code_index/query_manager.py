@@ -369,10 +369,13 @@ class TreeSitterQueryManager:
                     print(f"Compiled query using Query(language, text) for {language}")
                 return query
             except Exception as e_primary:
-                # Fallback to language.query if available
+                # Fallback to language.query if available (suppress deprecation warning)
                 try:
                     if hasattr(language_obj, "query"):
-                        query = language_obj.query(query_text)  # type: ignore[attr-defined]
+                        import warnings
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore", DeprecationWarning)
+                            query = language_obj.query(query_text)  # type: ignore[attr-defined]
                         if self._debug_enabled:
                             print(f"Compiled query using language.query(text) for {language}")
                         return query

@@ -51,7 +51,9 @@ class TestCodeIndexMCPServer:
             mock_instance.run_async = AsyncMock()
             mock_instance.run = AsyncMock()
             mock_instance.tool = Mock()
-            mock_instance.tool.return_value = AsyncMock()
+            # Don't set return_value to AsyncMock to avoid coroutine warnings
+            # The tool decorator should just return the function itself
+            mock_instance.tool.return_value = lambda func: func
             mock.return_value = mock_instance
             yield mock_instance
 

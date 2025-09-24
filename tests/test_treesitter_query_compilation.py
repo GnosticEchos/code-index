@@ -43,7 +43,8 @@ class TestTreeSitterQueryCompilation:
             query = self.strategy._get_queries_for_language(lang)
             if query:
                 try:
-                    compiled_query = self.strategy._get_cached_query(lang, query)
+                    # Try to compile the query using the config manager
+                    compiled_query = self.strategy.config_manager._compile_query(lang, query)
                     if compiled_query:
                         successful_compilations.append(lang)
                         print(f"✅ {lang}: Query compiled successfully")
@@ -88,8 +89,8 @@ class TestTreeSitterQueryCompilation:
         typescript_query = self.strategy._get_queries_for_language('typescript')
         assert typescript_query is not None, "TypeScript query should be defined"
         
-        # Try to compile the query
-        compiled_query = self.strategy._get_cached_query('typescript', typescript_query)
+        # Try to compile the query using the config manager
+        compiled_query = self.strategy.config_manager._compile_query('typescript', typescript_query)
         assert compiled_query is not None, "TypeScript query should compile successfully"
         
         print("✅ TypeScript query compiled successfully after fix")
@@ -99,8 +100,8 @@ class TestTreeSitterQueryCompilation:
         markdown_query = self.strategy._get_queries_for_language('markdown')
         assert markdown_query is not None, "Markdown query should be defined after fix"
         
-        # Try to compile the query
-        compiled_query = self.strategy._get_cached_query('markdown', markdown_query)
+        # Try to compile the query using the config manager
+        compiled_query = self.strategy.config_manager._compile_query('markdown', markdown_query)
         assert compiled_query is not None, "Markdown query should compile successfully"
         
         print("✅ Markdown query compiled successfully")

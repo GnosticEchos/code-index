@@ -16,6 +16,10 @@ from typing import Dict, Any, List
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
+# Import test utilities
+from tests.utilities.test_data_generator import TestDataGenerator
+from tests.utilities.service_mocks import ServiceMocks
+
 
 @pytest.fixture(scope="session")
 def test_data_dir():
@@ -362,6 +366,46 @@ def assert_search_results_format(results: List[Dict[str, Any]]):
         assert isinstance(result["adjustedScore"], (int, float))
         assert 0.0 <= result["score"] <= 1.0
         assert 0.0 <= result["adjustedScore"] <= 1.0
+
+
+# Tree-sitter specific fixtures
+
+@pytest.fixture
+def tree_sitter_config():
+    """Provide a test configuration with Tree-sitter enabled."""
+    return TestDataGenerator.create_config()
+
+
+@pytest.fixture
+def tree_sitter_error_handler():
+    """Provide a test error handler for Tree-sitter."""
+    return TestDataGenerator.create_error_handler()
+
+
+@pytest.fixture
+def tree_sitter_file_data():
+    """Provide test data for Tree-sitter file processing."""
+    return TestDataGenerator.create_python_file_data()
+
+
+@pytest.fixture
+def tree_sitter_service_mocks():
+    """Provide all Tree-sitter service mocks."""
+    return ServiceMocks.create_tree_sitter_mocks()
+
+
+@pytest.fixture
+def tree_sitter_patched_services():
+    """Provide patched Tree-sitter services context."""
+    with ServiceMocks.patch_all_services() as mocks:
+        yield mocks
+
+
+@pytest.fixture
+def tree_sitter_patched_imports():
+    """Provide patched Tree-sitter imports context."""
+    with ServiceMocks.patch_tree_sitter_imports() as mocks:
+        yield mocks
 
 
 # Make custom assertions available globally

@@ -35,6 +35,7 @@ class ErrorCategory(Enum):
     DATABASE = "database"         # Vector store/database errors
     CONFIGURATION = "configuration" # Configuration loading/processing errors
     SERVICE = "service"           # External service connectivity errors
+    RESOURCE_MANAGEMENT = "resource_management" # Resource management errors
     UNKNOWN = "unknown"           # Unclassified errors
 
 
