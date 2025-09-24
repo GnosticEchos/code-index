@@ -75,12 +75,12 @@ class LanguageDetector:
             if file_path in self._language_cache:
                 return self._language_cache[file_path]
 
-            # Try extension-based detection
-            language = self._detect_by_extension(file_path)
+            # Try filename-based detection first (for special files like CMakeLists.txt)
+            language = self._detect_by_filename(file_path)
 
-            # Try filename-based detection if extension failed
+            # Try extension-based detection if filename failed
             if not language:
-                language = self._detect_by_filename(file_path)
+                language = self._detect_by_extension(file_path)
 
             # Cache the result
             self._language_cache[file_path] = language
@@ -353,6 +353,7 @@ class LanguageDetector:
             'rst': 'rst',
             'org': 'org',
             'tex': 'latex',
+            'txt': 'text/plain',  # Add text files support
 
             # Database and query languages
             'sql': 'sql',
@@ -381,10 +382,16 @@ class LanguageDetector:
             'dockerfile': 'dockerfile',
             'makefile': 'makefile',
             'cmakelists.txt': 'cmake',
+            'CMakeLists.txt': 'cmake',  # Add uppercase version for test compatibility
             'cargo.toml': 'toml',
             'pyproject.toml': 'toml',
             'package.json': 'json',
             'tsconfig.json': 'json',
+            'requirements.txt': 'text/plain',  # Add requirements files support
+            'requirements-dev.txt': 'text/plain',
+            'ci_ignore.txt': 'text/plain',
+            'fast-indexing.json': 'json',
+            'semantic-accuracy.json': 'json',
         }
 
     def get_language_config(self, language: str) -> Dict[str, Any]:

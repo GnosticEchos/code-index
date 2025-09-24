@@ -162,15 +162,15 @@ class TreeSitterBatchProcessor:
                 file_path = file_info['file_path']
                 language_key = self._get_language_key_for_path(file_path)
 
-                if language_key:
-                    if language_key not in language_groups:
-                        language_groups[language_key] = []
-                    language_groups[language_key].append(file_info)
-                else:
-                    # Handle files with unknown language
+                # Handle files with unknown or text/plain language
+                if language_key is None or language_key == 'text/plain':
                     if "unknown" not in language_groups:
                         language_groups["unknown"] = []
                     language_groups["unknown"].append(file_info)
+                else:
+                    if language_key not in language_groups:
+                        language_groups[language_key] = []
+                    language_groups[language_key].append(file_info)
 
             return language_groups
 

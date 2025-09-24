@@ -1,0 +1,62 @@
+DEBUG: Loading community patterns
+DEBUG: Loaded 86 community patterns
+DEBUG: Loading project patterns
+DEBUG: Loaded 0 project patterns
+DEBUG: Loading global patterns
+DEBUG: Loaded 14 global patterns
+DEBUG: All ignore patterns: ['venv.bak/', 'develop-eggs/', '.env', '!.vscode/tasks.json', '*.py[codz]', 'ipython_config.py', '.pytype/', '.mypy_cache/', '.tox/', '.ruff_cache/', '!.vscode/launch.json', '__marimo__/', '.venv', '*.so', '.pybuilder/', 'env.bak/', 'docs/_build/', 'downloads/', '*.pot', '.webassets-cache', '.coverage.*', '*.py.cover', '*.vsix', '!*.code-workspace', '*.mo', 'cover/', '.envrc', 'marimo/_static/', 'lib/', 'build/', '.eggs/', '*$py.class', '.abstra/', '__pycache__/', 'db.sqlite3-journal', '.pyre/', '.fuse_hidden*', '.vscode/*', 'wheels/', '*~', 'pip-delete-this-directory.txt', '*.egg', '!.vscode/settings.json', 'lib64/', '.spyderproject', 'MANIFEST', '*.egg-info/', '.coverage', 'cython_debug/', '.streamlit/secrets.toml', 'nohup.out', 'coverage.xml', '__pypackages__/', '.nfs*', 'target/', '.directory', 'celerybeat.pid', '.pypirc', '*.cover', '.Python', '.dmypy.json', '.pytest_cache/', '.Trash-*', 'share/python-wheels/', 'marimo/_lsp/', '.pdm-python', 'env/', '!.vscode/extensions.json', 'instance/', 'eggs/', 'ENV/', '*.log', '.nox/', '.cache', 'celerybeat-schedule', 'venv/', 'dist/', '.pixi', '.installed.cfg', 'htmlcov/', 'sdist/', '*.sage.py', 'parts/', '*.spec', '.hypothesis/', '/site', '.ipynb_checkpoints', 'local_settings.py', '.ropeproject', '.scrapy', 'var/', '.pdm-build/', '.spyproject', 'db.sqlite3', 'dmypy.json', '!.vscode/*.code-snippets', 'pip-log.txt', '*.manifest', 'nosetests.xml', 'profile_default/']
+DEBUG: Ignoring '__pycache__' because it matches pattern '__pycache__/'
+DEBUG: get_language_config ENTRY with language_key='python'
+DEBUG: Checking cache for language_key='python'
+Warning: 'list' object has no attribute 'success'
+DEBUG: get_language_config ENTRY with language_key='python'
+DEBUG: Checking cache for language_key='python'
+DEBUG: Found in cache, returning cached config
+DEBUG: Returning cached config: <class 'code_index.services.config_manager.TreeSitterConfigurationManager.get_language_config.<locals>.SyncingDict'>
+Warning: 'list' object has no attribute 'success'
+DEBUG: get_language_config ENTRY with language_key='python'
+DEBUG: Checking cache for language_key='python'
+DEBUG: Found in cache, returning cached config
+DEBUG: Returning cached config: <class 'code_index.services.config_manager.TreeSitterConfigurationManager.get_language_config.<locals>.SyncingDict'>
+Warning: 'list' object has no attribute 'success'
+DEBUG: get_language_config ENTRY with language_key='python'
+DEBUG: Checking cache for language_key='python'
+DEBUG: Found in cache, returning cached config
+DEBUG: Returning cached config: <class 'code_index.services.config_manager.TreeSitterConfigurationManager.get_language_config.<locals>.SyncingDict'>
+Warning: 'list' object has no attribute 'success'
+DEBUG: get_language_config ENTRY with language_key='python'
+DEBUG: Checking cache for language_key='python'
+DEBUG: Found in cache, returning cached config
+DEBUG: Returning cached config: <class 'code_index.services.config_manager.TreeSitterConfigurationManager.get_language_config.<locals>.SyncingDict'>
+Warning: 'list' object has no attribute 'success'
+DEBUG: get_language_config ENTRY with language_key='python'
+DEBUG: Checking cache for language_key='python'
+DEBUG: Found in cache, returning cached config
+DEBUG: Returning cached config: <class 'code_index.services.config_manager.TreeSitterConfigurationManager.get_language_config.<locals>.SyncingDict'>
+Warning: 'list' object has no attribute 'success'
+DEBUG: get_language_config ENTRY with language_key='python'
+DEBUG: Checking cache for language_key='python'
+DEBUG: Found in cache, returning cached config
+DEBUG: Returning cached config: <class 'code_index.services.config_manager.TreeSitterConfigurationManager.get_language_config.<locals>.SyncingDict'>
+Warning: 'list' object has no attribute 'success'
+DEBUG: get_language_config ENTRY with language_key='python'
+DEBUG: Checking cache for language_key='python'
+DEBUG: Found in cache, returning cached config
+DEBUG: Returning cached config: <class 'code_index.services.config_manager.TreeSitterConfigurationManager.get_language_config.<locals>.SyncingDict'>
+Warning: 'list' object has no attribute 'success'
+DEBUG: get_language_config ENTRY with language_key='python'
+DEBUG: Checking cache for language_key='python'
+DEBUG: Found in cache, returning cached config
+DEBUG: Returning cached config: <class 'code_index.services.config_manager.TreeSitterConfigurationManager.get_language_config.<locals>.SyncingDict'>
+Warning: 'list' object has no attribute 'success'
+DEBUG: get_language_config ENTRY with language_key='python'
+DEBUG: Checking cache for language_key='python'
+DEBUG: Found in cache, returning cached config
+DEBUG: Returning cached config: <class 'code_index.services.config_manager.TreeSitterConfigurationManager.get_language_config.<locals>.SyncingDict'>
+Warning: 'list' object has no attribute 'success'
+Successfully processed 10 files with 253 code blocks.
+Processing time: 61.67 seconds
+To retry only failed files with a longer timeout, run: code-index index --workspace <...> --retry-list <timeout_log> --embed-timeout <seconds>
+Resource cleanup completed: {'parsers_cleaned': 0, 'queries_cleaned': 0, 'languages_cleared': 1, 'resources_removed': 0}
+Resource cleanup completed: {'parsers_cleaned': 0, 'queries_cleaned': 0, 'languages_cleared': 0, 'resources_removed': 0}
+Resource cleanup completed: {'parsers_cleaned': 0, 'queries_cleaned': 0, 'languages_cleared': 0, 'resources_removed': 0}

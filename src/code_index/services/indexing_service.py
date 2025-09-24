@@ -99,6 +99,8 @@ class IndexingService:
                     config_summary=self.config_service.get_config_summary(config)
                 )
 
+            vector_store.initialize()
+
             # Process files
             processed_count, total_blocks = self._process_files(
                 file_paths, parser, embedder, vector_store, cache_manager,
