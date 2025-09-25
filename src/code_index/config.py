@@ -134,6 +134,56 @@ class Config:
         # Memory-mapped file reading configuration
         self.use_mmap_file_reading: bool = False
         self.mmap_min_file_size_bytes: int = 64 * 1024  # 64KB minimum for mmap
+        
+        # Scalability configuration for large file handling
+        self.enable_chunked_processing: bool = True
+        self.large_file_threshold_bytes: int = 256 * 1024  # 256KB threshold for large files
+        self.streaming_threshold_bytes: int = 1024 * 1024  # 1MB threshold for streaming
+        self.default_chunk_size_bytes: int = 64 * 1024  # 64KB default chunk size
+        self.max_chunk_size_bytes: int = 512 * 1024  # 512KB max chunk size
+        self.memory_optimization_threshold_mb: int = 100  # 100MB memory usage threshold
+        self.enable_progressive_indexing: bool = True
+        self.chunk_size_optimization: bool = True
+        
+        # Parser scalability configuration
+        self.enable_fallback_parsers: bool = True
+        self.enable_hybrid_parsing: bool = True
+        self.parser_performance_monitoring: bool = True
+        self.max_parser_memory_mb: int = 50  # 50MB max memory per parser
+        self.parser_timeout_seconds: int = 30  # 30 second timeout for parsing operations
+        self.enable_parser_caching: bool = True
+        self.parser_cache_size: int = 50  # Maximum 50 parsers in cache
+        
+        # File type specific chunking configuration
+        self.language_chunk_sizes: dict = {
+            "python": 64 * 1024,      # Python files tend to be smaller
+            "javascript": 128 * 1024, # JS files can be larger
+            "typescript": 128 * 1024,
+            "java": 256 * 1024,       # Java files are often larger
+            "cpp": 256 * 1024,
+            "rust": 128 * 1024,
+            "go": 128 * 1024,
+            "text": 32 * 1024,        # Text files can use smaller chunks
+            "markdown": 32 * 1024,
+            "json": 64 * 1024,
+            "xml": 128 * 1024,
+            "yaml": 32 * 1024
+        }
+        
+        # Fallback parser configuration
+        self.fallback_parser_patterns: dict = {
+            "text": ["*.txt", "*.log", "*.md", "*.rst"],
+            "config": ["*.ini", "*.cfg", "*.conf", "*.properties"],
+            "data": ["*.csv", "*.tsv", "*.json", "*.xml", "*.yaml"],
+            "documentation": ["*.md", "*.rst", "*.txt"],
+            "plain_text": ["*.txt", "*.log", "*.out", "*.err"]
+        }
+        
+        # Performance monitoring configuration
+        self.enable_performance_monitoring: bool = True
+        self.performance_stats_interval: int = 100  # Collect stats every 100 operations
+        self.enable_memory_profiling: bool = False
+        self.memory_profiling_threshold_mb: int = 500  # Profile when memory usage > 500MB
     
     @classmethod
     def from_file(cls, config_path: str) -> "Config":

@@ -1,0 +1,308 @@
+{
+  "summary": {
+    "total_tests": 41,
+    "successful_tests": 24,
+    "failed_tests": 17,
+    "error_tests": 0,
+    "timestamp": "2025-09-25T10:36:19.666176",
+    "test_categories": [
+      "processing_improvement",
+      "query_method_detection",
+      "unknown"
+    ],
+    "success_rate": 58.536585365853654,
+    "average_improvement_percent": -2847.4277249135293
+  },
+  "detailed_results": [
+    {
+      "test_type": "query_method_detection",
+      "language": "python",
+      "queries_available": true,
+      "query_length": 170,
+      "status": "success"
+    },
+    {
+      "file_type": "small_python",
+      "file_size": 876,
+      "traditional_avg": 4.681781865656376e-05,
+      "mmap_avg": 1.767938956618309e-05,
+      "improvement_percent": 62.23790412818715,
+      "status": "success"
+    },
+    {
+      "file_type": "small_rust",
+      "file_size": 1078,
+      "traditional_avg": 1.9220169633626938e-05,
+      "mmap_avg": 1.6569439321756362e-05,
+      "improvement_percent": 13.791399152029078,
+      "status": "success"
+    },
+    {
+      "file_type": "large_python",
+      "file_size": 524288,
+      "traditional_avg": 0.0005320433992892504,
+      "mmap_avg": 0.00044688479974865916,
+      "improvement_percent": 16.005949825588182,
+      "status": "success"
+    },
+    {
+      "file_type": "large_rust",
+      "file_size": 524288,
+      "traditional_avg": 0.0004614403937011957,
+      "mmap_avg": 0.0005267234519124031,
+      "improvement_percent": -14.147668713519964,
+      "status": "success"
+    },
+    {
+      "config": "default",
+      "file_type": "normal_python",
+      "expected": true,
+      "actual": true,
+      "status": "success"
+    },
+    {
+      "config": "default",
+      "file_type": "normal_rust",
+      "expected": true,
+      "actual": true,
+      "status": "success"
+    },
+    {
+      "config": "default",
+      "file_type": "test_python",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "default",
+      "file_type": "test_rust",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "default",
+      "file_type": "example_python",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "default",
+      "file_type": "large_rust",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "performance_optimized",
+      "file_type": "normal_python",
+      "expected": true,
+      "actual": true,
+      "status": "success"
+    },
+    {
+      "config": "performance_optimized",
+      "file_type": "normal_rust",
+      "expected": true,
+      "actual": true,
+      "status": "success"
+    },
+    {
+      "config": "performance_optimized",
+      "file_type": "test_python",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "performance_optimized",
+      "file_type": "test_rust",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "performance_optimized",
+      "file_type": "example_python",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "performance_optimized",
+      "file_type": "large_rust",
+      "expected": false,
+      "actual": false,
+      "status": "success"
+    },
+    {
+      "config": "comprehensive",
+      "file_type": "normal_python",
+      "expected": true,
+      "actual": true,
+      "status": "success"
+    },
+    {
+      "config": "comprehensive",
+      "file_type": "normal_rust",
+      "expected": true,
+      "actual": true,
+      "status": "success"
+    },
+    {
+      "config": "comprehensive",
+      "file_type": "test_python",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "comprehensive",
+      "file_type": "test_rust",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "comprehensive",
+      "file_type": "example_python",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "comprehensive",
+      "file_type": "large_rust",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "rust_optimized",
+      "file_type": "normal_python",
+      "expected": true,
+      "actual": true,
+      "status": "success"
+    },
+    {
+      "config": "rust_optimized",
+      "file_type": "normal_rust",
+      "expected": true,
+      "actual": true,
+      "status": "success"
+    },
+    {
+      "config": "rust_optimized",
+      "file_type": "test_python",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "rust_optimized",
+      "file_type": "test_rust",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "rust_optimized",
+      "file_type": "example_python",
+      "expected": false,
+      "actual": true,
+      "status": "failed"
+    },
+    {
+      "config": "rust_optimized",
+      "file_type": "large_rust",
+      "expected": false,
+      "actual": false,
+      "status": "success"
+    },
+    {
+      "strategy": "line_based",
+      "file_type": "python",
+      "avg_time": 5.3140257174770035e-05,
+      "blocks_count": 1,
+      "status": "success"
+    },
+    {
+      "strategy": "line_based",
+      "file_type": "rust",
+      "avg_time": 2.0004110410809517e-05,
+      "blocks_count": 1,
+      "status": "success"
+    },
+    {
+      "strategy": "tree_sitter",
+      "file_type": "python",
+      "avg_time": 0.00478585126499335,
+      "blocks_count": 1,
+      "status": "success"
+    },
+    {
+      "strategy": "tree_sitter",
+      "file_type": "rust",
+      "avg_time": 0.0016716193252553542,
+      "blocks_count": 1,
+      "status": "success"
+    },
+    {
+      "test_type": "processing_improvement",
+      "file_type": "python",
+      "line_based_time": 5.3140257174770035e-05,
+      "tree_sitter_time": 0.00478585126499335,
+      "improvement_percent": -8906.07471517014,
+      "status": "success"
+    },
+    {
+      "test_type": "processing_improvement",
+      "file_type": "rust",
+      "line_based_time": 2.0004110410809517e-05,
+      "tree_sitter_time": 0.0016716193252553542,
+      "improvement_percent": -8256.379218703321,
+      "status": "success"
+    },
+    {
+      "case": "non_existent",
+      "result_count": 0,
+      "status": "failed",
+      "message": "Unexpected result: 0 blocks"
+    },
+    {
+      "case": "empty_file",
+      "result_count": 0,
+      "status": "failed",
+      "message": "Unexpected result: 0 blocks"
+    },
+    {
+      "case": "unsupported_language",
+      "result_count": 0,
+      "status": "failed",
+      "message": "Unexpected result: 0 blocks"
+    },
+    {
+      "case": "too_large",
+      "result_count": 1,
+      "status": "success",
+      "message": "Fallback successful: 1 blocks"
+    },
+    {
+      "file_type": "python",
+      "processing_time": 0.0006623668596148491,
+      "blocks_count": 1,
+      "semantic_blocks": 0,
+      "status": "success"
+    },
+    {
+      "file_type": "rust",
+      "processing_time": 0.0006040669977664948,
+      "blocks_count": 1,
+      "semantic_blocks": 0,
+      "status": "success"
+    }
+  ],
+  "performance_data": []
+}

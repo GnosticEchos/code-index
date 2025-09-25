@@ -20,8 +20,11 @@ def run_command(cmd, description):
         print(f"✗ {description} failed (exit code: {result.returncode})")
         return False
 
-def build_cli_binary():
+def build_cli_binary(extra_args=None):
     """Build the CLI binary."""
+    if extra_args is None:
+        extra_args = []
+
     cmd = [
         "python", "-m", "nuitka",
         "--onefile",
@@ -52,10 +55,17 @@ def build_cli_binary():
         "--clang",  # Use Clang for better performance
         "src/bin/cli_entry.py"
     ]
+
+    # Add extra arguments passed from command line
+    cmd.extend(extra_args)
+
     return run_command(cmd, "Building CLI binary")
 
-def build_mcp_binary():
+def build_mcp_binary(extra_args=None):
     """Build the MCP server binary."""
+    if extra_args is None:
+        extra_args = []
+
     cmd = [
         "python", "-m", "nuitka",
         "--onefile",
@@ -86,6 +96,10 @@ def build_mcp_binary():
         "--clang",  # Use Clang for better performance
         "src/bin/mcp_entry.py"
     ]
+
+    # Add extra arguments passed from command line
+    cmd.extend(extra_args)
+
     return run_command(cmd, "Building MCP server binary")
 
 def main():
@@ -93,17 +107,24 @@ def main():
     print("Code Index Binary Builder")
     print("=" * 40)
 
+    # Parse extra arguments from command line
+    extra_args = []
+    if len(sys.argv) > 1:
+        # Skip the script name (sys.argv[0])
+        extra_args = sys.argv[1:]
+        print(f"Extra Nuitka arguments: {extra_args}")
+
     # Ensure dist directory exists
     dist_dir = Path("dist")
     dist_dir.mkdir(exist_ok=True)
 
     # Build CLI binary
-    if not build_cli_binary():
+    if not build_cli_binary(extra_args):
         print("CLI binary build failed")
         sys.exit(1)
 
     # Build MCP binary
-    if not build_mcp_binary():
+    if not build_mcp_binary(extra_args):
         print("MCP binary build failed")
         sys.exit(1)
 

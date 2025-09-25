@@ -187,6 +187,7 @@ class ConfigurationService:
                 if os.path.exists(config_file):
                     self.logger.info(f"Loading workspace-specific config from {config_file}")
                     config = self._load_config_file(config_file, config)
+                    self.logger.debug(f"After workspace config: ollama_model={config.ollama_model}, embedding_length={config.embedding_length}")
                     break
 
             return config
@@ -229,11 +230,14 @@ class ConfigurationService:
         """
         try:
             self.logger.info(f"Applying CLI overrides: {list(overrides.keys())}")
+            self.logger.debug(f"Before CLI overrides: ollama_model={config.ollama_model}, embedding_length={config.embedding_length}")
 
             # Create a copy of the config to avoid modifying the original
             new_config = Config()
             for key, value in vars(config).items():
                 setattr(new_config, key, value)
+
+            self.logger.debug(f"After copying config: ollama_model={new_config.ollama_model}, embedding_length={new_config.embedding_length}")
 
             # Apply overrides
             for key, value in overrides.items():
@@ -243,6 +247,8 @@ class ConfigurationService:
                     self.logger.debug(f"Applied CLI override: {key} = {value} (was: {old_value})")
                 else:
                     self.logger.warning(f"Unknown configuration parameter: {key}")
+
+            self.logger.debug(f"After CLI overrides: ollama_model={new_config.ollama_model}, embedding_length={new_config.embedding_length}")
 
             # Validate the configuration with overrides
             validation_result = self.validate_and_initialize(new_config)

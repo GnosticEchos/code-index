@@ -37,30 +37,6 @@ from code_index.models import CodeBlock
 from code_index.treesitter_queries import get_queries_for_language as get_ts_queries
 from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity, error_handler
 
-class TreeSitterError(Exception):
-    """Base exception for Tree-sitter related errors."""
-    pass
-
-
-class TreeSitterParserError(TreeSitterError):
-    """Exception raised when Tree-sitter parser fails to load."""
-    pass
-
-
-class TreeSitterQueryError(TreeSitterError):
-    """Exception raised when Tree-sitter query execution fails."""
-    pass
-
-
-class TreeSitterLanguageError(TreeSitterError):
-    """Exception raised when language is not supported by Tree-sitter."""
-    pass
-
-
-class TreeSitterFileTooLargeError(TreeSitterError):
-    """Exception raised when file is too large for Tree-sitter parsing."""
-    pass
-
 
 class ChunkingStrategy(ABC):
     """Abstract base class for chunking strategies."""
@@ -187,6 +163,38 @@ class TokenChunkingStrategy(ChunkingStrategy):
                 )
         return blocks
 
+def extract_blocks_from_tree_sitter(
+    root_node,
+    text,
+    file_path,
+    file_hash,
+    language_key,
+):
+    # Extract blocks
+    extraction_result = self.block_extractor.extract_blocks(
+        text, file_path, file_hash, language_key
+    )
+    
+    # Import ExtractionResult locally to avoid circular import
+    from code_index.services.block_extractor import ExtractionResult
+    
+    # Ensure extraction_result is always an ExtractionResult object, not a list
+    if isinstance(extraction_result, list):
+        # Convert list to ExtractionResult for backward compatibility
+        extraction_result = ExtractionResult(
+            blocks=extraction_result,
+            success=True,
+            metadata={"converted_from_list": True}
+        )
+    elif not hasattr(extraction_result, 'success'):
+        # Handle case where extraction_result doesn't have success attribute
+        extraction_result = ExtractionResult(
+            blocks=getattr(extraction_result, 'blocks', []),
+            success=len(getattr(extraction_result, 'blocks', [])) > 0,
+            metadata={"fallback_conversion": True}
+        )
+
+    return extraction_result
 
 class TreeSitterChunkingStrategy(ChunkingStrategy):
     """
@@ -271,20 +279,38 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
 
             # Acquire resources
             resources = self.resource_manager.acquire_resources(language_key, "parser")
-
-            # Parse text
             parser = resources.get("parser")
             if not parser:
                 self._debug(f"Parser not available for {language_key}")
                 return LineChunkingStrategy(self.config).chunk(text, file_path, file_hash)
 
+            # Parse text
             tree = parser.parse(bytes(text, "utf8"))
             root_node = tree.root_node
 
-            # Extract blocks
-            extraction_result = self.block_extractor.extract_blocks(
+            # Extract blocks using the new method that takes parsed tree
+            extraction_result = self.block_extractor.extract_blocks_from_root_node(
                 root_node, text, file_path, file_hash, language_key
             )
+            
+            # Import ExtractionResult locally to avoid circular import
+            from code_index.services.block_extractor import ExtractionResult
+            
+            # Ensure extraction_result is always an ExtractionResult object, not a list
+            if isinstance(extraction_result, list):
+                # Convert list to ExtractionResult for backward compatibility
+                extraction_result = ExtractionResult(
+                    blocks=extraction_result,
+                    success=True,
+                    metadata={"converted_from_list": True}
+                )
+            elif not hasattr(extraction_result, 'success'):
+                # Handle case where extraction_result doesn't have success attribute
+                extraction_result = ExtractionResult(
+                    blocks=getattr(extraction_result, 'blocks', []),
+                    success=len(getattr(extraction_result, 'blocks', [])) > 0,
+                    metadata={"fallback_conversion": True}
+                )
 
             if extraction_result.success and extraction_result.blocks:
                 # Apply limits
@@ -336,6 +362,22 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
         except Exception:
             return None
 
+    def _get_queries_for_language(self, language_key: str) -> Optional[str]:
+        """Get queries for a language (delegated to config manager)."""
+        return self.config_manager.get_query_for_language(language_key)
+
+    def _get_node_types_for_language(self, language_key: str) -> Optional[list]:
+        """Get node types for a language (delegated to config manager)."""
+        return self.config_manager._get_node_types_for_language(language_key)
+
+    def _ensure_tree_sitter_version(self) -> None:
+        """Ensure Tree-sitter version compatibility (delegated to resource manager)."""
+        return self.resource_manager.ensure_tree_sitter_version()
+
+    def _should_process_file_for_treesitter(self, file_path: str) -> bool:
+        """Check if file should be processed with Tree-sitter (delegated to file processor)."""
+        return self.file_processor.validate_file(file_path)
+
     def cleanup_resources(self):
         """Clean up all resources using resource manager."""
         return self.resource_manager.cleanup_all()
@@ -346,95 +388,3 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
             self.cleanup_resources()
         except:
             pass  # Ignore errors during destruction
-
-    # Missing methods for test compatibility
-    def _ensure(self, condition: bool, message: str = "") -> None:
-        """Ensure a condition is true, raise error if not."""
-        if not condition:
-            raise AssertionError(message or "Condition failed")
-
-    def _group_by(self, items: list, key_func) -> dict:
-        """Group items by a key function."""
-        result = {}
-        for item in items:
-            key = key_func(item)
-            if key not in result:
-                result[key] = []
-            result[key].append(item)
-        return result
-
-    def _optimize(self, config: dict, strategy: str = "default") -> dict:
-        """Optimize configuration based on strategy."""
-        optimized = dict(config)
-
-        # Apply optimization strategies
-        if strategy == "memory":
-            optimized.update({
-                "max_blocks": min(optimized.get("max_blocks", 100), 50),
-                "timeout_multiplier": 0.8
-            })
-        elif strategy == "speed":
-            optimized.update({
-                "max_blocks": min(optimized.get("max_blocks", 100), 30),
-                "timeout_multiplier": 1.2
-            })
-
-        return optimized
-
-    def _should(self, condition_func, *args, **kwargs) -> bool:
-        """Evaluate a condition function."""
-        try:
-            return condition_func(*args, **kwargs)
-        except Exception:
-            return False
-
-    def _get_query(self, language_key: str):
-        """Get query for language."""
-        try:
-            from .query_manager import TreeSitterQueryManager
-            query_manager = TreeSitterQueryManager(self.config, self.error_handler)
-            return query_manager.get_compiled_query(language_key)
-        except Exception:
-            return None
-
-    def _should_process_file_for_treesitter(self, file_path: str) -> bool:
-        """Check if file should be processed by Tree-sitter."""
-        return self.file_processor.validate_file(file_path)
-
-    def _get_queries_for_language(self, language_key: str) -> Optional[str]:
-        """Get queries for a specific language."""
-        try:
-            from .treesitter_queries import get_queries_for_language
-            return get_queries_for_language(language_key)
-        except Exception:
-            return None
-
-    def _ensure_tree_sitter_version(self) -> None:
-        """Ensure Tree-sitter version compatibility."""
-        try:
-            import tree_sitter
-            # Check if basic Tree-sitter functionality is available
-            if not hasattr(tree_sitter, 'Parser'):
-                raise TreeSitterError("Tree-sitter Parser not available")
-        except ImportError:
-            raise TreeSitterError("Tree-sitter package not installed")
-        except Exception as e:
-            raise TreeSitterError(f"Tree-sitter version check failed: {e}")
-
-    def _get_node_types_for_language(self, language_key: str) -> Optional[list]:
-        """Get node types for a specific language."""
-        try:
-            from .services.config_manager import TreeSitterConfigurationManager
-            config_manager = TreeSitterConfigurationManager(self.config, self.error_handler)
-            return config_manager._get_node_types_for_language(language_key)
-        except Exception:
-            return None
-
-    def _get_cached_query(self, language_key: str, query_key: str):
-        """Get a cached query for a language."""
-        try:
-            from .services.config_manager import TreeSitterConfigurationManager
-            config_manager = TreeSitterConfigurationManager(self.config, self.error_handler)
-            return config_manager._get_cached_query(language_key, query_key)
-        except Exception:
-            return None

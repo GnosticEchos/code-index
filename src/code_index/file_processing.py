@@ -4,7 +4,8 @@ File processing utilities for the code index tool.
 import os
 import chardet
 import psutil
-from typing import List, Dict, Any, Optional, Iterator, Set
+import time
+from typing import List, Dict, Any, Optional, Iterator, Set, Callable
 from pathlib import Path
 from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 
@@ -25,6 +26,10 @@ class FileProcessingService:
             error_handler: ErrorHandler instance for structured error handling
         """
         self.error_handler = error_handler
+        # Add chunking configuration
+        self.default_chunk_size = 64 * 1024  # 64KB default chunk size
+        self.large_file_threshold = 256 * 1024  # 256KB threshold for large files
+        self.streaming_threshold = 1024 * 1024  # 1MB threshold for streaming
 
     def load_file_with_encoding(self, file_path: str, encoding: Optional[str] = None) -> str:
         """
@@ -132,6 +137,319 @@ class FileProcessingService:
         except ImportError:
             # Fallback to traditional reading if mmap not available
             return self._read_file_with_encoding_detection(file_path, encoding)
+
+    def load_file_with_chunking(self, file_path: str, chunk_size: Optional[int] = None, 
+                              encoding: Optional[str] = None, progress_callback: Optional[Callable] = None) -> Iterator[Dict[str, Any]]:
+        """
+        Load a large file in chunks for progressive processing.
+        
+        Args:
+            file_path: Path to the file to load
+            chunk_size: Size of each chunk in bytes (default: 64KB)
+            encoding: Optional specific encoding to use
+            progress_callback: Optional callback for progress updates
+            
+        Yields:
+            Dictionary with chunk data, metadata, and progress info
+        """
+        error_context = ErrorContext(
+            component="file_processing",
+            operation="load_file_with_chunking",
+            file_path=file_path
+        )
+        
+        try:
+            # Check if file exists
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"File not found: {file_path}")
+                
+            file_size = os.path.getsize(file_path)
+            chunk_size = chunk_size or self.default_chunk_size
+            
+            # Use different strategies based on file size
+            if file_size <= self.large_file_threshold:
+                # Small file - load entirely
+                content = self.load_file_with_encoding(file_path, encoding)
+                yield {
+                    "chunk_index": 0,
+                    "chunk_data": content,
+                    "chunk_size": len(content),
+                    "total_size": file_size,
+                    "is_complete": True,
+                    "progress": 100.0
+                }
+            else:
+                # Large file - process in chunks
+                yield from self._process_file_in_chunks(file_path, file_size, chunk_size, encoding, progress_callback)
+                
+        except Exception as e:
+            error_response = self.error_handler.handle_file_error(e, error_context, "chunked_loading")
+            yield {
+                "chunk_index": -1,
+                "error": str(e),
+                "error_response": error_response,
+                "success": False
+            }
+
+    def _process_file_in_chunks(self, file_path: str, file_size: int, chunk_size: int, 
+                               encoding: Optional[str], progress_callback: Optional[Callable]) -> Iterator[Dict[str, Any]]:
+        """Process a large file in chunks with streaming."""
+        try:
+            # Detect encoding first if not provided
+            if not encoding:
+                encoding = self._detect_file_encoding(file_path)
+            
+            chunk_index = 0
+            bytes_processed = 0
+            
+            with open(file_path, 'r', encoding=encoding, errors='replace') as f:
+                while True:
+                    chunk_data = f.read(chunk_size)
+                    if not chunk_data:
+                        break
+                        
+                    chunk_bytes = len(chunk_data.encode(encoding, errors='replace'))
+                    bytes_processed += chunk_bytes
+                    progress = (bytes_processed / file_size) * 100
+                    
+                    yield {
+                        "chunk_index": chunk_index,
+                        "chunk_data": chunk_data,
+                        "chunk_size": len(chunk_data),
+                        "total_size": file_size,
+                        "is_complete": bytes_processed >= file_size,
+                        "progress": progress,
+                        "encoding": encoding
+                    }
+                    
+                    # Call progress callback if provided
+                    if progress_callback:
+                        progress_callback(chunk_index, bytes_processed, file_size, progress)
+                    
+                    chunk_index += 1
+                    
+                    # Check for memory usage and yield control
+                    if chunk_index % 10 == 0:  # Every 10 chunks
+                        import gc
+                        gc.collect()
+                        
+        except Exception as e:
+            yield {
+                "chunk_index": -1,
+                "error": str(e),
+                "success": False
+            }
+
+    def _detect_file_encoding(self, file_path: str) -> str:
+        """Detect file encoding using chardet or fallback methods."""
+        try:
+            with open(file_path, 'rb') as f:
+                raw_data = f.read(4096)  # Read first 4KB for detection
+                
+            if chardet is not None:
+                detected = chardet.detect(raw_data)
+                encoding = detected.get('encoding', 'utf-8')
+                if encoding:
+                    return encoding
+                    
+            # Fallback to UTF-8
+            return 'utf-8'
+            
+        except Exception:
+            return 'utf-8'
+
+    def stream_process_large_file(self, file_path: str, processor_callback: Callable, 
+                                 chunk_size: Optional[int] = None, encoding: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Stream process a large file with custom processor callback.
+        
+        Args:
+            file_path: Path to the file
+            processor_callback: Function to process each chunk
+            chunk_size: Size of each chunk
+            encoding: File encoding
+            
+        Returns:
+            Dictionary with processing results and statistics
+        """
+        error_context = ErrorContext(
+            component="file_processing",
+            operation="stream_process_large_file",
+            file_path=file_path
+        )
+        
+        results = {
+            "file_path": file_path,
+            "chunks_processed": 0,
+            "total_size": 0,
+            "processing_time_ms": 0,
+            "errors": [],
+            "success": True
+        }
+        
+        start_time = time.time()
+        
+        try:
+            file_size = os.path.getsize(file_path)
+            results["total_size"] = file_size
+            
+            # Process file in chunks
+            for chunk_info in self.load_file_with_chunking(file_path, chunk_size, encoding):
+                if "error" in chunk_info:
+                    results["errors"].append(chunk_info["error"])
+                    results["success"] = False
+                    continue
+                    
+                if chunk_info["is_complete"] and chunk_info["chunk_index"] == 0:
+                    # Small file processed entirely
+                    chunk_result = processor_callback(chunk_info["chunk_data"], 0, True)
+                    results["chunks_processed"] += 1
+                    results["processing_results"] = chunk_result
+                else:
+                    # Large file chunk
+                    chunk_result = processor_callback(
+                        chunk_info["chunk_data"], 
+                        chunk_info["chunk_index"], 
+                        chunk_info["is_complete"]
+                    )
+                    results["chunks_processed"] += 1
+                    
+                    # Store chunk results
+                    if "chunk_results" not in results:
+                        results["chunk_results"] = []
+                    results["chunk_results"].append({
+                        "chunk_index": chunk_info["chunk_index"],
+                        "result": chunk_result,
+                        "chunk_size": chunk_info["chunk_size"]
+                    })
+                    
+        except Exception as e:
+            error_response = self.error_handler.handle_file_error(e, error_context, "stream_processing")
+            results["errors"].append(str(e))
+            results["success"] = False
+            
+        finally:
+            results["processing_time_ms"] = (time.time() - start_time) * 1000
+            
+        return results
+
+    def get_optimal_chunk_size(self, file_size: int, language: Optional[str] = None) -> int:
+        """
+        Get optimal chunk size based on file size and language.
+        
+        Args:
+            file_size: Size of the file in bytes
+            language: Optional language hint for optimization
+            
+        Returns:
+            Optimal chunk size in bytes
+        """
+        # Base chunk sizes for different file size categories
+        if file_size < 1024 * 1024:  # < 1MB
+            return 64 * 1024  # 64KB
+        elif file_size < 10 * 1024 * 1024:  # < 10MB
+            return 128 * 1024  # 128KB
+        elif file_size < 100 * 1024 * 1024:  # < 100MB
+            return 256 * 1024  # 256KB
+        else:  # > 100MB
+            return 512 * 1024  # 512KB
+            
+        # Language-specific optimizations
+        if language:
+            language_chunk_sizes = {
+                'python': 64 * 1024,      # Python files tend to be smaller
+                'javascript': 128 * 1024, # JS files can be larger
+                'typescript': 128 * 1024,
+                'java': 256 * 1024,       # Java files are often larger
+                'cpp': 256 * 1024,
+                'rust': 128 * 1024,
+                'go': 128 * 1024,
+                'text': 32 * 1024,        # Text files can use smaller chunks
+                'markdown': 32 * 1024,
+                'json': 64 * 1024,
+                'xml': 128 * 1024,
+                'yaml': 32 * 1024
+            }
+            return language_chunk_sizes.get(language, self.default_chunk_size)
+            
+        return self.default_chunk_size
+
+    def process_file_with_memory_optimization(self, file_path: str, processor: Callable, 
+                                            max_memory_usage_mb: int = 100) -> Dict[str, Any]:
+        """
+        Process a file with memory usage optimization.
+        
+        Args:
+            file_path: Path to the file
+            processor: Function to process the file content
+            max_memory_usage_mb: Maximum memory usage in MB
+            
+        Returns:
+            Dictionary with processing results and memory usage stats
+        """
+        error_context = ErrorContext(
+            component="file_processing",
+            operation="process_file_with_memory_optimization",
+            file_path=file_path
+        )
+        
+        results = {
+            "file_path": file_path,
+            "success": False,
+            "memory_usage_mb": 0,
+            "peak_memory_mb": 0,
+            "processing_time_ms": 0,
+            "strategy_used": "unknown"
+        }
+        
+        start_time = time.time()
+        
+        try:
+            import psutil
+            process = psutil.Process()
+            initial_memory = process.memory_info().rss / (1024 * 1024)  # MB
+            
+            file_size = os.path.getsize(file_path)
+            
+            # Choose processing strategy based on file size and memory constraints
+            if file_size > max_memory_usage_mb * 1024 * 1024:  # File larger than memory limit
+                results["strategy_used"] = "streaming_chunked"
+                # Use streaming with very small chunks
+                chunk_size = min(32 * 1024, self.get_optimal_chunk_size(file_size))
+                stream_results = self.stream_process_large_file(
+                    file_path, processor, chunk_size
+                )
+                results.update(stream_results)
+            elif file_size > self.streaming_threshold:
+                results["strategy_used"] = "chunked_processing"
+                # Use normal chunked processing
+                chunk_size = self.get_optimal_chunk_size(file_size)
+                stream_results = self.stream_process_large_file(
+                    file_path, processor, chunk_size
+                )
+                results.update(stream_results)
+            else:
+                results["strategy_used"] = "standard_loading"
+                # Use standard loading for smaller files
+                content = self.load_file_with_encoding(file_path)
+                processing_result = processor(content, 0, True)
+                results["processing_results"] = processing_result
+                results["success"] = True
+                
+            # Measure final memory usage
+            final_memory = process.memory_info().rss / (1024 * 1024)  # MB
+            results["memory_usage_mb"] = final_memory - initial_memory
+            results["peak_memory_mb"] = max(initial_memory, final_memory) - initial_memory
+            
+        except Exception as e:
+            error_response = self.error_handler.handle_file_error(e, error_context, "memory_optimized_processing")
+            results["error"] = str(e)
+            results["error_response"] = error_response
+            
+        finally:
+            results["processing_time_ms"] = (time.time() - start_time) * 1000
+            
+        return results
 
     def process_file_list(self, file_paths: List[str], operation: str = "processing") -> Iterator[Dict[str, Any]]:
         """
