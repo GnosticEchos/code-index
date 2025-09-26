@@ -56,8 +56,9 @@ def build_cli_binary(extra_args=None):
         "src/bin/cli_entry.py"
     ]
 
-    # Add extra arguments passed from command line
-    cmd.extend(extra_args)
+    # Add extra arguments passed from command line, but filter out problematic static libpython flag
+    filtered_extra_args = [arg for arg in extra_args if not arg.startswith('--static-libpython')]
+    cmd.extend(filtered_extra_args)
 
     return run_command(cmd, "Building CLI binary")
 
@@ -97,8 +98,9 @@ def build_mcp_binary(extra_args=None):
         "src/bin/mcp_entry.py"
     ]
 
-    # Add extra arguments passed from command line
-    cmd.extend(extra_args)
+    # Add extra arguments passed from command line, but filter out problematic static libpython flag
+    filtered_extra_args = [arg for arg in extra_args if not arg.startswith('--static-libpython')]
+    cmd.extend(filtered_extra_args)
 
     return run_command(cmd, "Building MCP server binary")
 

@@ -17,5 +17,48 @@
   "max_file_size_bytes": 1048576,
   "batch_segment_threshold": 60,
   "search_min_score": 0.4,
-  "search_max_results": 50
+  "search_max_results": 50,
+  "embed_timeout_seconds": 120,
+  "tree_sitter_debug_logging": false,
+  "tree_sitter_max_blocks_per_file": 100,
+  "memory_cleanup_threshold": 70.0,
+  "max_memory_usage_percent": 80.0,
+  "block_extraction": {
+    "min_content_length": {
+      "default": 35,
+      "css": 25,
+      "scss": 25,
+      "json": 25,
+      "javascript": 40,
+      "typescript": 40,
+      "markdown": 30
+    },
+    "max_file_size": 524288,
+    "enable_fallback_parsing": true
+  },
+  "performance": {
+    "parallel_processing": true,
+    "chunk_size": 65536,
+    "enable_mmap": true,
+    "max_concurrent_files": 15,
+    "memory_optimization": true,
+    "adaptive_concurrency": true,
+    "enable_performance_tracking": true,
+    "worker_pool_size": 8,
+    "batch_size": 50
+  },
+  "monitoring": {
+    "enable_performance_tracking": true,
+    "log_mmap_metrics": true,
+    "log_resource_usage": true,
+    "track_cross_platform_compatibility": true,
+    "log_per_file_metrics": true,
+    "log_cache_performance": true,
+    "log_memory_usage": true,
+    "log_mmap_statistics": true,
+    "log_cache_efficiency": true,
+    "enable_detailed_logging": true,
+    "performance_report_interval": 30,
+    "log_file_processing_times": true
+  }
 }

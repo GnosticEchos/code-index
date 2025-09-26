@@ -45,6 +45,21 @@ class TreeSitterFileProcessor:
         self.memory_threshold_mb = getattr(config, "memory_optimization_threshold_mb", 100)
         self.enable_progressive_indexing = getattr(config, "enable_progressive_indexing", True)
 
+        # Read monitoring configuration settings
+        monitoring_config = getattr(config, "monitoring", {})
+        self.enable_performance_tracking = monitoring_config.get("enable_performance_tracking", False)
+        self.log_mmap_metrics = monitoring_config.get("log_mmap_metrics", False)
+        self.log_resource_usage = monitoring_config.get("log_resource_usage", False)
+        self.log_per_file_metrics = monitoring_config.get("log_per_file_metrics", False)
+        self.log_memory_usage = monitoring_config.get("log_memory_usage", False)
+        self.log_mmap_statistics = monitoring_config.get("log_mmap_statistics", False)
+        self.log_cache_performance = monitoring_config.get("log_cache_performance", False)
+        self.log_cache_efficiency = monitoring_config.get("log_cache_efficiency", False)
+        self.enable_detailed_logging = monitoring_config.get("enable_detailed_logging", False)
+        self.performance_report_interval = monitoring_config.get("performance_report_interval", 30)
+        self.log_file_processing_times = monitoring_config.get("log_file_processing_times", False)
+        self.track_cross_platform_compatibility = monitoring_config.get("track_cross_platform_compatibility", False)
+
     def validate_file(self, file_path: str) -> bool:
         """
         Validate if a file should be processed by Tree-sitter.
@@ -122,6 +137,8 @@ class TreeSitterFileProcessor:
         Returns:
             Dictionary with validation results and scalability info
         """
+        start_time = time.time()
+        
         try:
             # Basic validation
             basic_valid = self.validate_file(file_path)
@@ -131,6 +148,10 @@ class TreeSitterFileProcessor:
             # Get file size and determine processing strategy
             file_size = self._get_file_size(file_path)
             language_key = self._get_file_language(file_path)
+            
+            # Log per-file metrics if enabled
+            if self.log_per_file_metrics:
+                print(f"[FILE_METRICS] Processing {file_path}: size={file_size} bytes, language={language_key}")
             
             # Determine optimal processing strategy
             if file_size > self.streaming_threshold:
@@ -143,6 +164,14 @@ class TreeSitterFileProcessor:
                 strategy = "standard"
                 chunk_size = 0
                 
+            processing_time = (time.time() - start_time) * 1000
+            
+            # Log detailed file metrics if enabled
+            if self.log_per_file_metrics:
+                print(f"[FILE_METRICS] File {file_path} validation completed: "
+                      f"time={processing_time:.2f}ms, strategy={strategy}, "
+                      f"chunk_size={chunk_size}, estimated_chunks={max(1, file_size // chunk_size) if chunk_size > 0 else 1}")
+                
             return {
                 "valid": True,
                 "should_process": True,
@@ -150,7 +179,8 @@ class TreeSitterFileProcessor:
                 "language_key": language_key,
                 "strategy": strategy,
                 "chunk_size": chunk_size,
-                "estimated_chunks": max(1, file_size // chunk_size) if chunk_size > 0 else 1
+                "estimated_chunks": max(1, file_size // chunk_size) if chunk_size > 0 else 1,
+                "validation_time_ms": processing_time
             }
             
         except Exception as e:
