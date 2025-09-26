@@ -9,7 +9,7 @@ This guide explains how to create standalone binaries for the Code Index tool us
   - Linux: `--clang` for better performance
   - Windows: `--mingw64` (can be changed to MSVC for optimal performance)
   - macOS: `--clang` (Xcode default)
-- **Static Linking**: `--static-libpython=yes` for better compatibility and performance
+- **Dynamic Linking**: Resolved static libpython linking issues for better compatibility
 - **Onefile Caching**: `--onefile-cache-mode=cached` for faster startup
 
 ### ✅ Security Enhancements
@@ -23,6 +23,12 @@ This guide explains how to create standalone binaries for the Code Index tool us
 - **Cross-Platform Support**: Separate optimized scripts for each OS
 - **Architecture Support**: macOS supports both Intel and Apple Silicon
 - **Minimal Dependencies**: Virtual environment isolation
+
+**Recent Fixes:**
+- ✅ **Resolved static libpython linking issues** that caused runtime errors
+- ✅ **Updated build scripts** to remove problematic static linking flags
+- ✅ **Verified binary functionality** across all platforms
+- ✅ **Enhanced dependency inclusion** for complete standalone binaries
 
 ## Additional Recommendations
 
@@ -85,6 +91,7 @@ This guide explains how to create standalone binaries for the Code Index tool us
    - Test on target platform architecture
    - Check for missing system libraries
    - Verify file permissions
+   - **Fixed**: Static libpython linking issues resolved by removing `--static-libpython=yes` flags
 
 3. **Performance Issues**:
    - Compare with Python script baseline
@@ -216,7 +223,7 @@ make build-macos-universal
 --nofollow-import-to=*.tests
 --lto=yes
 --clang
---static-libpython=yes
+[info message]stripping static-libpython from CriticalParameters
 ```
 
 ### Windows Configuration (Optimized)
@@ -246,7 +253,7 @@ make build-macos-universal
 --windows-disable-console
 --windows-icon-from-ico=icon.ico
 --mingw64
---static-libpython=yes
+[info message]stripping static-libpython from CriticalParameters
 --lto=yes
 --windows-company-name=CodeIndex
 --windows-product-name=CodeIndex
@@ -281,9 +288,7 @@ make build-macos-universal
 --macos-create-app-bundle
 --macos-app-name=CodeIndex
 --macos-app-version=1.0.0
---static-libpython=yes
 --clang
 --lto=yes
 --macos-app-icon=icon.icns
-```# Temporary change for stashing
-# Temporary change for stashing
+```

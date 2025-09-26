@@ -7,6 +7,7 @@ tree-sitter==0.25.1
 tree-sitter-language-pack==0.9.0
 langchain-text-splitters>=0.2.0
 pygments>=2.13.0
+fastmcp>=2.12.0
 whats-that-code
 psutil>=7.1.0
 chardet>=5.2.0
