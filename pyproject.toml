@@ -31,7 +31,8 @@ dependencies = [
     "fastmcp>=2.12.3",
     "whats-that-code",
     "psutil>=7.1.0",
-    "chardet>=5.2.0"
+    "chardet>=5.2.0",
+    "nuitka==2.7.16"
 ]
 
 [project.scripts]
