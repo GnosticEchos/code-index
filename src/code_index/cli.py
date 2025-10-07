@@ -205,6 +205,10 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
                                 timeout_log: str | None, ignore_config: str | None, ignore_override_pattern: str | None,
                                 auto_ignore_detection: bool, use_tree_sitter: bool, chunking_strategy: str | None) -> tuple[int, int, int]:
     """Process a single workspace using IndexingService and return (processed_count, total_blocks, timed_out_files_count)."""
+    import os
+    print(f"🔍 DEBUG: Processing workspace: {workspace}")
+    print(f"🔍 DEBUG: Config path: {config}")
+    
     # Initialize ConfigurationService for centralized configuration management
     config_service = ConfigurationLoaderService(error_handler)
 
@@ -212,19 +216,28 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
     cli_overrides = {}
     if embed_timeout is not None:
         cli_overrides['embed_timeout_seconds'] = embed_timeout
+        print(f"🔍 DEBUG: Override embed_timeout: {embed_timeout}")
     if timeout_log:
         cli_overrides['timeout_log_path'] = timeout_log
+        print(f"🔍 DEBUG: Override timeout_log: {timeout_log}")
     if ignore_config:
         cli_overrides['ignore_config_path'] = ignore_config
+        print(f"🔍 DEBUG: Override ignore_config: {ignore_config}")
     if ignore_override_pattern:
         cli_overrides['ignore_override_pattern'] = ignore_override_pattern
+        print(f"🔍 DEBUG: Override ignore_pattern: {ignore_override_pattern}")
     if auto_ignore_detection is not None:
         cli_overrides['auto_ignore_detection'] = auto_ignore_detection
+        print(f"🔍 DEBUG: Override auto_ignore: {auto_ignore_detection}")
     if use_tree_sitter:
         cli_overrides['use_tree_sitter'] = True
         cli_overrides['chunking_strategy'] = 'treesitter'
+        print("🔍 DEBUG: Using tree-sitter chunking")
     elif chunking_strategy:
         cli_overrides['chunking_strategy'] = chunking_strategy
+        print(f"🔍 DEBUG: Using chunking strategy: {chunking_strategy}")
+    
+    print(f"🔍 DEBUG: CLI overrides: {cli_overrides}")
 
     # Load configuration with fallback and CLI overrides
     cfg = config_service.load_with_fallback(
@@ -232,11 +245,79 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
         workspace_path=workspace,
         overrides=cli_overrides
     )
+    
+    # Force absolute workspace path
+    cfg.workspace_path = os.path.abspath(workspace)
+    print(f"🔍 DEBUG: FORCED workspace_path: {cfg.workspace_path}")
+    
+    # Load specific model from config
+    config_path_abs = os.path.abspath(config)
+    if os.path.exists(config_path_abs):
+        import json
+        with open(config_path_abs, 'r') as f:
+            config_data = json.load(f)
+            if 'model_name' in config_data:
+                cfg.model_name = config_data['model_name']
+                print(f"🔍 DEBUG: Using model from config: {cfg.model_name}")
+    
+    # Verify workspace exists and has files
+    if not os.path.exists(cfg.workspace_path):
+        print(f"❌ ERROR: Workspace does not exist: {cfg.workspace_path}")
+        return 0, 0, 0
+    
+    # List workspace contents
+    files = [f for f in os.listdir(cfg.workspace_path) 
+             if os.path.isfile(os.path.join(cfg.workspace_path, f))]
+    print(f"📄 Files in workspace: {len(files)}")
+    for f in files[:5]:
+        print(f"   📄 {f}")
+    
+    # Load user-provided configuration file exactly as specified
+    import os
+    config_path_abs = os.path.abspath(config)
+    if os.path.exists(config_path_abs):
+        import json
+        with open(config_path_abs, 'r') as f:
+            config_data = json.load(f)
+            
+            # Apply all user configuration exactly as provided
+            for key, value in config_data.items():
+                if hasattr(cfg, key):
+                    setattr(cfg, key, value)
+                    print(f"🔍 DEBUG: Applied {key}: {value}")
+                else:
+                    print(f"🔍 DEBUG: Unknown config key: {key}")
+            
+            print(f"🔍 DEBUG: Using user config tree-sitter limits:")
+            print(f"🔍 DEBUG:   Max file size: {cfg.tree_sitter_max_file_size_bytes}")
+            print(f"🔍 DEBUG:   Max blocks per file: {cfg.tree_sitter_max_blocks_per_file}")
+            print(f"🔍 DEBUG:   Max functions per file: {cfg.tree_sitter_max_functions_per_file}")
+            print(f"🔍 DEBUG:   Max classes per file: {cfg.tree_sitter_max_classes_per_file}")
+            
+            print(f"🔍 DEBUG: Using user config model: {cfg.ollama_model}")
+    else:
+        print(f"🔍 DEBUG: Config file not found: {config_path_abs}")
+        print(f"🔍 DEBUG: Using default model: {cfg.ollama_model}")
 
     # Initialize IndexingService
     indexing_service = IndexingService(error_handler)
 
-    # Execute indexing using the service
+    # Execute indexing with tree-sitter debug
+    print("🔍 DEBUG: Starting tree-sitter processing...")
+    print(f"🔍 DEBUG: Tree-sitter enabled: {cfg.use_tree_sitter}")
+    print(f"🔍 DEBUG: Max file size: {cfg.tree_sitter_max_file_size_bytes}")
+    
+    # Check file sizes before processing
+    import os
+    for file_path in [f for f in os.listdir(cfg.workspace_path) 
+                      if f.endswith(('.rs', '.ts', '.vue', '.py'))]:
+        full_path = os.path.join(cfg.workspace_path, file_path)
+        if os.path.isfile(full_path):
+            size = os.path.getsize(full_path)
+            print(f"🔍 DEBUG: {file_path}: {size} bytes")
+            if size > cfg.tree_sitter_max_file_size_bytes:
+                print(f"⚠️  WARNING: {file_path} exceeds tree-sitter limit")
+    
     result = indexing_service.index_workspace(workspace, cfg)
 
     # Display results

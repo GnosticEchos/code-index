@@ -113,8 +113,8 @@ class ConfigurationService:
             if overrides:
                 config = self.apply_cli_overrides(config, overrides)
 
-            # Validate configuration
-            validation_result = self.validate_and_initialize(config)
+            # Validate configuration (skip service validation during initial loading)
+            validation_result = self.validate_and_initialize(config, skip_service_validation=True)
             if not validation_result.valid:
                 raise ValueError(f"Configuration validation failed: {validation_result.error}")
 
@@ -250,8 +250,8 @@ class ConfigurationService:
 
             self.logger.debug(f"After CLI overrides: ollama_model={new_config.ollama_model}, embedding_length={new_config.embedding_length}")
 
-            # Validate the configuration with overrides
-            validation_result = self.validate_and_initialize(new_config)
+            # Validate the configuration with overrides (skip service validation for CLI overrides)
+            validation_result = self.validate_and_initialize(new_config, skip_service_validation=True)
             if not validation_result.valid:
                 raise ValueError(f"Configuration with CLI overrides is invalid: {validation_result.error}")
 
@@ -269,12 +269,13 @@ class ConfigurationService:
             self.logger.error(f"Failed to apply CLI overrides: {error_response.message}")
             raise ValueError(f"CLI override application failed: {error_response.message}")
 
-    def validate_and_initialize(self, config: Config) -> ValidationResult:
+    def validate_and_initialize(self, config: Config, skip_service_validation: bool = False) -> ValidationResult:
         """
         Validate configuration and initialize services.
 
         Args:
             config: Configuration to validate
+            skip_service_validation: Whether to skip service validation (useful for offline operations)
 
         Returns:
             ValidationResult indicating success or failure
@@ -298,8 +299,8 @@ class ConfigurationService:
                     error=f"Configuration validation failed: {', '.join(validation_errors)}"
                 )
 
-            # Validate services (skip in test mode)
-            if not self.test_mode:
+            # Validate services (skip in test mode or when explicitly requested)
+            if not self.test_mode and not skip_service_validation:
                 service_validator = ServiceValidator(self.error_handler)
                 validation_results = service_validator.validate_all_services(config)
 
@@ -314,7 +315,7 @@ class ConfigurationService:
                         details={"validation_results": [vars(result) for result in validation_results]}
                     )
             else:
-                # In test mode, create mock successful validation results
+                # In test mode or when skipping service validation, create mock successful validation results
                 validation_results = [
                     ValidationResult(service="ollama", valid=True, details={"test_mode": True}),
                     ValidationResult(service="qdrant", valid=True, details={"test_mode": True})

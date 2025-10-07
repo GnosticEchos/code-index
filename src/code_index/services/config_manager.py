@@ -340,7 +340,7 @@ class TreeSitterConfigurationManager:
                         'language_key': language_key,  # Use the actual language key
                         'node_types': [],
                         'limits': {'function': 10, 'class': 5},
-                        'optimizations': {'max_blocks': 50, 'max_file_size': 512 * 1024},
+                        'optimizations': {'max_blocks': 50, 'max_file_size': 512 * 1024, 'minimum_block_chars': self._get_fallback_min_block_chars(language_key)},
                         'debug_enabled': self.debug_enabled,
                         'extensions': [],
                         'max_file_size': 512 * 1024,
@@ -513,12 +513,13 @@ class TreeSitterConfigurationManager:
 
             # Get optimizations for language
             optimizations = self._get_optimizations_for_language(language_key)
+            min_block_chars = self._get_min_block_chars_for_language(language_key)
 
             return LanguageConfig(
                 language_key=language_key,
                 node_types=node_types,
                 limits=limits,
-                optimizations=optimizations,
+                optimizations={**optimizations, "minimum_block_chars": min_block_chars},
                 debug_enabled=self.debug_enabled
             )
 
@@ -725,8 +726,48 @@ class TreeSitterConfigurationManager:
             "skip_examples": getattr(self.config, "tree_sitter_skip_examples", True),
             "skip_patterns": getattr(self.config, "tree_sitter_skip_patterns", []),
             "debug_logging": self.debug_enabled,
-            "language": "unknown"  # Add language key for test compatibility
+            "language": "unknown",  # Add language key for test compatibility
+            "minimum_block_chars": self._get_fallback_min_block_chars("unknown")
         }
+
+    def _get_min_block_chars_for_language(self, language_key: str) -> Dict[str, Any]:
+        """Compute minimum block character thresholds for a language."""
+        base_default = getattr(self.config, "tree_sitter_min_block_chars", None)
+        if base_default is None:
+            base_default = getattr(self.config, "tree_sitter_min_block_chars_default", 30)
+
+        result = {
+            "default": base_default,
+            "captures": {}
+        }
+
+        overrides = getattr(self.config, "tree_sitter_min_block_chars_overrides", {}) or {}
+        global_overrides = overrides.get("default", {}) if isinstance(overrides, dict) else {}
+        language_overrides = overrides.get(language_key, {}) if isinstance(overrides, dict) else {}
+
+        if isinstance(global_overrides, dict):
+            if isinstance(global_overrides.get("default"), int):
+                result["default"] = global_overrides["default"]
+            captures_override = global_overrides.get("captures")
+            if isinstance(captures_override, dict):
+                result["captures"].update(captures_override)
+
+        if isinstance(language_overrides, dict):
+            if isinstance(language_overrides.get("default"), int):
+                result["default"] = language_overrides["default"]
+            captures_override = language_overrides.get("captures")
+            if isinstance(captures_override, dict):
+                result["captures"].update(captures_override)
+
+        return result
+
+    def _get_fallback_min_block_chars(self, language_key: str) -> Dict[str, Any]:
+        """Fallback minimum block characters structure."""
+        try:
+            return self._get_min_block_chars_for_language(language_key)
+        except Exception:
+            base_default = getattr(self.config, "tree_sitter_min_block_chars_default", 30)
+            return {"default": base_default, "captures": {}}
 
     # Missing methods for test compatibility
     def get_query_for_language(self, language_key: str) -> Optional[str]:

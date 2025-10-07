@@ -11,6 +11,8 @@ and batch processing.
 from .indexing_service import IndexingService
 from .search_service import SearchService
 from .configuration_service import ConfigurationService
+from .health_service import HealthService
+from .workspace_service import WorkspaceService
 
 # Tree-sitter specialized services
 from .file_processor import TreeSitterFileProcessor
@@ -24,6 +26,8 @@ __all__ = [
     'IndexingService',
     'SearchService',
     'ConfigurationService',
+    'HealthService',
+    'WorkspaceService',
     'TreeSitterFileProcessor',
     'TreeSitterResourceManager',
     'TreeSitterBlockExtractor',

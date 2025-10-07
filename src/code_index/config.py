@@ -40,7 +40,10 @@ class Config:
         # Smart limit: Most valuable code is in reasonably-sized files
         # Generated/minified files (>512KB) are typically not semantically valuable
         self.tree_sitter_max_file_size_bytes: int = 512 * 1024  # 512KB
+        # Allow callers to tweak block size heuristics.
+        self.tree_sitter_min_block_chars_default: int = int(os.getenv("TREE_SITTER_MIN_BLOCK_CHARS_DEFAULT", 30))
         self.tree_sitter_min_block_chars: Optional[int] = None
+        self.tree_sitter_min_block_chars_overrides: dict = {}
         self.tree_sitter_max_blocks_per_file: int = 100
         self.tree_sitter_max_functions_per_file: int = 50
         self.tree_sitter_max_classes_per_file: int = 20

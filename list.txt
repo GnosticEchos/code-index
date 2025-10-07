@@ -1,0 +1,2 @@
+/home/james/kanban_frontend/code_index
+/home/james/Documents/Vibe/VibeTools/Ast-Vibe

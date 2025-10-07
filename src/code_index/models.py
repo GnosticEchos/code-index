@@ -88,6 +88,35 @@ class ProcessingResult:
 
 
 @dataclass
+class FileProcessingResult:
+    """Result for file processing operations with additional metadata."""
+
+    file_path: str
+    success: bool
+    blocks: List[CodeBlock]
+    error: Optional[str] = None
+    processing_time_seconds: Optional[float] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self):
+        """Initialize optional fields."""
+        if self.metadata is None:
+            self.metadata = {}
+
+    def is_successful(self) -> bool:
+        """Check if file processing was successful."""
+        return self.success
+
+    def has_error(self) -> bool:
+        """Check if there was an error during processing."""
+        return self.error is not None
+
+    def get_blocks_count(self) -> int:
+        """Get the number of blocks processed."""
+        return len(self.blocks) if self.blocks else 0
+
+
+@dataclass
 class ValidationResult:
     """Result for workspace validation operations."""
 
