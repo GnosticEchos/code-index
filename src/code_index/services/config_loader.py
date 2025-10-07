@@ -37,7 +37,6 @@ class ConfigLoaderService:
     ) -> Config:
         """Enhanced configuration loading with fallback to defaults and multiple sources."""
         cache_key = f"{config_path}:{workspace_path}:{hash(str(overrides) if overrides else '{}')}"
-        
         # Check cache first
         if cache_key in self.config_cache:
             return self.config_cache[cache_key]
@@ -45,12 +44,13 @@ class ConfigLoaderService:
         try:
             # Start with default configuration
             config = Config()
-            config.workspace_path = Path(workspace_path).resolve().parent if Path(workspace_path).is_relative_to('.') else workspace_path
+            initial_path = Path(workspace_path).resolve().parent if Path(workspace_path).is_relative_to('.') else Path(workspace_path).resolve()
+            config.workspace_path = str(initial_path)
 
             # Load configuration from file if it exists
             if Path(config_path).exists():
                 config = Config.from_file(config_path)
-                config.workspace_path = Path(workspace_path).resolve().parent if Path(workspace_path).is_relative_to('.') else workspace_path
+                config.workspace_path = str(initial_path)
             else:
                 # Apply default values
                 defaults = self.load_default_config()
