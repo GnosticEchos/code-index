@@ -7,6 +7,7 @@ from CLI concerns and providing a clean interface for indexing operations.
 
 import time
 import uuid
+import logging
 from typing import List, Set, Dict, Any, Optional
 from pathlib import Path
 from datetime import datetime
@@ -29,6 +30,7 @@ from ..chunking import (
 from ..errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from ..path_utils import PathUtils
 from ..models import IndexingResult, ProcessingResult, ValidationResult
+from ..logging_utils import push_logging_context, reset_logging_context
 
 
 class IndexingService:
@@ -45,6 +47,8 @@ class IndexingService:
         self.config_service = ConfigurationService(self.error_handler)
         self.file_processor = FileProcessingService(self.error_handler)
         self.service_validator = ServiceValidator(self.error_handler)
+        self.logger = logging.getLogger(__name__)
+        self.processing_logger = logging.getLogger("code_index.processing")
 
     def index_workspace(self, workspace: str, config: Config) -> IndexingResult:
         """
@@ -161,6 +165,10 @@ class IndexingService:
 
             for file_path in files:
                 start_time = time.time()
+                rel_path = path_utils.get_workspace_relative_path(file_path) or path_utils.normalize_path(file_path)
+                context_tokens = push_logging_context(file_path=rel_path, language=None)
+                self.processing_logger.info(f"Processing {rel_path}")
+
                 try:
                     # Parse file into blocks
                     blocks = parser.parse_file(file_path)
@@ -239,6 +247,8 @@ class IndexingService:
                         error=error_response.message,
                         processing_time_seconds=time.time() - start_time
                     ))
+                finally:
+                    reset_logging_context(context_tokens)
 
         except Exception as e:
             error_context = ErrorContext(
@@ -398,6 +408,8 @@ class IndexingService:
         for file_path in file_paths:
             try:
                 rel_path = path_utils.get_workspace_relative_path(file_path) or path_utils.normalize_path(file_path)
+                context_tokens = push_logging_context(file_path=rel_path, language=None)
+                self.processing_logger.info(f"Processing {rel_path}")
 
                 # Check if file has changed
                 current_hash = self.file_processor.get_file_hash(file_path)
@@ -491,6 +503,8 @@ class IndexingService:
                 )
                 error_response = self.error_handler.handle_file_error(e, error_context, "file_processing")
                 errors.append(f"Failed to process {file_path}: {error_response.message}")
+            finally:
+                reset_logging_context(context_tokens)
 
         return processed_count, total_blocks
 

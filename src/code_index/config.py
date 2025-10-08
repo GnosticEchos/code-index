@@ -94,19 +94,20 @@ class Config:
             {"pattern": "Daisy_llms.txt", "weight": 0.60},
         ]
         self.search_language_boosts: dict = {
-            "vue": 1.20,
             "typescript": 1.15,
             "rust": 1.10,
         }
         self.search_exclude_patterns: list = []
         self.search_snippet_preview_chars: int = 160
-         
+
+        # Logging configuration
+        self.logging_component_levels: dict = {}
+
         # Dot file handling configuration
         self.skip_dot_files: bool = True
         self.read_root_gitignore_only: bool = True
 
         # New configuration fields (config-first behavior)
-        # Set default embedding_length based on model if None
         model_name = self.ollama_model.lower()
         if "nomic-embed-text" in model_name:
             self.embedding_length: Optional[int] = 768
@@ -240,6 +241,7 @@ class Config:
             "exclude_files_path": self.exclude_files_path,
             "timeout_log_path": self.timeout_log_path,
             "auto_ignore_detection": self.auto_ignore_detection,
+            "logging_component_levels": self.logging_component_levels,
             # Dot file handling configuration
             "skip_dot_files": self.skip_dot_files,
             "read_root_gitignore_only": self.read_root_gitignore_only,

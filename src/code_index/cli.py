@@ -30,16 +30,20 @@ from code_index.file_processing import FileProcessingService
 from code_index.path_utils import PathUtils
 from code_index.service_validation import ServiceValidator
 from code_index.services import IndexingService, SearchService, ConfigurationService as ConfigurationQueryService
+from code_index.logging_utils import LoggingConfigurator
 
 # Global error handler instance
 error_handler = ErrorHandler()
+logger = logging.getLogger(__name__)
 
 
 @click.group()
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging (INFO level)')
 @click.option('--debug', is_flag=True, help='Enable debug logging (DEBUG level)')
+@click.option('--log-treesitter', is_flag=True, default=False, help='Enable detailed Tree-sitter logging')
+@click.option('--log-embedding', is_flag=True, default=False, help='Enable detailed embedding logging')
 @click.pass_context
-def cli(ctx, verbose: bool, debug: bool):
+def cli(ctx, verbose: bool, debug: bool, log_treesitter: bool, log_embedding: bool):
     """Standalone code index tool."""
     # Initialize global logging once; default WARNING
     import logging as _logging
@@ -55,11 +59,18 @@ def cli(ctx, verbose: bool, debug: bool):
     if not handler_found:
         h = _logging.StreamHandler()
         h.setLevel(level)
-        h.setFormatter(_logging.Formatter("%(levelname)s: %(message)s"))
+        h.setFormatter(_logging.Formatter("%(levelname)s [file=%(current_file)s lang=%(current_language)s] %(message)s"))
         setattr(h, "_code_index_cli", True)
         root_logger.addHandler(h)
+    LoggingConfigurator.ensure_context_filter()
+    LoggingConfigurator.ensure_processing_logger()
     ctx.ensure_object(dict)
     ctx.obj["log_level"] = level
+    ctx.obj.setdefault("logging_components", {})
+    if log_treesitter:
+        ctx.obj["logging_components"]["code_index.treesitter"] = logging.DEBUG
+    if log_embedding:
+        ctx.obj["logging_components"]["code_index.embedding"] = logging.DEBUG
 
 
 @cli.group()
@@ -134,6 +145,7 @@ def _load_exclude_list(workspace_path: str, exclude_files_path: str | None) -> S
 
 
 @cli.command()
+@click.pass_context
 @click.option('--workspace', default='.', help='Workspace path')
 @click.option('--config', default='code_index.json', help='Configuration file')
 @click.option('--workspacelist', type=str, default=None, help='Path to file containing list of workspace directories to process')
@@ -145,7 +157,7 @@ def _load_exclude_list(workspace_path: str, exclude_files_path: str | None) -> S
 @click.option('--auto-ignore-detection', is_flag=True, show_default=True, default=True, help='Enable automatic ignore pattern detection')
 @click.option('--use-tree-sitter', is_flag=True, help='Enable semantic code chunking with Tree-sitter')
 @click.option('--chunking-strategy', type=click.Choice(['lines', 'tokens', 'treesitter']), default=None, help='Chunking strategy: lines (default), tokens, or treesitter')
-def index(workspace: str, config: str, workspacelist: str | None, embed_timeout: int | None, retry_list: str | None, timeout_log: str | None,
+def index(ctx, workspace: str, config: str, workspacelist: str | None, embed_timeout: int | None, retry_list: str | None, timeout_log: str | None,
           ignore_config: str | None, ignore_override_pattern: str | None, auto_ignore_detection: bool,
           use_tree_sitter: bool, chunking_strategy: str | None):
     """Index code files in workspace with enhanced features.
@@ -158,6 +170,8 @@ def index(workspace: str, config: str, workspacelist: str | None, embed_timeout:
     - Configurable file type weighting and advanced settings
     - Batch workspace processing via workspace list files
     """
+    logging_overrides = dict(ctx.obj.get("logging_components", {})) if ctx and ctx.obj else {}
+
     # Handle workspace list processing
     if workspacelist:
         workspaces = _load_workspace_list(workspacelist)
@@ -177,7 +191,7 @@ def index(workspace: str, config: str, workspacelist: str | None, embed_timeout:
                 processed, blocks, timeouts = _process_single_workspace(
                     workspace_path, config, embed_timeout, retry_list, timeout_log,
                     ignore_config, ignore_override_pattern, auto_ignore_detection,
-                    use_tree_sitter, chunking_strategy
+                    use_tree_sitter, chunking_strategy, logging_overrides
                 )
                 total_processed += processed
                 total_blocks += blocks
@@ -197,17 +211,18 @@ def index(workspace: str, config: str, workspacelist: str | None, embed_timeout:
     _process_single_workspace(
         workspace, config, embed_timeout, retry_list, timeout_log,
         ignore_config, ignore_override_pattern, auto_ignore_detection,
-        use_tree_sitter, chunking_strategy
+        use_tree_sitter, chunking_strategy, logging_overrides
     )
 
 
 def _process_single_workspace(workspace: str, config: str, embed_timeout: int | None, retry_list: str | None,
                                 timeout_log: str | None, ignore_config: str | None, ignore_override_pattern: str | None,
-                                auto_ignore_detection: bool, use_tree_sitter: bool, chunking_strategy: str | None) -> tuple[int, int, int]:
+                                auto_ignore_detection: bool, use_tree_sitter: bool, chunking_strategy: str | None,
+                                logging_overrides: dict[str, int] | None = None) -> tuple[int, int, int]:
     """Process a single workspace using IndexingService and return (processed_count, total_blocks, timed_out_files_count)."""
     import os
-    print(f"🔍 DEBUG: Processing workspace: {workspace}")
-    print(f"🔍 DEBUG: Config path: {config}")
+    logger.debug("Processing workspace: %s", workspace)
+    logger.debug("Config path: %s", config)
     
     # Initialize ConfigurationService for centralized configuration management
     config_service = ConfigurationLoaderService(error_handler)
@@ -216,28 +231,28 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
     cli_overrides = {}
     if embed_timeout is not None:
         cli_overrides['embed_timeout_seconds'] = embed_timeout
-        print(f"🔍 DEBUG: Override embed_timeout: {embed_timeout}")
+        logger.debug("Override embed_timeout: %s", embed_timeout)
     if timeout_log:
         cli_overrides['timeout_log_path'] = timeout_log
-        print(f"🔍 DEBUG: Override timeout_log: {timeout_log}")
+        logger.debug("Override timeout_log: %s", timeout_log)
     if ignore_config:
         cli_overrides['ignore_config_path'] = ignore_config
-        print(f"🔍 DEBUG: Override ignore_config: {ignore_config}")
+        logger.debug("Override ignore_config: %s", ignore_config)
     if ignore_override_pattern:
         cli_overrides['ignore_override_pattern'] = ignore_override_pattern
-        print(f"🔍 DEBUG: Override ignore_pattern: {ignore_override_pattern}")
+        logger.debug("Override ignore_pattern: %s", ignore_override_pattern)
     if auto_ignore_detection is not None:
         cli_overrides['auto_ignore_detection'] = auto_ignore_detection
-        print(f"🔍 DEBUG: Override auto_ignore: {auto_ignore_detection}")
+        logger.debug("Override auto_ignore: %s", auto_ignore_detection)
     if use_tree_sitter:
         cli_overrides['use_tree_sitter'] = True
         cli_overrides['chunking_strategy'] = 'treesitter'
-        print("🔍 DEBUG: Using tree-sitter chunking")
+        logger.debug("Using tree-sitter chunking")
     elif chunking_strategy:
         cli_overrides['chunking_strategy'] = chunking_strategy
-        print(f"🔍 DEBUG: Using chunking strategy: {chunking_strategy}")
+        logger.debug("Using chunking strategy: %s", chunking_strategy)
     
-    print(f"🔍 DEBUG: CLI overrides: {cli_overrides}")
+    logger.debug("CLI overrides: %s", cli_overrides)
 
     # Load configuration with fallback and CLI overrides
     cfg = config_service.load_with_fallback(
@@ -248,7 +263,19 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
     
     # Force absolute workspace path
     cfg.workspace_path = os.path.abspath(workspace)
-    print(f"🔍 DEBUG: FORCED workspace_path: {cfg.workspace_path}")
+    logger.debug("Forced workspace_path: %s", cfg.workspace_path)
+
+    # Merge logging component overrides and apply configuration
+    component_levels = dict(getattr(cfg, "logging_component_levels", {}) or {})
+    if logging_overrides:
+        component_levels.update(logging_overrides)
+    cfg.logging_component_levels = component_levels
+
+    LoggingConfigurator.ensure_context_filter()
+    LoggingConfigurator.ensure_processing_logger()
+    LoggingConfigurator.apply_component_levels(component_levels)
+    if component_levels:
+        logger.debug("Applied component logging levels: %s", component_levels)
     
     # Load specific model from config
     config_path_abs = os.path.abspath(config)
@@ -258,7 +285,7 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
             config_data = json.load(f)
             if 'model_name' in config_data:
                 cfg.model_name = config_data['model_name']
-                print(f"🔍 DEBUG: Using model from config: {cfg.model_name}")
+                logger.debug("Using model from config: %s", cfg.model_name)
     
     # Verify workspace exists and has files
     if not os.path.exists(cfg.workspace_path):
@@ -268,9 +295,9 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
     # List workspace contents
     files = [f for f in os.listdir(cfg.workspace_path) 
              if os.path.isfile(os.path.join(cfg.workspace_path, f))]
-    print(f"📄 Files in workspace: {len(files)}")
+    logger.debug("Files in workspace: %d", len(files))
     for f in files[:5]:
-        print(f"   📄 {f}")
+        logger.debug("   File: %s", f)
     
     # Load user-provided configuration file exactly as specified
     import os
@@ -284,28 +311,27 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
             for key, value in config_data.items():
                 if hasattr(cfg, key):
                     setattr(cfg, key, value)
-                    print(f"🔍 DEBUG: Applied {key}: {value}")
+                    logger.debug("Applied config override %s=%s", key, value)
                 else:
-                    print(f"🔍 DEBUG: Unknown config key: {key}")
-            
-            print(f"🔍 DEBUG: Using user config tree-sitter limits:")
-            print(f"🔍 DEBUG:   Max file size: {cfg.tree_sitter_max_file_size_bytes}")
-            print(f"🔍 DEBUG:   Max blocks per file: {cfg.tree_sitter_max_blocks_per_file}")
-            print(f"🔍 DEBUG:   Max functions per file: {cfg.tree_sitter_max_functions_per_file}")
-            print(f"🔍 DEBUG:   Max classes per file: {cfg.tree_sitter_max_classes_per_file}")
-            
-            print(f"🔍 DEBUG: Using user config model: {cfg.ollama_model}")
+                    logger.debug("Unknown config key in file: %s", key)
+
+            logger.debug(
+                "User config tree-sitter limits: max_file_size=%s max_blocks=%s max_functions=%s max_classes=%s",
+                cfg.tree_sitter_max_file_size_bytes,
+                cfg.tree_sitter_max_blocks_per_file,
+                cfg.tree_sitter_max_functions_per_file,
+                cfg.tree_sitter_max_classes_per_file,
+            )
+            logger.debug("Using user config model: %s", cfg.ollama_model)
     else:
-        print(f"🔍 DEBUG: Config file not found: {config_path_abs}")
-        print(f"🔍 DEBUG: Using default model: {cfg.ollama_model}")
+        logger.debug("Config file not found: %s", config_path_abs)
+        logger.debug("Using default model: %s", cfg.ollama_model)
 
     # Initialize IndexingService
     indexing_service = IndexingService(error_handler)
 
     # Execute indexing with tree-sitter debug
-    print("🔍 DEBUG: Starting tree-sitter processing...")
-    print(f"🔍 DEBUG: Tree-sitter enabled: {cfg.use_tree_sitter}")
-    print(f"🔍 DEBUG: Max file size: {cfg.tree_sitter_max_file_size_bytes}")
+    logger.debug("Starting tree-sitter processing (enabled=%s max_file_size=%s)", cfg.use_tree_sitter, cfg.tree_sitter_max_file_size_bytes)
     
     # Check file sizes before processing
     import os
@@ -314,9 +340,9 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
         full_path = os.path.join(cfg.workspace_path, file_path)
         if os.path.isfile(full_path):
             size = os.path.getsize(full_path)
-            print(f"🔍 DEBUG: {file_path}: {size} bytes")
+            logger.debug("File size check: %s -> %d bytes", file_path, size)
             if size > cfg.tree_sitter_max_file_size_bytes:
-                print(f"⚠️  WARNING: {file_path} exceeds tree-sitter limit")
+                logger.warning("File %s exceeds tree-sitter limit (%d bytes)", file_path, size)
     
     result = indexing_service.index_workspace(workspace, cfg)
 
