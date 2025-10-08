@@ -3,6 +3,7 @@ Smart ignore pattern manager combining multiple sources.
 """
 import os
 import fnmatch
+import logging
 from typing import List, Set, Dict, Optional
 from pathlib import Path
 
@@ -19,6 +20,7 @@ class SmartIgnoreManager:
         self.workspace_path = os.path.abspath(workspace_path)
         self.config = config
         self.ignore_patterns: Optional[List[str]] = None
+        self.logger = logging.getLogger("code_index.smart_ignore")
         
         # Initialize components
         self.language_detector = FastLanguageDetector(self.config)
@@ -36,37 +38,37 @@ class SmartIgnoreManager:
             return self.ignore_patterns
 
         patterns = set()
-        
+
         # 1. GitHub community templates (language-specific)
         if self.apply_github_templates:
-            print("DEBUG: Loading community patterns")
+            self.logger.debug("Loading community patterns")
             community_patterns = self._get_community_patterns()
-            print(f"DEBUG: Loaded {len(community_patterns)} community patterns")
+            self.logger.debug("Loaded %d community patterns", len(community_patterns))
             patterns.update(community_patterns)
-        
+
         # 2. Project .gitignore files
         if self.apply_project_gitignore:
-            print("DEBUG: Loading project patterns")
+            self.logger.debug("Loading project patterns")
             project_patterns = self._get_project_patterns()
-            print(f"DEBUG: Loaded {len(project_patterns)} project patterns")
+            self.logger.debug("Loaded %d project patterns", len(project_patterns))
             patterns.update(project_patterns)
-        
+
         # 3. Global user preferences
         if self.apply_global_ignores:
-            print("DEBUG: Loading global patterns")
+            self.logger.debug("Loading global patterns")
             global_patterns = self._get_global_patterns()
-            print(f"DEBUG: Loaded {len(global_patterns)} global patterns")
+            self.logger.debug("Loaded %d global patterns", len(global_patterns))
             patterns.update(global_patterns)
-        
+
         # 4. Adaptive learning patterns (future enhancement)
         if self.learn_from_indexing:
             adaptive_patterns = self._get_adaptive_patterns()
             patterns.update(adaptive_patterns)
-        
+
         self.ignore_patterns = list(patterns)
-        print(f"DEBUG: All ignore patterns: {self.ignore_patterns}")
+        self.logger.debug("All ignore patterns: %s", self.ignore_patterns)
         return self.ignore_patterns
-    
+
     def should_ignore_file(self, file_path: str) -> bool:
         """Check if a file should be ignored based on all patterns."""
         # Convert to relative path
@@ -78,33 +80,36 @@ class SmartIgnoreManager:
         # Check each pattern
         for pattern in ignore_patterns:
             if self._matches_pattern(rel_file_path, pattern):
-                print(f"DEBUG: Ignoring '{rel_file_path}' because it matches pattern '{pattern}'")
+                self.logger.debug(
+                    "Ignoring '%s' because it matches pattern '%s'",
+                    rel_file_path,
+                    pattern,
+                )
                 return True
-        
         return False
     
     def _get_community_patterns(self) -> List[str]:
         """Get ignore patterns from GitHub community templates."""
-        patterns = []
-        
+        patterns: List[str] = []
+
         # Detect languages in workspace
         languages = self.language_detector.detect_languages(self.workspace_path)
-        
+
         # Get templates for each language
         for language in languages:
             lang_patterns = self.gitignore_manager.get_language_template(language)
             patterns.extend(lang_patterns)
-        
+
         # Detect frameworks
         frameworks = self.language_detector.detect_frameworks(self.workspace_path)
-        
+
         # Get templates for each framework
         for framework in frameworks:
             fw_patterns = self.gitignore_manager.get_framework_template(framework)
             patterns.extend(fw_patterns)
-        
+
         return patterns
-    
+
     def _get_project_patterns(self) -> List[str]:
         """Get patterns from project .gitignore files."""
         patterns = []
@@ -114,7 +119,7 @@ class SmartIgnoreManager:
             # Only read root .gitignore file
             root_gitignore = os.path.join(self.workspace_path, '.gitignore')
             if os.path.exists(root_gitignore):
-                print(f"DEBUG: Reading project gitignore: {root_gitignore}")
+                self.logger.debug("Reading project gitignore: %s", root_gitignore)
                 try:
                     with open(root_gitignore, 'r', encoding='utf-8', errors='ignore') as f:
                         for line in f:
@@ -128,7 +133,7 @@ class SmartIgnoreManager:
             for root, dirs, files in os.walk(self.workspace_path):
                 if '.gitignore' in files:
                     gitignore_path = os.path.join(root, '.gitignore')
-                    print(f"DEBUG: Reading project gitignore: {gitignore_path}")
+                    self.logger.debug("Reading project gitignore: %s", gitignore_path)
                     try:
                         with open(gitignore_path, 'r', encoding='utf-8', errors='ignore') as f:
                             for line in f:

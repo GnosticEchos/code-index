@@ -5,6 +5,7 @@ This service handles language-specific configuration and optimization
 logic extracted from TreeSitterChunkingStrategy.
 """
 
+import logging
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
@@ -102,6 +103,7 @@ class TreeSitterConfigurationManager:
         self.config = config
         self.error_handler = error_handler or ErrorHandler()
         self.debug_enabled = getattr(config, "tree_sitter_debug_logging", False)
+        self.logger = logging.getLogger("code_index.config_manager")
 
         # Cache for language configurations
         self._language_configs: Dict[str, LanguageConfig] = {}
@@ -222,7 +224,7 @@ class TreeSitterConfigurationManager:
         Returns:
             Dictionary with language configuration if available, None otherwise
         """
-        print(f"DEBUG: get_language_config ENTRY with language_key='{language_key}'")
+        self.logger.debug("get_language_config entry", extra={"language_key": language_key})
         
         # Define SyncingDict class for test compatibility
         class SyncingDict(dict):
@@ -304,9 +306,9 @@ class TreeSitterConfigurationManager:
         
         try:
             # Check cache first
-            print(f"DEBUG: Checking cache for language_key='{language_key}'")
+            self.logger.debug("Checking language config cache", extra={"language_key": language_key})
             if language_key in self._language_configs:
-                print(f"DEBUG: Found in cache, returning cached config")
+                self.logger.debug("Language config cache hit", extra={"language_key": language_key})
                 config = self._language_configs[language_key]
                 
                 # Create or reuse cached dict
@@ -316,12 +318,12 @@ class TreeSitterConfigurationManager:
                     self._cached_dicts[language_key] = SyncingDict(config, self, language_key, is_config_obj=True)
                 
                 result = self._cached_dicts[language_key]
-                print(f"DEBUG: Returning cached config: {type(result)}")
+                self.logger.debug("Returning cached config", extra={"language_key": language_key, "config_type": type(result).__name__})
                 return result
 
             # For test compatibility, return a default config for nonexistent languages
             if language_key in ['nonexistent_language', 'unknown']:
-                print("DEBUG: Returning default config for nonexistent_language")
+                self.logger.debug("Returning default language config for placeholder", extra={"language_key": language_key})
                 # Create a default config for unknown languages (use the actual language_key)
                 default_config = LanguageConfig(
                     language_key=language_key,  # Use the actual language key
@@ -347,7 +349,7 @@ class TreeSitterConfigurationManager:
                     }, self, language_key, is_config_obj=False)
                 
                 result = self._cached_dicts[language_key]
-                print(f"DEBUG: About to return: {type(result)}")
+                self.logger.debug("Returning placeholder language config", extra={"language_key": language_key, "config_type": type(result).__name__})
                 return result
 
             # Build configuration for language
@@ -378,15 +380,10 @@ class TreeSitterConfigurationManager:
             if language_key == 'unsupported_language':
                 return None
             
-            print(f"DEBUG: After nonexistent_language check, continuing with normal flow")
-
             return None
-            
-            # Debug: This should never be reached, but let's see what happens
-            print(f"DEBUG: This should never print for {language_key}")
 
         except Exception as e:
-            print(f"DEBUG: Exception caught in get_language_config: {e}")
+            self.logger.debug("Exception in get_language_config", exc_info=True, extra={"language_key": language_key})
             error_context = ErrorContext(
                 component="config_manager",
                 operation="get_language_config",
@@ -396,7 +393,7 @@ class TreeSitterConfigurationManager:
                 e, error_context, ErrorCategory.CONFIGURATION, ErrorSeverity.LOW
             )
             if self.debug_enabled:
-                print(f"Warning: {error_response.message}")
+                self.logger.warning("Language config retrieval warning: %s", error_response.message, extra={"language_key": language_key})
             return None
 
     def apply_language_optimizations(self, file_path: str, language_key: str) -> Dict[str, Any]:
