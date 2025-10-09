@@ -58,18 +58,14 @@ class TestCodeIndexMCPServer:
             yield mock_instance
 
     @pytest.fixture
-    def mock_config_manager(self):
-        """Mock configuration manager."""
-        with patch('src.code_index.mcp_server.server.MCPConfigurationManager') as mock:
-            mock_instance = Mock()
-            # Use ConfigurationService to create config
-            from src.code_index.config_service import ConfigurationService
-            config_service = ConfigurationService(test_mode=True)
-            mock_config = config_service.load_with_fallback()
-            mock_config.embedding_length = 768
-            mock_instance.load_config.return_value = mock_config
-            mock.return_value = mock_instance
-            yield mock_instance
+    def stub_config(self):
+        config = Config()
+        config.embedding_length = 768
+        config.workspace_path = "/tmp/test-workspace"
+        config.ollama_base_url = "http://localhost:11434"
+        config.ollama_model = "nomic-embed-text:latest"
+        config.qdrant_url = "http://localhost:6333"
+        return config
 
     @pytest.fixture
     def mock_resource_manager(self):
@@ -86,16 +82,20 @@ class TestCodeIndexMCPServer:
         """Test server initialization with configuration file."""
         server = CodeIndexMCPServer(temp_config_file)
         
-        assert server.config_path == temp_config_file
+        expected_path = os.path.abspath(temp_config_file)
+        assert server.config_path == expected_path
+        assert server.workspace_path == os.path.dirname(expected_path)
         assert server.config is None  # Not loaded until start()
         assert server._running is False
-        assert server.config_manager is not None
+        assert server.command_context is not None
 
     def test_server_initialization_default_config(self):
         """Test server initialization with default configuration."""
         server = CodeIndexMCPServer()
         
-        assert server.config_path == "code_index.json"
+        expected_path = os.path.abspath("code_index.json")
+        assert server.config_path == expected_path
+        assert server.workspace_path == os.path.dirname(expected_path)
         assert server.config is None
         assert server._running is False
 
@@ -103,33 +103,38 @@ class TestCodeIndexMCPServer:
     async def test_load_configuration_success(self, temp_config_file):
         """Test successful configuration loading."""
         server = CodeIndexMCPServer(temp_config_file)
+        stub_config = Config()
+        stub_config.embedding_length = 768
+        with patch.object(
+            server.command_context.config_service,
+            "load_with_fallback",
+            return_value=stub_config,
+        ) as mock_load:
+            await server._load_configuration()
 
-        await server._load_configuration()
-
-        assert server.config is not None
-        assert server.config.embedding_length == 1024  # From actual config file
+        assert server.config is stub_config
+        mock_load.assert_called_once_with(
+            config_path=os.path.abspath(temp_config_file),
+            workspace_path=os.path.dirname(os.path.abspath(temp_config_file)),
+        )
 
     @pytest.mark.asyncio
     async def test_load_configuration_failure(self, temp_config_file):
         """Test configuration loading failure."""
-        # Create invalid config file
-        with open(temp_config_file, 'w') as f:
-            f.write("invalid json content")
-
         server = CodeIndexMCPServer(temp_config_file)
-
-        with pytest.raises(ValueError):
-            await server._load_configuration()
+        with patch.object(
+            server.command_context.config_service,
+            "load_with_fallback",
+            side_effect=ValueError("invalid config"),
+        ):
+            with pytest.raises(ValueError):
+                await server._load_configuration()
 
     @pytest.mark.asyncio
-    async def test_validate_services_success(self, temp_config_file, mock_resource_manager):
+    async def test_validate_services_success(self, temp_config_file, mock_resource_manager, stub_config):
         """Test successful service validation."""
         server = CodeIndexMCPServer(temp_config_file)
-        # Use ConfigurationService to create config
-        from src.code_index.config_service import ConfigurationService
-        config_service = ConfigurationService(test_mode=True)
-        server.config = config_service.load_with_fallback()
-        server.config.embedding_length = 768
+        server.config = stub_config
 
         # Service validation is now handled during configuration loading
         # _validate_services just registers services for cleanup
@@ -140,14 +145,10 @@ class TestCodeIndexMCPServer:
         mock_resource_manager.register_qdrant_connection.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_validate_services_ollama_failure(self, temp_config_file):
+    async def test_validate_services_ollama_failure(self, temp_config_file, stub_config):
         """Test service validation with Ollama failure."""
         server = CodeIndexMCPServer(temp_config_file)
-        # Use ConfigurationService to create config
-        from src.code_index.config_service import ConfigurationService
-        config_service = ConfigurationService(test_mode=True)
-        server.config = config_service.load_with_fallback()
-        server.config.embedding_length = 768
+        server.config = stub_config
 
         # Service validation is now handled during configuration loading
         # _validate_services just registers services for cleanup and should not fail
@@ -157,14 +158,10 @@ class TestCodeIndexMCPServer:
         # (this is expected behavior - services are registered for cleanup regardless of status)
 
     @pytest.mark.asyncio
-    async def test_validate_services_qdrant_failure(self, temp_config_file):
+    async def test_validate_services_qdrant_failure(self, temp_config_file, stub_config):
         """Test service validation with Qdrant failure."""
         server = CodeIndexMCPServer(temp_config_file)
-        # Use ConfigurationService to create config
-        from src.code_index.config_service import ConfigurationService
-        config_service = ConfigurationService(test_mode=True)
-        server.config = config_service.load_with_fallback()
-        server.config.embedding_length = 768
+        server.config = stub_config
 
         # Service validation is now handled during configuration loading
         # _validate_services just registers services for cleanup and should not fail
@@ -219,30 +216,39 @@ class TestCodeIndexMCPServer:
         mock_resource_manager.shutdown.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_start_success(self, temp_config_file, mock_fastmcp, mock_config_manager, mock_resource_manager):
+    async def test_start_success(self, temp_config_file, mock_fastmcp, mock_resource_manager, stub_config):
         """Test successful server start."""
         server = CodeIndexMCPServer(temp_config_file)
-        server.config_manager = mock_config_manager
-        
-        # Mock service validation
-        with patch.object(server, '_validate_services', new_callable=AsyncMock):
-            with patch.object(server, '_register_tools'):
-                await server.start()
-                
-                assert server._running is True
-                mock_fastmcp.run_async.assert_called_once_with(transport="stdio")
+        with patch.object(
+            server.command_context.config_service,
+            "load_with_fallback",
+            return_value=stub_config,
+        ) as mock_load, patch.object(
+            server, '_validate_services', new_callable=AsyncMock
+        ) as mock_validate, patch.object(
+            server, '_register_tools'
+        ) as mock_register, patch.object(
+            server._mcp, 'run_async', new_callable=AsyncMock
+        ) as mock_run_async:
+            await server.start()
+
+            assert server._running is True
+            mock_load.assert_called_once()
+            mock_validate.assert_awaited_once()
+            mock_register.assert_called_once()
+            mock_run_async.assert_awaited_once_with(transport="stdio")
 
     @pytest.mark.asyncio
     async def test_start_configuration_failure(self, temp_config_file):
         """Test server start with configuration failure."""
-        # Create invalid config file
-        with open(temp_config_file, 'w') as f:
-            f.write("invalid json content")
-
         server = CodeIndexMCPServer(temp_config_file)
-
-        with pytest.raises(ValueError):
-            await server.start()
+        with patch.object(
+            server.command_context.config_service,
+            "load_with_fallback",
+            side_effect=ValueError("invalid config"),
+        ):
+            with pytest.raises(ValueError):
+                await server.start()
 
         assert server._running is False
 
@@ -297,8 +303,8 @@ class TestServerIntegration:
         await server._load_configuration()
         
         assert server.config is not None
-        assert server.config.embedding_length == 1024  # From actual config file
-        assert server.config.workspace_path == "."  # From actual config file
+        assert server.config.embedding_length == 768
+        assert server.config.workspace_path == temp_workspace
 
     def test_server_error_handling(self, temp_workspace):
         """Test server error handling with invalid configuration."""

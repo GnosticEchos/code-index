@@ -18,7 +18,7 @@ except Exception:  # Fallback stub to avoid import-time failures in tests
             raise RuntimeError("fastmcp.Context is unavailable in this environment")
 from ...config import Config
 from ...collections import CollectionManager
-from ..core.config_manager import MCPConfigurationManager
+from ...services.command_context import CommandContext
 
 # Compatibility shim to ensure fastmcp exposes elicitation classes during tests/runtime.
 # This augments the installed fastmcp (if present) or provides a minimal stub.
@@ -179,20 +179,21 @@ async def collections(
             raise ValueError("detailed parameter must be a boolean")
         
         logger.info(f"Starting collections operation: {subcommand}")
-        
-        # Load configuration
-        config_manager = MCPConfigurationManager("code_index.json")
-        
+
+        command_context = CommandContext()
+        config_path = os.path.abspath("code_index.json")
+        workspace_path = os.path.dirname(config_path) or os.getcwd()
+
         try:
-            config = config_manager.load_config()
+            deps = command_context.load_collection_dependencies(
+                workspace_path=workspace_path,
+                config_path=config_path,
+            )
         except ValueError as e:
             raise ValueError(f"Configuration error: {e}")
-        
-        # Initialize collection manager
-        try:
-            collection_manager = CollectionManager(config)
-        except Exception as e:
-            raise Exception(f"Failed to initialize collection manager: {e}")
+
+        collection_manager = deps.collection_manager
+        config = deps.config
         
         # Route to appropriate subcommand handler
         if subcommand == "list":

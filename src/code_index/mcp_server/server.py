@@ -1,11 +1,7 @@
-"""
-Main MCP Server Implementation
-
-This module contains the main MCP server class and entry point
-for the code index MCP server.
-"""
+"""Main MCP server implementation leveraging shared command context."""
 
 import asyncio
+import os
 import sys
 import logging
 from typing import Optional
@@ -15,8 +11,7 @@ from datetime import datetime
 from fastmcp import FastMCP
 from ..config import Config
 from ..config_service import ConfigurationService
-from ..service_validation import ServiceValidator
-from .core.config_manager import MCPConfigurationManager
+from ..services.command_context import CommandContext
 from .core.error_handler import error_handler
 
 
@@ -67,20 +62,24 @@ class CodeIndexMCPServer:
     Main MCP server class for code indexing functionality.
     
     This server provides MCP tools for indexing code repositories,
-    performing semantic searches, and managing collections.
     """
     
     def __init__(self, config_path: str = "code_index.json"):
         """
         Initialize the MCP server.
-        
+
         Args:
             config_path: Path to the configuration file
         """
-        self.config_path = config_path
+        self.config_path = os.path.abspath(config_path)
+        self.workspace_path = os.path.dirname(self.config_path) or os.getcwd()
         self.config: Optional[Config] = None
-        self.config_manager = MCPConfigurationManager(config_path)
-        
+        self._error_adapter = MCPErrorHandlerAdapter(error_handler)
+        self.command_context = CommandContext(
+            error_handler=self._error_adapter,
+            config_service=ConfigurationService(self._error_adapter),
+        )
+
         # Create FastMCP server with custom lifespan for resource management integration
         self._mcp = FastMCP(
             "Code Index MCP Server",
@@ -176,15 +175,10 @@ class CodeIndexMCPServer:
     async def _load_configuration(self) -> None:
         """Load and validate configuration using centralized ConfigurationService."""
         try:
-            # Initialize ConfigurationService for centralized configuration management
-            # Use adapter to make MCPErrorHandler compatible with ErrorHandler interface
-            error_adapter = MCPErrorHandlerAdapter(error_handler)
-            config_service = ConfigurationService(error_adapter)
-
-            # Load configuration with fallback mechanisms
-            self.config = config_service.load_with_fallback(
+            # Load configuration with shared command context
+            self.config = self.command_context.config_service.load_with_fallback(
                 config_path=self.config_path,
-                workspace_path="."
+                workspace_path=self.workspace_path,
             )
 
             self.logger.info("Configuration loaded and validated successfully using ConfigurationService")

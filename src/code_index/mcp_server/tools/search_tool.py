@@ -1,21 +1,12 @@
-"""
-Search Tool for MCP Server
-
-MCP wrapper for search functionality with parameter validation,
-configuration overrides, and result formatting.
-"""
+"""MCP search tool leveraging shared services."""
 
 import os
 import logging
 from typing import List, Dict, Any, Optional
 
 from fastmcp import Context
-from ...config import Config
-from ...embedder import OllamaEmbedder
-from ...vector_store import QdrantVectorStore
-from ..core.config_manager import MCPConfigurationManager
-from ..core.error_handler import error_handler
-from ..core.resource_manager import resource_manager
+from ...services.command_context import CommandContext
+from ...services.config_overrides import build_search_overrides
 
 
 logger = logging.getLogger(__name__)
@@ -117,90 +108,49 @@ async def search(
         if min_score is not None:
             if not isinstance(min_score, (int, float)) or min_score < 0 or min_score > 1:
                 raise ValueError("min_score must be a number between 0.0 and 1.0")
-        
+
         if max_results is not None:
             if not isinstance(max_results, int) or max_results <= 0 or max_results > 500:
                 raise ValueError("max_results must be a positive integer between 1 and 500")
-        
+
         logger.info(f"Starting search for query: '{query}' in workspace: {workspace_path}")
-        
-        # Load configuration
+
         config_path = os.path.join(workspace_path, "code_index.json")
-        config_manager = MCPConfigurationManager(config_path)
-        
-        try:
-            base_config = config_manager.load_config()
-        except ValueError as e:
-            raise ValueError(f"Configuration error: {e}")
-        
-        # Update workspace path in config
-        base_config.workspace_path = workspace_path
-        
-        # Configuration overrides removed due to FastMCP limitations
-        config = base_config
-        
-        # Apply CLI parameter overrides
-        if min_score is not None:
-            config.search_min_score = min_score
-        if max_results is not None:
-            config.search_max_results = max_results
-        
-        # Initialize components
-        try:
-            embedder = OllamaEmbedder(config)
-            vector_store = QdrantVectorStore(config)
-        except Exception as e:
-            raise Exception(f"Failed to initialize search components: {e}")
-        
-        # Validate service connectivity
-        validation_result = embedder.validate_configuration()
-        if not validation_result.get("valid", False):
-            error_msg = validation_result.get("error", "Unknown validation error")
-            raise Exception(f"Ollama service validation failed: {error_msg}")
-        
-        # Check if workspace has been indexed (collection exists)
-        try:
-            collections = vector_store.client.get_collections()
-            collection_names = [col.name for col in collections.collections]
-            
-            if vector_store.collection_name not in collection_names:
-                raise ValueError(
-                    f"Workspace has not been indexed yet. Collection '{vector_store.collection_name}' not found. "
-                    f"Please run the 'index' tool first to index this workspace."
-                )
-        except Exception as e:
-            if "not been indexed" in str(e):
-                raise
-            raise Exception(f"Failed to check collection existence: {e}")
-        
-        # Generate query embedding
-        try:
-            embedding_response = embedder.create_embeddings([query])
-            query_vector = embedding_response["embeddings"][0]
-            logger.debug(f"Generated embedding for query (dimension: {len(query_vector)})")
-        except Exception as e:
-            raise Exception(f"Failed to generate embedding for query: {e}")
-        
-        # Perform search
-        try:
-            results = vector_store.search(
-                query_vector=query_vector,
-                min_score=config.search_min_score,
-                max_results=config.search_max_results
+        overrides = build_search_overrides(min_score=min_score, max_results=max_results)
+
+        command_context = CommandContext()
+        deps = command_context.load_search_dependencies(
+            workspace_path=workspace_path,
+            config_path=config_path,
+            overrides=overrides,
+        )
+
+        # Perform search via shared service with validation
+        result = deps.search_service.search_code(query, deps.config)
+
+        if not result.is_successful():
+            raise Exception(
+                "Search execution reported errors: "
+                + "; ".join(result.errors or ["unknown error"])
             )
-            logger.info(f"Search completed: found {len(results)} results")
-        except Exception as e:
-            raise Exception(f"Search operation failed: {e}")
-        
-        # Handle empty results with helpful guidance
-        if not results:
-            logger.info(f"No results found for query: '{query}' with min_score={config.search_min_score}")
-            return _create_empty_results_response(query, config.search_min_score, workspace_path)
-        
-        # Format results for MCP consumption
-        formatted_results = _format_search_results(results, config)
-        
-        return formatted_results
+
+        if result.warnings:
+            logger.warning("Search completed with warnings: %s", result.warnings)
+
+        if not result.has_matches():
+            logger.info(
+                "No results found for query: '%s' with min_score=%s",
+                query,
+                getattr(deps.config, "search_min_score", None),
+            )
+            return _create_empty_results_response(
+                query,
+                getattr(deps.config, "search_min_score", 0.0),
+                workspace_path,
+            )
+
+        preview_chars = getattr(deps.config, "search_snippet_preview_chars", 160)
+        return _format_search_results(result.matches, preview_chars)
         
     except ValueError:
         # Re-raise validation errors as-is
@@ -233,54 +183,27 @@ def _create_empty_results_response(query: str, min_score: float, workspace_path:
     return []
 
 
-def _format_search_results(results: List[Dict[str, Any]], config: Config) -> List[Dict[str, Any]]:
-    """
-    Format search results for MCP client consumption with enhanced ranking and snippets.
-    
-    Args:
-        results: Raw search results from vector store (already ranked by adjustedScore)
-        config: Configuration for formatting options
-        
-    Returns:
-        Formatted results with consistent structure, ranked by adjustedScore, with code snippets
-    """
-    if not results:
-        return []
-    
-    preview_length = getattr(config, "search_snippet_preview_chars", 160)
-    formatted_results = []
-    
-    for result in results:
-        payload = result.get("payload", {}) or {}
-        
-        # Extract and clean code snippet with better formatting
-        code_chunk = payload.get("codeChunk", "") or ""
-        snippet = _create_code_snippet(code_chunk, preview_length)
-        
-        # Ensure scores are properly formatted
-        raw_score = float(result.get("score", 0.0) or 0.0)
-        adjusted_score = float(result.get("adjustedScore", raw_score) or raw_score)
-        
-        # Create formatted result with all required fields
-        formatted_result = {
-            "filePath": payload.get("filePath", ""),
-            "startLine": int(payload.get("startLine", 0) or 0),
-            "endLine": int(payload.get("endLine", 0) or 0),
-            "type": payload.get("type", ""),
-            "score": round(raw_score, 4),
-            "adjustedScore": round(adjusted_score, 4),
-            "snippet": snippet
-        }
-        
-        formatted_results.append(formatted_result)
-    
-    # Results should already be ranked by adjustedScore from vector store,
-    # but ensure consistent ordering for any edge cases
-    formatted_results.sort(
-        key=lambda x: (x["adjustedScore"], x["score"]), 
-        reverse=True
-    )
-    
+def _format_search_results(matches, preview_length: int) -> List[Dict[str, Any]]:
+    """Format search matches into MCP search tool response shape."""
+    formatted_results: List[Dict[str, Any]] = []
+
+    if not matches:
+        return formatted_results
+
+    for match in matches:
+        snippet = _create_code_snippet(getattr(match, "code_chunk", "") or "", preview_length)
+        formatted_results.append(
+            {
+                "filePath": getattr(match, "file_path", ""),
+                "startLine": getattr(match, "start_line", 0),
+                "endLine": getattr(match, "end_line", 0),
+                "type": getattr(match, "match_type", "text"),
+                "score": round(getattr(match, "score", 0.0), 4),
+                "adjustedScore": round(getattr(match, "adjusted_score", getattr(match, "score", 0.0)), 4),
+                "snippet": snippet,
+            }
+        )
+
     return formatted_results
 
 

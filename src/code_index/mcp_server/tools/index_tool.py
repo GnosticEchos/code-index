@@ -7,16 +7,15 @@ operation estimation, and progress reporting.
 
 import os
 import logging
+import time
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
 from fastmcp import Context
 from ...config import Config
-from ..core.config_manager import MCPConfigurationManager
 from ..core.operation_estimator import OperationEstimator
-from ..core.progress_reporter import ProgressReporter
-from ...file_processing import FileProcessingService
-from ...errors import ErrorHandler
+from ...services.command_context import CommandContext
+from ...services.config_overrides import build_index_overrides
 
 
 class IndexToolValidator:
@@ -402,6 +401,7 @@ async def index(
         Dictionary with indexing results and statistics
     """
     logger = logging.getLogger(__name__)
+    command_context = CommandContext()
     
     # Initialize validator and validate all parameters
     validator = IndexToolValidator()
@@ -428,35 +428,17 @@ async def index(
     if validation_result["warnings"]:
         logger.warning(f"Index tool warnings: {validation_result['warnings']}")
     
-    # Load configuration for operation estimation
-    try:
-        config_manager = MCPConfigurationManager(config or "code_index.json")
-        base_config = config_manager.load_config()
-        
-        # Apply parameter overrides to create operation-specific config
-        operation_overrides = {}
-        if embed_timeout is not None:
-            operation_overrides["embed_timeout_seconds"] = embed_timeout
-        if chunking_strategy is not None:
-            operation_overrides["chunking_strategy"] = chunking_strategy
-        if use_tree_sitter is not None:
-            operation_overrides["use_tree_sitter"] = use_tree_sitter
-        
-        # Config overrides removed due to FastMCP limitations
-        
-        # Apply overrides if any
-        if operation_overrides:
-            operation_config = config_manager.apply_overrides(base_config, operation_overrides)
-        else:
-            operation_config = base_config
-            
-    except Exception as e:
-        return {
-            "success": False,
-            "error": "Configuration loading failed",
-            "details": str(e),
-            "warnings": validation_result["warnings"]
-        }
+    # Build overrides using shared helper
+    config_path = config or "code_index.json"
+    operation_overrides = build_index_overrides(
+        embed_timeout=embed_timeout,
+        timeout_log=None,
+        ignore_config=None,
+        ignore_override_pattern=None,
+        auto_ignore_detection=None,
+        use_tree_sitter=bool(use_tree_sitter),
+        chunking_strategy=chunking_strategy,
+    )
     
     # Perform operation estimation and generate warnings
     estimator = OperationEstimator()
@@ -477,7 +459,13 @@ async def index(
     # Estimate each workspace
     for workspace_path in workspaces_to_analyze:
         try:
-            estimation = estimator.estimate_indexing_time(workspace_path, operation_config)
+            # Use a throwaway config for estimation by loading dependencies without overrides
+            deps = command_context.load_index_dependencies(
+                workspace_path=workspace_path,
+                config_path=config_path,
+                overrides=operation_overrides,
+            )
+            estimation = estimator.estimate_indexing_time(workspace_path, deps.config)
             estimation_results.append({
                 "workspace": workspace_path,
                 "estimation": estimation
@@ -547,10 +535,11 @@ async def index(
     # Execute indexing with progress reporting
     try:
         indexing_results = await _execute_indexing(
+            command_context=command_context,
             workspaces_to_analyze=workspaces_to_analyze,
-            operation_config=operation_config,
+            config_path=config_path,
+            overrides=operation_overrides,
             workspacelist=workspacelist,
-            logger=logger
         )
         
         # Combine results
@@ -590,10 +579,11 @@ async def index(
 
 
 async def _execute_indexing(
+    command_context: CommandContext,
     workspaces_to_analyze: List[str],
-    operation_config: Config,
+    config_path: str,
+    overrides: Dict[str, object],
     workspacelist: Optional[str],
-    logger: logging.Logger
 ) -> Dict[str, Any]:
     """
     Execute the actual indexing operation with progress reporting.
@@ -607,22 +597,6 @@ async def _execute_indexing(
     Returns:
         Dictionary with indexing results
     """
-    import time
-    from ...scanner import DirectoryScanner
-    from ...parser import CodeParser
-    from ...embedder import OllamaEmbedder
-    from ...vector_store import QdrantVectorStore
-    from ...cache import CacheManager
-    from ...file_processing import FileProcessingService
-    from ...errors import ErrorHandler
-    from ...chunking import (
-        LineChunkingStrategy,
-        TokenChunkingStrategy,
-        TreeSitterChunkingStrategy,
-    )
-    from requests.exceptions import ReadTimeout
-    import uuid
-    
     start_time = time.time()
     total_processed = 0
     total_blocks = 0
@@ -630,215 +604,36 @@ async def _execute_indexing(
     all_timeout_files = set()
     workspace_results = []
     
-    # Initialize progress reporter for overall operation
-    total_estimated_files = sum(len(list(Path(ws).rglob("*"))) for ws in workspaces_to_analyze if Path(ws).exists())
-    progress_reporter = ProgressReporter(
-        total_items=total_estimated_files,
-        operation_type="indexing",
-        update_interval=max(1, total_estimated_files // 100)  # Update every 1% or at least every file
-    )
-    
     # Process each workspace
     for workspace_idx, workspace_path in enumerate(workspaces_to_analyze):
         workspace_start_time = time.time()
-        logger.info(f"Processing workspace {workspace_idx + 1}/{len(workspaces_to_analyze)}: {workspace_path}")
-        
         try:
-            # Update configuration for this workspace
-            workspace_config = Config()
-            for key, value in vars(operation_config).items():
-                setattr(workspace_config, key, value)
-            workspace_config.workspace_path = workspace_path
-            
-            # Determine chunking strategy
-            strategy_name = getattr(workspace_config, "chunking_strategy", "lines")
-            if getattr(workspace_config, "use_tree_sitter", False):
-                strategy_name = "treesitter"
-            
-            if strategy_name == "treesitter":
-                chunking_strategy_impl = TreeSitterChunkingStrategy(workspace_config)
-            elif strategy_name == "tokens":
-                chunking_strategy_impl = TokenChunkingStrategy(workspace_config)
-            else:
-                chunking_strategy_impl = LineChunkingStrategy(workspace_config)
-            
-            # Initialize components
-            scanner = DirectoryScanner(workspace_config)
-            parser = CodeParser(workspace_config, chunking_strategy_impl)
-            embedder = OllamaEmbedder(workspace_config)
-            vector_store = QdrantVectorStore(workspace_config)
-            cache_manager = CacheManager(workspace_config.workspace_path, workspace_config)
-            
-            # Validate configuration
-            logger.info("Validating configuration...")
-            validation_result = embedder.validate_configuration()
-            if not validation_result["valid"]:
-                raise ValueError(f"Configuration validation failed: {validation_result['error']}")
-            
-            # Initialize vector store
-            logger.info("Initializing vector store...")
-            vector_store.initialize()
-            
-            # Scan directory for files
-            logger.info(f"Scanning directory: {workspace_config.workspace_path}")
-            scanned_paths, skipped_count = scanner.scan_directory()
-            file_paths = scanned_paths
-            logger.info(f"Found {len(file_paths)} files to process ({skipped_count} skipped)")
-            
-            if not file_paths:
-                logger.warning(f"No files found to process in workspace: {workspace_path}")
-                workspace_results.append({
-                    "workspace": workspace_path,
-                    "processed_files": 0,
-                    "total_blocks": 0,
-                    "timeout_files": 0,
-                    "processing_time": time.time() - workspace_start_time,
-                    "status": "completed_empty"
-                })
-                continue
-            
-            # Process files with progress reporting
-            processed_count = 0
-            blocks_count = 0
-            timeout_files = set()
-            
-            for file_idx, file_path in enumerate(file_paths):
-                rel_path = os.path.normpath(os.path.relpath(file_path, workspace_config.workspace_path))
-                
-                # Update progress
-                await progress_reporter.update_progress(
-                    completed_items=total_processed + processed_count,
-                    current_item=f"Processing {rel_path}"
-                )
-                
-                try:
-                    # Check if file has changed
-                    file_processor = FileProcessingService(ErrorHandler("mcp_index"))
-                    current_hash = file_processor.get_file_hash(file_path)
-                    cached_hash = cache_manager.get_hash(file_path)
-                    if current_hash == cached_hash:
-                        # File hasn't changed, skip processing
-                        continue
-                    
-                    # Parse file into blocks
-                    blocks = parser.parse_file(file_path)
-                    if not blocks:
-                        cache_manager.update_hash(file_path, current_hash)
-                        continue
-                    
-                    # Generate embeddings
-                    texts = [block.content for block in blocks if block.content.strip()]
-                    if not texts:
-                        cache_manager.update_hash(file_path, current_hash)
-                        continue
-                    
-                    # Batch embeddings for efficiency
-                    batch_size = workspace_config.batch_segment_threshold
-                    all_embeddings = []
-                    embedding_failed = False
-                    
-                    for i in range(0, len(texts), batch_size):
-                        batch_texts = texts[i:i + batch_size]
-                        try:
-                            embedding_response = embedder.create_embeddings(batch_texts)
-                            all_embeddings.extend(embedding_response["embeddings"])
-                        except ReadTimeout:
-                            timeout_files.add(rel_path)
-                            embedding_failed = True
-                            logger.warning(f"Timeout: Embedding request timed out for {rel_path}")
-                            break
-                        except Exception as e:
-                            logger.warning(f"Failed to embed batch for {rel_path}: {e}")
-                            embedding_failed = True
-                            break
-                    
-                    if embedding_failed or (len(all_embeddings) < len(texts) and len(all_embeddings) == 0):
-                        # Do not cache as processed to allow retry
-                        continue
-                    
-                    # Prepare points for vector store
-                    points = []
-                    for i, block in enumerate(blocks):
-                        if i >= len(all_embeddings):
-                            break
-                        point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{file_path}:{block.start_line}:{block.end_line}"))
-                        point = {
-                            "id": point_id,
-                            "vector": all_embeddings[i],
-                            "payload": {
-                                "filePath": rel_path,
-                                "codeChunk": block.content,
-                                "startLine": block.start_line,
-                                "endLine": block.end_line,
-                                "type": block.type,
-                                "embedding_model": embedder.model_identifier
-                            }
-                        }
-                        points.append(point)
-                    
-                    # Delete existing points for this file and upsert new ones
-                    try:
-                        vector_store.delete_points_by_file_path(rel_path)
-                    except Exception:
-                        # Ignore errors if file wasn't previously indexed
-                        pass
-                    
-                    try:
-                        vector_store.upsert_points(points)
-                    except Exception as e:
-                        msg = str(e).lower()
-                        if "timed out" in msg:
-                            timeout_files.add(rel_path)
-                            logger.warning(f"Timeout: Upsert timed out for {rel_path}")
-                            continue
-                        else:
-                            logger.warning(f"Failed to upsert points for {rel_path}: {e}")
-                            continue
-                    
-                    # Update cache and counters
-                    cache_manager.update_hash(file_path, current_hash)
-                    processed_count += 1
-                    blocks_count += len(blocks)
-                    
-                except Exception as e:
-                    logger.warning(f"Failed to process file {rel_path}: {e}")
-                    continue
-            
-            # Write timeout log if any
-            if timeout_files and hasattr(workspace_config, 'timeout_log_path') and workspace_config.timeout_log_path:
-                timeout_log_path = workspace_config.timeout_log_path
-                if not os.path.isabs(timeout_log_path):
-                    timeout_log_path = os.path.join(workspace_config.workspace_path, timeout_log_path)
-                
-                try:
-                    with open(timeout_log_path, 'w') as f:
-                        for timeout_file in sorted(timeout_files):
-                            f.write(f"{timeout_file}\n")
-                    logger.info(f"Wrote timeout log to: {timeout_log_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to write timeout log: {e}")
-            
-            # Record workspace results
+            deps = command_context.load_index_dependencies(
+                workspace_path=workspace_path,
+                config_path=config_path,
+                overrides=overrides,
+            )
+
+            result = deps.indexing_service.index_workspace(workspace_path, deps.config)
+
             workspace_processing_time = time.time() - workspace_start_time
             workspace_results.append({
                 "workspace": workspace_path,
-                "processed_files": processed_count,
-                "total_blocks": blocks_count,
-                "timeout_files": len(timeout_files),
+                "processed_files": result.processed_files,
+                "total_blocks": result.total_blocks,
+                "timeout_files": len(result.timed_out_files),
                 "processing_time": workspace_processing_time,
-                "status": "completed"
+                "status": "completed" if result.is_successful() else "completed_with_errors",
+                "errors": result.errors,
+                "warnings": result.warnings,
             })
-            
-            # Update totals
-            total_processed += processed_count
-            total_blocks += blocks_count
-            total_timeouts += len(timeout_files)
-            all_timeout_files.update(timeout_files)
-            
-            logger.info(f"Workspace {workspace_path} completed: {processed_count} files, {blocks_count} blocks, {len(timeout_files)} timeouts")
-            
+
+            total_processed += result.processed_files
+            total_blocks += result.total_blocks
+            total_timeouts += len(result.timed_out_files)
+            all_timeout_files.update(result.timed_out_files)
+
         except Exception as e:
-            logger.error(f"Failed to process workspace {workspace_path}: {e}")
             workspace_results.append({
                 "workspace": workspace_path,
                 "processed_files": 0,

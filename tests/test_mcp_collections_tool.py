@@ -1,57 +1,55 @@
 """
-Unit tests for MCP Collections Tool.
-
 Tests the collections tool functionality including parameter validation,
 safety confirmations, and collection management operations.
 """
 
-import pytest
-import tempfile
-import os
 import json
+import os
+import tempfile
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
+import pytest
+
+from fastmcp import Context
+from src.code_index.cache import delete_collection_cache
+from src.code_index.collections import CollectionManager
+from src.code_index.config import Config
 from src.code_index.mcp_server.tools.collections_tool import (
-    collections,
-    create_collections_tool_description,
-    _handle_list_collections,
+    _handle_clear_all_collections,
     _handle_collection_info,
     _handle_delete_collection,
+    _handle_list_collections,
     _handle_prune_collections,
-    _handle_clear_all_collections,
     _request_confirmation,
-    _resolve_canonical_id_for_delete
+    _resolve_canonical_id_for_delete,
+    collections,
+    create_collections_tool_description,
 )
-from src.code_index.config import Config
-from src.code_index.collections import CollectionManager
+from src.code_index.services.command_context import CollectionDependencies
 
 
 class TestCollectionsTool:
-    """Test cases for the collections tool function."""
-    
+    """Test cases for MCP collections tool command handler."""
+
     @pytest.fixture
     def mock_context(self):
-        """Create a mock MCP context."""
-        return Mock()
-    
+        return Mock(spec=Context)
+
     @pytest.fixture
     def temp_workspace(self):
-        """Create a temporary workspace for testing."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Create config file
             config_file = Path(temp_dir) / "code_index.json"
             config_data = {
                 "ollama_base_url": "http://localhost:11434",
                 "ollama_model": "nomic-embed-text:latest",
                 "qdrant_url": "http://localhost:6333",
                 "embedding_length": 768,
-                "workspace_path": temp_dir
+                "workspace_path": temp_dir,
             }
             config_file.write_text(json.dumps(config_data, indent=2))
-            
             yield temp_dir
-    
+
     @pytest.mark.asyncio
     async def test_collections_tool_missing_subcommand(self, mock_context):
         """Test collections tool with missing subcommand parameter."""
@@ -126,300 +124,219 @@ class TestCollectionsTool:
                 detailed="not_a_boolean"
             )
     
+    def create_mock_deps(self, config=None, collection_manager=None):
+        config = config or Config()
+        collection_manager = collection_manager or MagicMock(spec=CollectionManager)
+        return CollectionDependencies(config=config, collection_manager=collection_manager)
+
     @pytest.mark.asyncio
     async def test_collections_tool_configuration_error(self, mock_context):
         """Test collections tool with configuration loading error."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.MCPConfigurationManager') as mock_config_manager_class:
-            mock_config_manager = Mock()
-            mock_config_manager.load_config.side_effect = ValueError("Config error")
-            mock_config_manager_class.return_value = mock_config_manager
-            
+        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls:
+            mock_command_context = mock_context_cls.return_value
+            mock_command_context.load_collection_dependencies.side_effect = ValueError("Config error")
+
             with pytest.raises(ValueError, match="Configuration error"):
                 await collections(
                     ctx=mock_context,
                     subcommand="list"
                 )
-    
+
     @pytest.mark.asyncio
     async def test_collections_tool_collection_manager_failure(self, mock_context):
         """Test collections tool with collection manager initialization failure."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.MCPConfigurationManager') as mock_config_manager_class:
-            with patch('src.code_index.mcp_server.tools.collections_tool.CollectionManager') as mock_collection_manager_class:
-                
-                # Mock successful config loading
-                mock_config_manager = Mock()
-                mock_config_manager.load_config.return_value = Config()
-                mock_config_manager_class.return_value = mock_config_manager
-                
-                # Mock collection manager failure
-                mock_collection_manager_class.side_effect = Exception("Manager init failed")
-                
-                with pytest.raises(Exception, match="Failed to initialize collection manager"):
-                    await collections(
-                        ctx=mock_context,
-                        subcommand="list"
-                    )
-    
-    @pytest.mark.asyncio
-    async def test_collections_tool_list_success(self, mock_context):
-        """Test successful collections list operation."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.MCPConfigurationManager') as mock_config_manager_class:
-            with patch('src.code_index.mcp_server.tools.collections_tool.CollectionManager') as mock_collection_manager_class:
-                
-                # Mock successful config loading
-                mock_config_manager = Mock()
-                mock_config_manager.load_config.return_value = Config()
-                mock_config_manager_class.return_value = mock_config_manager
-                
-                # Mock collection manager with collections
-                mock_collection_manager = Mock()
-                mock_collections_data = [
-                    {
-                        "name": "ws-abc123def456",
-                        "points_count": 100,
-                        "workspace_path": "/test/workspace1",
-                        "dimensions": {"vector": 768},
-                        "model_identifier": "nomic-embed-text"
-                    },
-                    {
-                        "name": "ws-def456ghi789",
-                        "points_count": 50,
-                        "workspace_path": "/test/workspace2",
-                        "dimensions": {"vector": 768},
-                        "model_identifier": "nomic-embed-text"
-                    }
-                ]
-                mock_collection_manager.list_collections.return_value = mock_collections_data
-                mock_collection_manager_class.return_value = mock_collection_manager
-                
-                result = await collections(
+        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls:
+            mock_command_context = mock_context_cls.return_value
+            mock_command_context.load_collection_dependencies.side_effect = Exception("Manager init failed")
+
+            with pytest.raises(Exception, match="Manager init failed"):
+                await collections(
                     ctx=mock_context,
                     subcommand="list"
                 )
-                
-                assert result["success"] is True
-                assert "data" in result
-                assert result["data"]["total_count"] == 2
-                assert len(result["data"]["collections"]) == 2
-                
-                # Check first collection
-                first_collection = result["data"]["collections"][0]
-                assert first_collection["name"] == "ws-abc123def456"
-                assert first_collection["points_count"] == 100
-                assert first_collection["workspace_path"] == "/test/workspace1"
+
+    @pytest.mark.asyncio
+    async def test_collections_tool_list_success(self, mock_context):
+        """Test successful collections list operation."""
+        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls:
+            mock_command_context = mock_context_cls.return_value
+
+            mock_collections_data = [
+                {
+                    "name": "ws-abc123def456",
+                    "points_count": 100,
+                    "workspace_path": "/test/workspace1",
+                    "dimensions": {"vector": 768},
+                    "model_identifier": "nomic-embed-text"
+                },
+                {
+                    "name": "ws-def456ghi789",
+                    "points_count": 50,
+                    "workspace_path": "/test/workspace2",
+                    "dimensions": {"vector": 768},
+                    "model_identifier": "nomic-embed-text"
+                }
+            ]
+            mock_collection_manager = MagicMock()
+            mock_collection_manager.list_collections.return_value = mock_collections_data
+            deps = self.create_mock_deps(collection_manager=mock_collection_manager)
+            mock_command_context.load_collection_dependencies.return_value = deps
+
+            result = await collections(
+                ctx=mock_context,
+                subcommand="list"
+            )
+
+            assert result["success"] is True
+            assert "data" in result
+            assert result["data"]["total_count"] == 2
+            assert len(result["data"]["collections"]) == 2
+
+            first_collection = result["data"]["collections"][0]
+            assert first_collection["name"] == "ws-abc123def456"
+            assert first_collection["points_count"] == 100
+            assert first_collection["workspace_path"] == "/test/workspace1"
     
     @pytest.mark.asyncio
     async def test_collections_tool_list_empty(self, mock_context):
         """Test collections list with no collections."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.MCPConfigurationManager') as mock_config_manager_class:
-            with patch('src.code_index.mcp_server.tools.collections_tool.CollectionManager') as mock_collection_manager_class:
-                
-                # Mock successful config loading
-                mock_config_manager = Mock()
-                mock_config_manager.load_config.return_value = Config()
-                mock_config_manager_class.return_value = mock_config_manager
-                
-                # Mock collection manager with no collections
-                mock_collection_manager = Mock()
-                mock_collection_manager.list_collections.return_value = []
-                mock_collection_manager_class.return_value = mock_collection_manager
-                
-                result = await collections(
-                    ctx=mock_context,
-                    subcommand="list"
-                )
-                
-                assert result["success"] is True
-                assert result["data"]["total_count"] == 0
-                assert len(result["data"]["collections"]) == 0
-                assert "No collections found" in result["message"]
+        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls:
+            mock_command_context = mock_context_cls.return_value
+
+            mock_collection_manager = MagicMock()
+            mock_collection_manager.list_collections.return_value = []
+            deps = self.create_mock_deps(collection_manager=mock_collection_manager)
+            mock_command_context.load_collection_dependencies.return_value = deps
+
+            result = await collections(
+                ctx=mock_context,
+                subcommand="list"
+            )
+
+            assert result["success"] is True
+            assert result["data"]["total_count"] == 0
+            assert len(result["data"]["collections"]) == 0
+            assert "No collections found" in result["message"]
     
     @pytest.mark.asyncio
     async def test_collections_tool_info_success(self, mock_context):
         """Test successful collections info operation."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.MCPConfigurationManager') as mock_config_manager_class:
-            with patch('src.code_index.mcp_server.tools.collections_tool.CollectionManager') as mock_collection_manager_class:
-                
-                # Mock successful config loading
-                mock_config_manager = Mock()
-                mock_config_manager.load_config.return_value = Config()
-                mock_config_manager_class.return_value = mock_config_manager
-                
-                # Mock collection manager with collection info
-                mock_collection_manager = Mock()
-                mock_collection_info = {
-                    "name": "ws-abc123def456",
-                    "status": "green",
-                    "points_count": 100,
-                    "vectors_count": 100,
-                    "workspace_path": "/test/workspace",
-                    "dimensions": {"vector": 768},
-                    "model_identifier": "nomic-embed-text",
-                    "config": "test_config"
-                }
-                mock_collection_manager.get_collection_info.return_value = mock_collection_info
-                mock_collection_manager_class.return_value = mock_collection_manager
-                
-                result = await collections(
-                    ctx=mock_context,
-                    subcommand="info",
-                    collection_name="ws-abc123def456"
-                )
-                
-                assert result["success"] is True
-                assert "data" in result
-                collection_data = result["data"]["collection"]
-                assert collection_data["name"] == "ws-abc123def456"
-                assert collection_data["points_count"] == 100
-                assert collection_data["workspace_path"] == "/test/workspace"
+        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls:
+            mock_command_context = mock_context_cls.return_value
+
+            mock_collection_manager = MagicMock()
+            mock_collection_info = {
+                "name": "ws-abc123def456",
+                "status": "green",
+                "points_count": 100,
+                "vectors_count": 100,
+                "workspace_path": "/test/workspace",
+                "dimensions": {"vector": 768},
+                "model_identifier": "nomic-embed-text",
+                "config": "test_config"
+            }
+            mock_collection_manager.get_collection_info.return_value = mock_collection_info
+            deps = self.create_mock_deps(collection_manager=mock_collection_manager)
+            mock_command_context.load_collection_dependencies.return_value = deps
+
+            result = await collections(
+                ctx=mock_context,
+                subcommand="info",
+                collection_name="ws-abc123def456"
+            )
+
+            assert result["success"] is True
+            collection_data = result["data"]["collection"]
+            assert collection_data["name"] == "ws-abc123def456"
+            assert collection_data["points_count"] == 100
+            assert collection_data["workspace_path"] == "/test/workspace"
     
     @pytest.mark.asyncio
     async def test_collections_tool_info_not_found(self, mock_context):
         """Test collections info with collection not found."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.MCPConfigurationManager') as mock_config_manager_class:
-            with patch('src.code_index.mcp_server.tools.collections_tool.CollectionManager') as mock_collection_manager_class:
-                
-                # Mock successful config loading
-                mock_config_manager = Mock()
-                mock_config_manager.load_config.return_value = Config()
-                mock_config_manager_class.return_value = mock_config_manager
-                
-                # Mock collection manager with not found error
-                mock_collection_manager = Mock()
-                mock_collection_manager.get_collection_info.side_effect = Exception("Collection not found")
-                mock_collection_manager_class.return_value = mock_collection_manager
-                
-                with pytest.raises(ValueError, match="Collection .* not found"):
-                    await collections(
-                        ctx=mock_context,
-                        subcommand="info",
-                        collection_name="nonexistent"
-                    )
-    
+        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls:
+            mock_command_context = mock_context_cls.return_value
+
+            mock_collection_manager = MagicMock()
+            mock_collection_manager.get_collection_info.side_effect = Exception("Collection not found")
+            deps = self.create_mock_deps(collection_manager=mock_collection_manager)
+            mock_command_context.load_collection_dependencies.return_value = deps
+
+            with pytest.raises(ValueError, match="Collection .* not found"):
+                await collections(
+                    ctx=mock_context,
+                    subcommand="info",
+                    collection_name="nonexistent"
+                )
+
     @pytest.mark.asyncio
     async def test_collections_tool_delete_with_confirmation_bypass(self, mock_context):
         """Test collections delete with confirmation bypass."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.MCPConfigurationManager') as mock_config_manager_class:
-            with patch('src.code_index.mcp_server.tools.collections_tool.CollectionManager') as mock_collection_manager_class:
-                with patch('src.code_index.cache.delete_collection_cache') as mock_delete_cache:
-                    
-                    # Mock successful config loading
-                    mock_config_manager = Mock()
-                    config = Config()
-                    mock_config_manager.load_config.return_value = config
-                    mock_config_manager_class.return_value = mock_config_manager
-                    
-                    # Mock collection manager
-                    mock_collection_manager = Mock()
-                    mock_collection_info = {
-                        "name": "ws-abc123def456",
-                        "points_count": 100,
-                        "workspace_path": "/test/workspace"
-                    }
-                    mock_collection_manager.get_collection_info.return_value = mock_collection_info
-                    mock_collection_manager.delete_collection.return_value = True
-                    mock_collection_manager_class.return_value = mock_collection_manager
-                    
-                    # Mock cache deletion
-                    mock_delete_cache.return_value = 5
-                    
-                    result = await collections(
-                        ctx=mock_context,
-                        subcommand="delete",
-                        collection_name="ws-abc123def456",
-                        yes=True  # Bypass confirmation
-                    )
-                    
-                    assert result["success"] is True
-                    assert result["data"]["collection_name"] == "ws-abc123def456"
-                    assert result["data"]["points_deleted"] == 100
-                    assert result["data"]["cache_files_removed"] == 5
-                    
-                    # Verify deletion was called
-                    mock_collection_manager.delete_collection.assert_called_once_with("ws-abc123def456")
-    
+        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls, \
+             patch('src.code_index.cache.delete_collection_cache') as mock_delete_cache:
+            mock_command_context = mock_context_cls.return_value
+
+            config = Config()
+            mock_collection_manager = MagicMock()
+            mock_collection_info = {
+                "name": "ws-abc123def456",
+                "points_count": 100,
+                "workspace_path": "/test/workspace"
+            }
+            mock_collection_manager.get_collection_info.return_value = mock_collection_info
+            mock_collection_manager.delete_collection.return_value = True
+            mock_delete_cache.return_value = 5
+
+            deps = self.create_mock_deps(config=config, collection_manager=mock_collection_manager)
+            mock_command_context.load_collection_dependencies.return_value = deps
+
+            result = await collections(
+                ctx=mock_context,
+                subcommand="delete",
+                collection_name="ws-abc123def456",
+                yes=True
+            )
+
+            assert result["success"] is True
+            assert result["data"]["collection_name"] == "ws-abc123def456"
+            assert result["data"]["points_deleted"] == 100
+            assert result["data"]["cache_files_removed"] == 5
+            mock_collection_manager.delete_collection.assert_called_once_with("ws-abc123def456")
+
     @pytest.mark.asyncio
     async def test_collections_tool_delete_with_confirmation_denied(self, mock_context):
         """Test collections delete with confirmation denied."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.MCPConfigurationManager') as mock_config_manager_class:
-            with patch('src.code_index.mcp_server.tools.collections_tool.CollectionManager') as mock_collection_manager_class:
-                with patch('src.code_index.mcp_server.tools.collections_tool._request_confirmation') as mock_request_confirmation:
-                    
-                    # Mock successful config loading
-                    mock_config_manager = Mock()
-                    mock_config_manager.load_config.return_value = Config()
-                    mock_config_manager_class.return_value = mock_config_manager
-                    
-                    # Mock collection manager
-                    mock_collection_manager = Mock()
-                    mock_collection_info = {
-                        "name": "ws-abc123def456",
-                        "points_count": 100,
-                        "workspace_path": "/test/workspace"
-                    }
-                    mock_collection_manager.get_collection_info.return_value = mock_collection_info
-                    mock_collection_manager_class.return_value = mock_collection_manager
-                    
-                    # Mock confirmation denial
-                    mock_request_confirmation.return_value = {
-                        "confirmed": False,
-                        "reason": "User declined"
-                    }
-                    
-                    result = await collections(
-                        ctx=mock_context,
-                        subcommand="delete",
-                        collection_name="ws-abc123def456",
-                        yes=False  # Require confirmation
-                    )
-                    
-                    assert result["success"] is False
-                    assert "cancelled by user" in result["message"]
-                    assert result["data"]["cancelled"] is True
-                    
-                    # Verify deletion was NOT called
-                    mock_collection_manager.delete_collection.assert_not_called()
-    
-    @pytest.mark.asyncio
-    async def test_collections_tool_clear_all_success(self, mock_context):
-        """Test successful clear-all operation."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.MCPConfigurationManager') as mock_config_manager_class:
-            with patch('src.code_index.mcp_server.tools.collections_tool.CollectionManager') as mock_collection_manager_class:
-                with patch('src.code_index.cache.clear_all_caches') as mock_clear_caches:
-                    
-                    # Mock successful config loading
-                    mock_config_manager = Mock()
-                    config = Config()
-                    mock_config_manager.load_config.return_value = config
-                    mock_config_manager_class.return_value = mock_config_manager
-                    
-                    # Mock collection manager
-                    mock_collection_manager = Mock()
-                    mock_collections_list = [
-                        {"name": "ws-abc123def456", "points_count": 100},
-                        {"name": "ws-def456ghi789", "points_count": 50}
-                    ]
-                    mock_collection_manager.list_collections.return_value = mock_collections_list
-                    mock_collection_manager.delete_collection.return_value = True
-                    mock_collection_manager_class.return_value = mock_collection_manager
-                    
-                    # Mock cache clearing
-                    mock_clear_caches.return_value = 10
-                    
-                    result = await collections(
-                        ctx=mock_context,
-                        subcommand="clear-all",
-                        yes=True  # Bypass confirmation
-                    )
-                    
-                    assert result["success"] is True
-                    assert result["data"]["total_collections"] == 2
-                    assert result["data"]["success_count"] == 2
-                    assert result["data"]["failure_count"] == 0
-                    assert result["data"]["cache_files_removed"] == 10
-                    
-                    # Verify all collections were deleted
-                    assert mock_collection_manager.delete_collection.call_count == 2
+        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls, \
+             patch('src.code_index.mcp_server.tools.collections_tool._request_confirmation') as mock_request_confirmation:
+            mock_command_context = mock_context_cls.return_value
+
+            mock_collection_manager = MagicMock()
+            mock_collection_manager.get_collection_info.return_value = {
+                "name": "ws-abc123def456",
+                "points_count": 100,
+                "workspace_path": "/test/workspace"
+            }
+            mock_collection_manager.delete_collection.return_value = True
+
+            deps = self.create_mock_deps(collection_manager=mock_collection_manager)
+            mock_command_context.load_collection_dependencies.return_value = deps
+
+            mock_request_confirmation.return_value = {
+                "confirmed": False,
+                "reason": "User declined"
+            }
+
+            result = await collections(
+                ctx=mock_context,
+                subcommand="delete",
+                collection_name="ws-abc123def456",
+                yes=False
+            )
+
+            assert result["success"] is False
+            assert "cancelled by user" in result["message"]
+            assert result["data"]["cancelled"] is True
+            mock_collection_manager.delete_collection.assert_not_called()
 
 
 class TestCollectionsToolHelpers:

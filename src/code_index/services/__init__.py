@@ -13,6 +13,8 @@ from .search_service import SearchService
 from .configuration_service import ConfigurationService
 from .health_service import HealthService
 from .workspace_service import WorkspaceService
+from .command_context import CommandContext
+from .config_overrides import build_index_overrides, build_search_overrides
 
 # Tree-sitter specialized services
 from .file_processor import TreeSitterFileProcessor
@@ -28,6 +30,9 @@ __all__ = [
     'ConfigurationService',
     'HealthService',
     'WorkspaceService',
+    'CommandContext',
+    'build_index_overrides',
+    'build_search_overrides',
     'TreeSitterFileProcessor',
     'TreeSitterResourceManager',
     'TreeSitterBlockExtractor',

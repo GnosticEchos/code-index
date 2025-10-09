@@ -5,21 +5,24 @@ Tests the search tool functionality including parameter validation,
 search execution, and result formatting.
 """
 
-import pytest
-import tempfile
-import os
 import json
+import os
+import tempfile
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
+
+from src.code_index.config import Config
 from src.code_index.mcp_server.tools.search_tool import (
-    search,
-    create_search_tool_description,
+    _create_code_snippet,
     _create_empty_results_response,
     _format_search_results,
-    _create_code_snippet
+    create_search_tool_description,
+    search,
 )
-from src.code_index.config import Config
+from src.code_index.models import SearchMatch, SearchResult
+from src.code_index.services.command_context import SearchDependencies
 
 
 class TestSearchTool:
@@ -136,332 +139,191 @@ class TestSearchTool:
     @pytest.mark.asyncio
     async def test_search_tool_configuration_error(self, mock_context, temp_workspace):
         """Test search tool with configuration loading error."""
-        with patch('src.code_index.mcp_server.tools.search_tool.MCPConfigurationManager') as mock_config_manager_class:
-            with patch('src.code_index.mcp_server.tools.search_tool.QdrantVectorStore') as mock_vector_store_class:
-                # Mock config manager to raise error
-                mock_config_manager = Mock()
-                mock_config_manager.load_config.side_effect = ValueError("Configuration error: invalid file")
-                mock_config_manager_class.return_value = mock_config_manager
+        with patch('src.code_index.mcp_server.tools.search_tool.CommandContext') as mock_context_cls:
+            mock_command_context = mock_context_cls.return_value
+            mock_command_context.load_search_dependencies.side_effect = ValueError(
+                "Configuration error: invalid file"
+            )
 
-                # Mock vector store to bypass collection check
-                mock_vector_store = Mock()
-                mock_collection = Mock()
-                mock_collection.name = "test_collection"
-                mock_collections = Mock()
-                mock_collections.collections = [mock_collection]
-                mock_vector_store.client.get_collections.return_value = mock_collections
-                mock_vector_store.collection_name = "test_collection"
-                mock_vector_store.search.return_value = []  # Return empty list to avoid len() error
-                mock_vector_store_class.return_value = mock_vector_store
-
-                with pytest.raises(ValueError, match="Configuration error"):
-                    await search(
-                        ctx=mock_context,
-                        query="test query",
-                        workspace=temp_workspace
-                    )
-    
-    @pytest.mark.asyncio
-    async def test_search_tool_service_validation_failure(self, mock_context, temp_workspace):
-        """Test search tool with service validation failure."""
-        with patch('src.code_index.mcp_server.tools.search_tool.MCPConfigurationManager') as mock_config_manager_class:
-            with patch('src.code_index.mcp_server.tools.search_tool.OllamaEmbedder') as mock_embedder_class:
-                with patch('src.code_index.mcp_server.tools.search_tool.QdrantVectorStore') as mock_vector_store_class:
-                    # Mock config manager to return valid config
-                    mock_config_manager = Mock()
-                    base_config = Mock()
-                    base_config.workspace_path = temp_workspace
-                    base_config.ollama_base_url = "http://localhost:11434"
-                    base_config.ollama_model = "nomic-embed-text:latest"
-                    base_config.qdrant_url = "http://localhost:6333"
-                    base_config.embedding_length = 768
-                    base_config.embed_timeout_seconds = 60
-                    base_config.search_min_score = 0.4
-                    base_config.search_max_results = 50
-                    mock_config_manager.load_config.return_value = base_config
-                    mock_config_manager.apply_overrides.return_value = base_config
-                    mock_config_manager_class.return_value = mock_config_manager
-
-                    mock_embedder = Mock()
-                    mock_embedder.validate_configuration.return_value = {
-                        "valid": False,
-                        "error": "Connection failed"
-                    }
-                    mock_embedder_class.return_value = mock_embedder
-
-                    # Mock vector store to bypass collection check
-                    mock_vector_store = Mock()
-                    mock_collection = Mock()
-                    mock_collection.name = "test_collection"
-                    mock_collections = Mock()
-                    mock_collections.collections = [mock_collection]
-                    mock_vector_store.client.get_collections.return_value = mock_collections
-                    mock_vector_store.collection_name = "test_collection"
-                    mock_vector_store.search.return_value = []  # Return empty list to avoid len() error
-                    mock_vector_store_class.return_value = mock_vector_store
-
-                    with pytest.raises(Exception, match="Ollama service validation failed"):
-                        await search(
-                            ctx=mock_context,
-                            query="test query",
-                            workspace=temp_workspace
-                        )
-    
-    @pytest.mark.asyncio
-    async def test_search_tool_collection_not_found(self, mock_context, temp_workspace):
-        """Test search tool with collection not found."""
-        with patch('src.code_index.embedder.OllamaEmbedder') as mock_embedder_class:
-            with patch('src.code_index.vector_store.QdrantVectorStore') as mock_vector_store_class:
-                
-                # Mock successful embedder validation
-                mock_embedder = Mock()
-                mock_embedder.validate_configuration.return_value = {"valid": True}
-                mock_embedder_class.return_value = mock_embedder
-                
-                # Mock vector store with no collections
-                mock_vector_store = Mock()
-                mock_collections = Mock()
-                mock_collections.collections = []  # No collections
-                mock_vector_store.client.get_collections.return_value = mock_collections
-                mock_vector_store.collection_name = "test_collection"
-                mock_vector_store_class.return_value = mock_vector_store
-                
-                with pytest.raises(ValueError, match="Workspace has not been indexed yet"):
-                    await search(
-                        ctx=mock_context,
-                        query="test query",
-                        workspace=temp_workspace
-                    )
-    
-    @pytest.mark.asyncio
-    async def test_search_tool_embedding_failure(self, mock_context, temp_workspace):
-        """Test search tool with embedding generation failure."""
-        with patch('src.code_index.mcp_server.tools.search_tool.MCPConfigurationManager') as mock_config_manager_class:
-            with patch('src.code_index.mcp_server.tools.search_tool.OllamaEmbedder') as mock_embedder_class:
-                with patch('src.code_index.mcp_server.tools.search_tool.QdrantVectorStore') as mock_vector_store_class:
-                    # Mock config manager to return valid config
-                    mock_config_manager = Mock()
-                    base_config = Mock()
-                    base_config.workspace_path = temp_workspace
-                    base_config.ollama_base_url = "http://localhost:11434"
-                    base_config.ollama_model = "nomic-embed-text:latest"
-                    base_config.qdrant_url = "http://localhost:6333"
-                    base_config.embedding_length = 768
-                    base_config.embed_timeout_seconds = 60
-                    base_config.search_min_score = 0.4
-                    base_config.search_max_results = 50
-                    mock_config_manager.load_config.return_value = base_config
-                    mock_config_manager.apply_overrides.return_value = base_config
-                    mock_config_manager_class.return_value = mock_config_manager
-
-                    # Mock embedder that fails during embedding generation
-                    mock_embedder = Mock()
-                    mock_embedder.validate_configuration.return_value = {"valid": True}
-                    mock_embedder.create_embeddings.side_effect = Exception("Embedding failed")
-                    mock_embedder_class.return_value = mock_embedder
-
-                    # Mock vector store with existing collection
-                    mock_vector_store = Mock()
-                    mock_collection = Mock()
-                    mock_collection.name = "test_collection"
-                    mock_collections = Mock()
-                    mock_collections.collections = [mock_collection]
-                    mock_vector_store.client.get_collections.return_value = mock_collections
-                    mock_vector_store.collection_name = "test_collection"
-                    mock_vector_store.search.return_value = []  # Return empty list to avoid len() error
-                    mock_vector_store_class.return_value = mock_vector_store
-
-                    with pytest.raises(Exception, match="Failed to generate embedding"):
-                        await search(
-                            ctx=mock_context,
-                            query="test query",
-                            workspace=temp_workspace
-                        )
-    
-    @pytest.mark.asyncio
-    async def test_search_tool_search_failure(self, mock_context, temp_workspace):
-        """Test search tool with search operation failure."""
-        with patch('src.code_index.embedder.OllamaEmbedder') as mock_embedder_class:
-            with patch('src.code_index.mcp_server.tools.search_tool.QdrantVectorStore') as mock_vector_store_class:
-
-                # Mock successful embedder
-                mock_embedder = Mock()
-                mock_embedder.validate_configuration.return_value = {"valid": True}
-                mock_embedder.create_embeddings.return_value = {
-                    "embeddings": [[0.1, 0.2, 0.3]]  # Mock embedding
-                }
-                mock_embedder_class.return_value = mock_embedder
-
-                # Mock vector store that fails during search
-                mock_vector_store = Mock()
-                mock_collection = Mock()
-                mock_collection.name = "test_collection"
-                mock_collections = Mock()
-                mock_collections.collections = [mock_collection]
-                mock_vector_store.client.get_collections.return_value = mock_collections
-                mock_vector_store.collection_name = "test_collection"
-                mock_vector_store.search.side_effect = Exception("Search failed")
-                mock_vector_store_class.return_value = mock_vector_store
-
-                with pytest.raises(Exception, match="Search operation failed"):
-                    await search(
-                        ctx=mock_context,
-                        query="test query",
-                        workspace=temp_workspace
-                    )
-    
-    @pytest.mark.asyncio
-    async def test_search_tool_successful_search(self, mock_context, temp_workspace):
-        """Test successful search tool execution."""
-        with patch('src.code_index.embedder.OllamaEmbedder') as mock_embedder_class:
-            with patch('src.code_index.mcp_server.tools.search_tool.QdrantVectorStore') as mock_vector_store_class:
-
-                # Mock successful embedder
-                mock_embedder = Mock()
-                mock_embedder.validate_configuration.return_value = {"valid": True}
-                mock_embedder.create_embeddings.return_value = {
-                    "embeddings": [[0.1] * 768]  # Mock 768-dimensional embedding
-                }
-                mock_embedder_class.return_value = mock_embedder
-
-                # Mock successful vector store
-                mock_vector_store = Mock()
-                mock_collection = Mock()
-                mock_collection.name = "test_collection"
-                mock_collections = Mock()
-                mock_collections.collections = [mock_collection]
-                mock_vector_store.client.get_collections.return_value = mock_collections
-                mock_vector_store.collection_name = "test_collection"
-
-                # Mock search results
-                mock_results = [
-                    {
-                        "score": 0.85,
-                        "adjustedScore": 0.90,
-                        "payload": {
-                            "filePath": "main.py",
-                            "startLine": 1,
-                            "endLine": 3,
-                            "type": "function",
-                            "codeChunk": "def main():\n    print('Hello, World!')\n"
-                        }
-                    },
-                    {
-                        "score": 0.75,
-                        "adjustedScore": 0.80,
-                        "payload": {
-                            "filePath": "utils.py",
-                            "startLine": 1,
-                            "endLine": 2,
-                            "type": "function",
-                            "codeChunk": "def helper():\n    return True\n"
-                        }
-                    }
-                ]
-                mock_vector_store.search.return_value = mock_results
-                mock_vector_store_class.return_value = mock_vector_store
-
-                result = await search(
+            with pytest.raises(ValueError, match="Configuration error"):
+                await search(
                     ctx=mock_context,
                     query="test query",
-                    workspace=temp_workspace,
-                    min_score=0.5,
-                    max_results=10
-                )
-
-                assert isinstance(result, list)
-                assert len(result) == 2
-
-                # Check first result
-                first_result = result[0]
-                assert first_result["filePath"] == "main.py"
-                assert first_result["startLine"] == 1
-                assert first_result["endLine"] == 3
-                assert first_result["type"] == "function"
-                assert first_result["score"] == 0.85
-                assert first_result["adjustedScore"] == 0.90
-                assert "def main()" in first_result["snippet"]
-    
-    @pytest.mark.asyncio
-    async def test_search_tool_empty_results(self, mock_context, temp_workspace):
-        """Test search tool with empty results."""
-        with patch('src.code_index.embedder.OllamaEmbedder') as mock_embedder_class:
-            with patch('src.code_index.mcp_server.tools.search_tool.QdrantVectorStore') as mock_vector_store_class:
-
-                # Mock successful embedder
-                mock_embedder = Mock()
-                mock_embedder.validate_configuration.return_value = {"valid": True}
-                mock_embedder.create_embeddings.return_value = {
-                    "embeddings": [[0.1] * 768]  # Mock 768-dimensional embedding
-                }
-                mock_embedder_class.return_value = mock_embedder
-
-                # Mock vector store with empty results
-                mock_vector_store = Mock()
-                mock_collection = Mock()
-                mock_collection.name = "test_collection"
-                mock_collections = Mock()
-                mock_collections.collections = [mock_collection]
-                mock_vector_store.client.get_collections.return_value = mock_collections
-                mock_vector_store.collection_name = "test_collection"
-                mock_vector_store.search.return_value = []  # Empty results
-                mock_vector_store_class.return_value = mock_vector_store
-
-                result = await search(
-                    ctx=mock_context,
-                    query="nonexistent query",
                     workspace=temp_workspace
                 )
 
-                assert isinstance(result, list)
-                assert len(result) == 0
-    
     @pytest.mark.asyncio
-    async def test_search_tool_with_overrides(self, mock_context, temp_workspace):
-        """Test search tool with configuration overrides."""
-        with patch('src.code_index.embedder.OllamaEmbedder') as mock_embedder_class:
-            with patch('src.code_index.mcp_server.tools.search_tool.QdrantVectorStore') as mock_vector_store_class:
-                with patch('src.code_index.mcp_server.tools.search_tool.MCPConfigurationManager') as mock_config_manager_class:
+    async def test_search_tool_service_error(self, mock_context, temp_workspace):
+        """Test search tool handling of service errors from SearchService."""
+        with patch('src.code_index.mcp_server.tools.search_tool.CommandContext') as mock_context_cls:
+            mock_command_context = mock_context_cls.return_value
 
-                    # Mock config manager
-                    mock_config_manager = Mock()
-                    base_config = Config()
-                    base_config.embedding_length = 1024  # Use 1024 to match expected dimension
-                    base_config.search_min_score = 0.4
-                    base_config.search_max_results = 50
-                    mock_config_manager.load_config.return_value = base_config
+            config = Config()
+            config.search_min_score = 0.4
+            config.search_max_results = 50
 
-                    # Mock apply_overrides to return modified config
-                    modified_config = Config()
-                    modified_config.embedding_length = 1024  # Use 1024 to match expected dimension
-                    modified_config.search_min_score = 0.6  # Override applied
-                    modified_config.search_max_results = 20  # Override applied
-                    mock_config_manager.apply_overrides.return_value = modified_config
-                    mock_config_manager_class.return_value = mock_config_manager
+            failing_result = SearchResult(
+                query="test query",
+                matches=[],
+                total_found=0,
+                execution_time_seconds=0.1,
+                search_method="text",
+                config_summary={},
+                errors=["Ollama service validation failed"],
+                warnings=[],
+            )
 
-                    # Mock successful embedder and vector store
-                    mock_embedder = Mock()
-                    mock_embedder.validate_configuration.return_value = {"valid": True}
-                    mock_embedder.create_embeddings.return_value = {"embeddings": [[0.1] * 1024]}  # Mock 1024-dimensional embedding
-                    mock_embedder_class.return_value = mock_embedder
+            search_service = MagicMock()
+            search_service.search_code.return_value = failing_result
 
-                    mock_vector_store = Mock()
-                    mock_collection = Mock()
-                    mock_collection.name = "test_collection"
-                    mock_collections = Mock()
-                    mock_collections.collections = [mock_collection]
-                    mock_vector_store.client.get_collections.return_value = mock_collections
-                    mock_vector_store.collection_name = "test_collection"
-                    mock_vector_store.search.return_value = []
-                    mock_vector_store_class.return_value = mock_vector_store
+            deps = SearchDependencies(
+                config=config,
+                search_service=search_service,
+                collection_manager=MagicMock(),
+            )
+            mock_command_context.load_search_dependencies.return_value = deps
 
-                    result = await search(
-                        ctx=mock_context,
-                        query="test query",
-                        workspace=temp_workspace
-                    )
+            with pytest.raises(Exception, match="Ollama service validation failed"):
+                await search(
+                    ctx=mock_context,
+                    query="test query",
+                    workspace=temp_workspace
+                )
 
-                    # Configuration overrides removed due to FastMCP limitations
+    @pytest.mark.asyncio
+    async def test_search_tool_search_failure(self, mock_context, temp_workspace):
+        """Test search tool when SearchService raises an exception."""
+        with patch('src.code_index.mcp_server.tools.search_tool.CommandContext') as mock_context_cls:
+            mock_command_context = mock_context_cls.return_value
+
+            config = Config()
+
+            search_service = MagicMock()
+            search_service.search_code.side_effect = Exception("Search service failed")
+
+            deps = SearchDependencies(
+                config=config,
+                search_service=search_service,
+                collection_manager=MagicMock(),
+            )
+            mock_command_context.load_search_dependencies.return_value = deps
+
+            with pytest.raises(Exception, match="Search failed: Search service failed"):
+                await search(
+                    ctx=mock_context,
+                    query="test query",
+                    workspace=temp_workspace
+                )
+
+    @pytest.mark.asyncio
+    async def test_search_tool_successful_search(self, mock_context, temp_workspace):
+        """Test successful search execution."""
+        with patch('src.code_index.mcp_server.tools.search_tool.CommandContext') as mock_context_cls:
+            mock_command_context = mock_context_cls.return_value
+
+            config = Config()
+            config.search_snippet_preview_chars = 120
+
+            matches = [
+                SearchMatch(
+                    file_path="main.py",
+                    start_line=1,
+                    end_line=3,
+                    code_chunk="def main():\n    print('Hello, World!')\n",
+                    match_type="function",
+                    score=0.85,
+                    adjusted_score=0.9,
+                    metadata={},
+                ),
+                SearchMatch(
+                    file_path="utils.py",
+                    start_line=5,
+                    end_line=6,
+                    code_chunk="def helper():\n    return True\n",
+                    match_type="function",
+                    score=0.75,
+                    adjusted_score=0.8,
+                    metadata={},
+                ),
+            ]
+
+            successful_result = SearchResult(
+                query="test query",
+                matches=matches,
+                total_found=2,
+                execution_time_seconds=0.05,
+                search_method="text",
+                config_summary={},
+                errors=[],
+                warnings=[],
+            )
+
+            search_service = MagicMock()
+            search_service.search_code.return_value = successful_result
+
+            deps = SearchDependencies(
+                config=config,
+                search_service=search_service,
+                collection_manager=MagicMock(),
+            )
+            mock_command_context.load_search_dependencies.return_value = deps
+
+            result = await search(
+                ctx=mock_context,
+                query="test query",
+                workspace=temp_workspace,
+                min_score=0.5,
+                max_results=10,
+            )
+
+            assert isinstance(result, list)
+            assert len(result) == 2
+            first_result = result[0]
+            assert first_result["filePath"] == "main.py"
+            assert first_result["startLine"] == 1
+            assert first_result["endLine"] == 3
+            assert first_result["type"] == "function"
+            assert first_result["score"] == 0.85
+            assert first_result["adjustedScore"] == 0.9
+            assert "def main()" in first_result["snippet"]
+
+    @pytest.mark.asyncio
+    async def test_search_tool_empty_results(self, mock_context, temp_workspace):
+        """Test search tool returning no matches."""
+        with patch('src.code_index.mcp_server.tools.search_tool.CommandContext') as mock_context_cls:
+            mock_command_context = mock_context_cls.return_value
+
+            config = Config()
+            config.search_min_score = 0.4
+
+            empty_result = SearchResult(
+                query="nonexistent query",
+                matches=[],
+                total_found=0,
+                execution_time_seconds=0.02,
+                search_method="text",
+                config_summary={},
+                errors=[],
+                warnings=[],
+            )
+
+            search_service = MagicMock()
+            search_service.search_code.return_value = empty_result
+
+            deps = SearchDependencies(
+                config=config,
+                search_service=search_service,
+                collection_manager=MagicMock(),
+            )
+            mock_command_context.load_search_dependencies.return_value = deps
+
+            result = await search(
+                ctx=mock_context,
+                query="nonexistent query",
+                workspace=temp_workspace
+            )
+
+            assert result == []
 
 
 class TestSearchToolHelpers:
@@ -476,43 +338,37 @@ class TestSearchToolHelpers:
     
     def test_format_search_results_empty(self):
         """Test formatting empty search results."""
-        config = Config()
-        result = _format_search_results([], config)
-        
+        result = _format_search_results([], 100)
+
         assert isinstance(result, list)
         assert len(result) == 0
     
     def test_format_search_results_with_data(self):
         """Test formatting search results with data."""
-        config = Config()
-        config.search_snippet_preview_chars = 100
-        
-        raw_results = [
-            {
-                "score": 0.85,
-                "adjustedScore": 0.90,
-                "payload": {
-                    "filePath": "main.py",
-                    "startLine": 1,
-                    "endLine": 3,
-                    "type": "function",
-                    "codeChunk": "def main():\n    print('Hello, World!')\n    return 0"
-                }
-            },
-            {
-                "score": 0.75,
-                "adjustedScore": 0.80,
-                "payload": {
-                    "filePath": "utils.py",
-                    "startLine": 5,
-                    "endLine": 7,
-                    "type": "function",
-                    "codeChunk": "def helper():\n    return True"
-                }
-            }
+        matches = [
+            SearchMatch(
+                file_path="main.py",
+                start_line=1,
+                end_line=3,
+                code_chunk="def main():\n    print('Hello, World!')\n    return 0",
+                match_type="function",
+                score=0.85,
+                adjusted_score=0.9,
+                metadata={},
+            ),
+            SearchMatch(
+                file_path="utils.py",
+                start_line=5,
+                end_line=7,
+                code_chunk="def helper():\n    return True",
+                match_type="function",
+                score=0.75,
+                adjusted_score=0.8,
+                metadata={},
+            ),
         ]
-        
-        result = _format_search_results(raw_results, config)
+
+        result = _format_search_results(matches, 100)
         
         assert len(result) == 2
         
@@ -531,39 +387,20 @@ class TestSearchToolHelpers:
         assert second_result["filePath"] == "utils.py"
         assert second_result["adjustedScore"] == 0.80
     
-    def test_format_search_results_missing_payload(self):
-        """Test formatting search results with missing payload data."""
-        config = Config()
-        
-        raw_results = [
-            {
-                "score": 0.85,
-                "adjustedScore": 0.90,
-                "payload": None  # Missing payload
-            },
-            {
-                "score": 0.75,
-                # Missing adjustedScore and payload
-            }
-        ]
-        
-        result = _format_search_results(raw_results, config)
-        
+    def test_format_search_results_missing_data(self):
+        """Test formatting search results with missing match attributes."""
+        class IncompleteMatch:
+            def __init__(self, score: float):
+                self.score = score
+
+        matches = [IncompleteMatch(0.85), IncompleteMatch(0.75)]
+
+        result = _format_search_results(matches, 80)
+
         assert len(result) == 2
-        
-        # Should handle missing data gracefully
-        first_result = result[0]
-        assert first_result["filePath"] == ""
-        assert first_result["startLine"] == 0
-        assert first_result["endLine"] == 0
-        assert first_result["type"] == ""
-        assert first_result["score"] == 0.85
-        assert first_result["adjustedScore"] == 0.90
-        assert first_result["snippet"] == ""
-        
-        second_result = result[1]
-        assert second_result["score"] == 0.75
-        assert second_result["adjustedScore"] == 0.75  # Should default to score
+        assert result[0]["score"] == 0.85
+        assert result[0]["adjustedScore"] == 0.85
+        assert result[0]["filePath"] == ""
     
     def test_create_code_snippet_basic(self):
         """Test creating basic code snippet."""
