@@ -38,9 +38,18 @@ class ProgressManager:
         self.live_display.__enter__()
         return self.progress
     
-    def update_overall_progress(self, overall_task_id: int, completed_files: int, total_files: int):
-        """Update overall progress."""
-        self.progress.update(overall_task_id, completed=completed_files)
+    def update_overall_progress(
+        self,
+        overall_task_id: int,
+        completed_files: int,
+        total_files: int,
+        current_file: Optional[str] = None,
+    ) -> None:
+        """Update overall progress, optionally changing the displayed description."""
+        update_kwargs: Dict[str, Any] = {"completed": completed_files}
+        if current_file:
+            update_kwargs["description"] = f"📄 {current_file}"
+        self.progress.update(overall_task_id, **update_kwargs)
     
     def update_file_progress(self, file_task_id: int, completed_blocks: int, total_blocks: int):
         """Update file progress."""

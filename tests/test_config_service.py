@@ -313,9 +313,10 @@ class TestConfigurationService:
         value = config_service.get_config_value(sample_config, 'embedding_length', str, "768")
         assert value == "768"
 
-        # Test type mismatch without default (should raise error)
-        with pytest.raises(ValueError, match="Configuration key 'embedding_length' has type"):
-            config_service.get_config_value(sample_config, 'embedding_length', str)
+        # Test type mismatch without default (should now handle conversion automatically)
+        value = config_service.get_config_value(sample_config, 'embedding_length', str)
+        assert value == "768"
+        assert isinstance(value, str)
 
     def test_get_config_value_nonexistent_key(self, config_service, sample_config):
         """Test getting configuration value for non-existent key."""

@@ -101,6 +101,12 @@ def get_queries_for_language(language_key: str) -> Optional[str]:
             (class_declaration name: (identifier) @name) @class
             (method_declaration name: (identifier) @name) @method
             (constructor_declaration name: (identifier) @name) @constructor
+            (property_declaration name: (identifier) @name) @property
+            (field_declaration name: (identifier) @name) @field
+            (interface_declaration name: (identifier) @name) @interface
+            (struct_declaration name: (identifier) @name) @struct
+            (enum_declaration name: (identifier) @name) @enum
+            (namespace_declaration name: (identifier) @name) @namespace
         ''',
         'ruby': '''
             (class name: (constant) @name) @class
@@ -247,9 +253,9 @@ def get_queries_for_language(language_key: str) -> Optional[str]:
             (function_declaration_left) @function
         ''',
         'embeddedtemplate': '''
-            (template) @template
-            (block) @block
-            (partial) @partial
+            (comment_directive) @comment
+            (content) @content
+            (code) @code
         ''',
         'heex': '''
             (element) @element

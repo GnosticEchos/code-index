@@ -158,9 +158,11 @@ def _load_exclude_list(workspace_path: str, exclude_files_path: str | None) -> S
 @click.option('--auto-ignore-detection', is_flag=True, show_default=True, default=True, help='Enable automatic ignore pattern detection')
 @click.option('--use-tree-sitter', is_flag=True, help='Enable semantic code chunking with Tree-sitter')
 @click.option('--chunking-strategy', type=click.Choice(['lines', 'tokens', 'treesitter']), default=None, help='Chunking strategy: lines (default), tokens, or treesitter')
+@click.option('--no-progress', is_flag=True, help='Disable progress UI (enabled by default)')
+@click.option('--progress', is_flag=True, help='Force enable progress UI (default behaviour)')
 def index(ctx, workspace: str, config: str, workspacelist: str | None, embed_timeout: int | None, retry_list: str | None, timeout_log: str | None,
           ignore_config: str | None, ignore_override_pattern: str | None, auto_ignore_detection: bool,
-          use_tree_sitter: bool, chunking_strategy: str | None):
+          use_tree_sitter: bool, chunking_strategy: str | None, no_progress: bool, progress: bool):
     """Index code files in workspace with enhanced features.
     
     Features:
@@ -172,6 +174,10 @@ def index(ctx, workspace: str, config: str, workspacelist: str | None, embed_tim
     - Batch workspace processing via workspace list files
     """
     logging_overrides = dict(ctx.obj.get("logging_components", {})) if ctx and ctx.obj else {}
+
+    use_progress_ui = False if no_progress else True
+    if progress:
+        use_progress_ui = True
 
     # Handle workspace list processing
     if workspacelist:
@@ -192,7 +198,8 @@ def index(ctx, workspace: str, config: str, workspacelist: str | None, embed_tim
                 processed, blocks, timeouts = _process_single_workspace(
                     workspace_path, config, embed_timeout, retry_list, timeout_log,
                     ignore_config, ignore_override_pattern, auto_ignore_detection,
-                    use_tree_sitter, chunking_strategy, logging_overrides
+                    use_tree_sitter, chunking_strategy, logging_overrides,
+                    use_progress_ui=use_progress_ui
                 )
                 total_processed += processed
                 total_blocks += blocks
@@ -212,14 +219,16 @@ def index(ctx, workspace: str, config: str, workspacelist: str | None, embed_tim
     _process_single_workspace(
         workspace, config, embed_timeout, retry_list, timeout_log,
         ignore_config, ignore_override_pattern, auto_ignore_detection,
-        use_tree_sitter, chunking_strategy, logging_overrides
+        use_tree_sitter, chunking_strategy, logging_overrides,
+        use_progress_ui=use_progress_ui
     )
 
 
 def _process_single_workspace(workspace: str, config: str, embed_timeout: int | None, retry_list: str | None,
                                 timeout_log: str | None, ignore_config: str | None, ignore_override_pattern: str | None,
                                 auto_ignore_detection: bool, use_tree_sitter: bool, chunking_strategy: str | None,
-                                logging_overrides: dict[str, int] | None = None) -> tuple[int, int, int]:
+                                logging_overrides: dict[str, int] | None = None, *,
+                                use_progress_ui: bool = True) -> tuple[int, int, int]:
     """Process a single workspace using IndexingService and return (processed_count, total_blocks, timed_out_files_count)."""
     logger.debug("Processing workspace: %s", workspace)
     logger.debug("Config path: %s", config)
@@ -247,68 +256,75 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
     cfg.workspace_path = os.path.abspath(workspace)
     logger.debug("Forced workspace_path: %s", cfg.workspace_path)
 
-    # Load specific model from config
-    config_path_abs = os.path.abspath(config)
-    if os.path.exists(config_path_abs):
-        with open(config_path_abs, 'r') as f:
-            config_data = json.load(f)
-            if 'model_name' in config_data:
-                cfg.model_name = config_data['model_name']
-                logger.debug("Using model from config: %s", cfg.model_name)
-    
-    # Verify workspace exists and has files
+    # Verify workspace exists
     if not os.path.exists(cfg.workspace_path):
         print(f"❌ ERROR: Workspace does not exist: {cfg.workspace_path}")
         return 0, 0, 0
-    
+
     # List workspace contents
-    files = [f for f in os.listdir(cfg.workspace_path) 
+    files = [f for f in os.listdir(cfg.workspace_path)
              if os.path.isfile(os.path.join(cfg.workspace_path, f))]
     logger.debug("Files in workspace: %d", len(files))
     for f in files[:5]:
         logger.debug("   File: %s", f)
-    
-    # Load user-provided configuration file exactly as specified
-    config_path_abs = os.path.abspath(config)
-    if os.path.exists(config_path_abs):
-        with open(config_path_abs, 'r') as f:
-            config_data = json.load(f)
-            
-            # Apply all user configuration exactly as provided
-            for key, value in config_data.items():
-                if hasattr(cfg, key):
-                    setattr(cfg, key, value)
-                    logger.debug("Applied config override %s=%s", key, value)
-                else:
-                    logger.debug("Unknown config key in file: %s", key)
 
-            logger.debug(
-                "User config tree-sitter limits: max_file_size=%s max_blocks=%s max_functions=%s max_classes=%s",
-                cfg.tree_sitter_max_file_size_bytes,
-                cfg.tree_sitter_max_blocks_per_file,
-                cfg.tree_sitter_max_functions_per_file,
-                cfg.tree_sitter_max_classes_per_file,
-            )
-            logger.debug("Using user config model: %s", cfg.ollama_model)
-    else:
-        logger.debug("Config file not found: %s", config_path_abs)
-        logger.debug("Using default model: %s", cfg.ollama_model)
+    progress_manager = None
+    file_scroller = None
+    status_panel = None
+    overall_task_id = None
 
     indexing_service = deps.indexing_service
 
     logger.debug("Starting tree-sitter processing (enabled=%s max_file_size=%s)", cfg.use_tree_sitter, cfg.tree_sitter_max_file_size_bytes)
-    
-    # Check file sizes before processing
-    for file_path in [f for f in os.listdir(cfg.workspace_path) 
-                      if f.endswith(('.rs', '.ts', '.vue', '.py'))]:
-        full_path = os.path.join(cfg.workspace_path, file_path)
-        if os.path.isfile(full_path):
-            size = os.path.getsize(full_path)
-            logger.debug("File size check: %s -> %d bytes", file_path, size)
-            if size > cfg.tree_sitter_max_file_size_bytes:
-                logger.warning("File %s exceeds tree-sitter limit (%d bytes)", file_path, size)
-    
-    result = indexing_service.index_workspace(workspace, cfg)
+
+    result = None
+
+    def progress_hook(file_path: str, processed: int, total: int, status: str, blocks: int) -> None:
+        nonlocal overall_task_id
+        if not progress_manager or not overall_task_id:
+            if not progress_manager:
+                return
+            if total <= 0:
+                return
+            overall_task_id = progress_manager.create_overall_task(total)
+
+        current_display = file_path if status != "init" and file_path else "Processing Files"
+        progress_manager.update_overall_progress(overall_task_id, processed, total, current_display)
+
+        if file_scroller:
+            file_scroller.ensure_file(file_path)
+            if status == "start":
+                file_scroller.update_status(file_path, "processing")
+            elif status == "success":
+                file_scroller.update_status(file_path, "success", f"Blocks: {blocks}")
+            elif status == "skipped":
+                file_scroller.update_status(file_path, "skipped", "Unchanged")
+            elif status == "error":
+                file_scroller.update_status(file_path, "error")
+
+        if status_panel:
+            current_panel = status_panel.update_operation(f"Processed {processed}/{total} files")
+            progress_manager.console.print(current_panel)
+
+    try:
+        if use_progress_ui:
+            from code_index.ui.progress_manager import ProgressManager
+            from code_index.ui.file_scroller import FileScroller
+            from code_index.ui.status_panel import StatusPanel
+            progress_manager = ProgressManager()
+            file_scroller = FileScroller()
+            status_panel = StatusPanel(progress_manager.console)
+            progress_manager.start_live_display()
+
+        result = indexing_service.index_workspace(
+            workspace,
+            cfg,
+            progress_callback=progress_hook if use_progress_ui else None,
+        )
+
+    finally:
+        if progress_manager:
+            progress_manager.close()
 
     # Display results
     if result.is_successful():

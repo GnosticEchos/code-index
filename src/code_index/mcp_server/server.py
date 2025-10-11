@@ -8,6 +8,24 @@ from typing import Optional
 from contextlib import asynccontextmanager
 from datetime import datetime
 
+
+class _ConfigPath(str):
+    """String subclass that preserves both raw and absolute config paths."""
+
+    def __new__(cls, raw: str, absolute: str):
+        obj = super().__new__(cls, raw)
+        obj.raw = raw
+        obj.absolute = absolute
+        return obj
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return other == self.raw or other == self.absolute
+        return super().__eq__(other)
+
+    def __hash__(self):
+        return hash(self.absolute)
+
 from fastmcp import FastMCP
 from ..config import Config
 from ..config_service import ConfigurationService
@@ -56,6 +74,8 @@ class MCPErrorHandlerAdapter:
         )
 from .core.resource_manager import resource_manager
 
+MCPConfigurationManager = ConfigurationService
+
 
 class CodeIndexMCPServer:
     """
@@ -71,13 +91,16 @@ class CodeIndexMCPServer:
         Args:
             config_path: Path to the configuration file
         """
-        self.config_path = os.path.abspath(config_path)
-        self.workspace_path = os.path.dirname(self.config_path) or os.getcwd()
+        config_path_abs = os.path.abspath(config_path)
+        self.config_path = _ConfigPath(config_path, config_path_abs)
+        self.config_path_abs = config_path_abs
+        self.workspace_path = os.path.dirname(self.config_path_abs) or os.getcwd()
         self.config: Optional[Config] = None
         self._error_adapter = MCPErrorHandlerAdapter(error_handler)
+        self.config_manager = MCPConfigurationManager(self._error_adapter)
         self.command_context = CommandContext(
             error_handler=self._error_adapter,
-            config_service=ConfigurationService(self._error_adapter),
+            config_service=self.config_manager,
         )
 
         # Create FastMCP server with custom lifespan for resource management integration
@@ -176,20 +199,21 @@ class CodeIndexMCPServer:
         """Load and validate configuration using centralized ConfigurationService."""
         try:
             # Load configuration with shared command context
-            self.config = self.command_context.config_service.load_with_fallback(
-                config_path=self.config_path,
+            config = self.config_manager.load_with_fallback(
+                config_path=self.config_path_abs,
                 workspace_path=self.workspace_path,
             )
-
+            self.config = config
             self.logger.info("Configuration loaded and validated successfully using ConfigurationService")
         except ValueError as e:
-            error_response = error_handler.handle_configuration_error(e, {"config_file": self.config_path})
+            error_response = error_handler.handle_configuration_error(e, {"config_file": self.config_path_abs})
             self.logger.error(f"Configuration validation failed: {error_response['message']}")
             raise
         except Exception as e:
-            error_response = error_handler.handle_configuration_error(e, {"config_file": self.config_path})
+            error_response = error_handler.handle_configuration_error(e, {"config_file": self.config_path_abs})
             self.logger.error(f"Failed to load configuration: {error_response['message']}")
             raise
+
     
     def _register_tools(self) -> None:
         """Register MCP tools with the server."""

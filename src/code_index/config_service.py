@@ -469,6 +469,21 @@ class ConfigurationService:
                     return default
                 return None
 
+            # Handle numeric types more flexibly (int vs float)
+            if expected_type in (int, float) and isinstance(value, (int, float)):
+                return expected_type(value)
+            
+            # Handle string conversion for numeric types when expected_type is str
+            if expected_type is str and isinstance(value, (int, float)):
+                return str(value)
+            
+            # Handle numeric conversion when expected_type is numeric but value is string
+            if expected_type in (int, float) and isinstance(value, str):
+                try:
+                    return expected_type(value)
+                except (ValueError, TypeError):
+                    pass
+
             if not isinstance(value, expected_type):
                 if default is not None:
                     self.logger.warning(

@@ -8,7 +8,7 @@ from CLI concerns and providing a clean interface for indexing operations.
 import time
 import uuid
 import logging
-from typing import List, Set, Dict, Any, Optional
+from typing import List, Set, Dict, Any, Optional, Callable
 from pathlib import Path
 from datetime import datetime
 
@@ -50,7 +50,12 @@ class IndexingService:
         self.logger = logging.getLogger(__name__)
         self.processing_logger = logging.getLogger("code_index.processing")
 
-    def index_workspace(self, workspace: str, config: Config) -> IndexingResult:
+    def index_workspace(
+        self,
+        workspace: str,
+        config: Config,
+        progress_callback: Optional[Callable[[str, int, int, str, int], None]] = None,
+    ) -> IndexingResult:
         """
         Execute indexing command for a workspace.
 
@@ -107,8 +112,17 @@ class IndexingService:
 
             # Process files
             processed_count, total_blocks = self._process_files(
-                file_paths, parser, embedder, vector_store, cache_manager,
-                path_utils, config, timed_out_files, errors, warnings
+                file_paths,
+                parser,
+                embedder,
+                vector_store,
+                cache_manager,
+                path_utils,
+                config,
+                timed_out_files,
+                errors,
+                warnings,
+                progress_callback=progress_callback,
             )
 
             return IndexingResult(
@@ -397,16 +411,36 @@ class IndexingService:
         scanned_paths, skipped_count = scanner.scan_directory()
         return scanned_paths
 
-    def _process_files(self, file_paths: List[str], parser: CodeParser, embedder: OllamaEmbedder,
-                      vector_store: QdrantVectorStore, cache_manager: CacheManager,
-                      path_utils: PathUtils, config: Config, timed_out_files: List[str],
-                      errors: List[str], warnings: List[str]) -> tuple[int, int]:
+    def _process_files(
+        self,
+        file_paths: List[str],
+        parser: CodeParser,
+        embedder: OllamaEmbedder,
+        vector_store: QdrantVectorStore,
+        cache_manager: CacheManager,
+        path_utils: PathUtils,
+        config: Config,
+        timed_out_files: List[str],
+        errors: List[str],
+        warnings: List[str],
+        progress_callback: Optional[Callable[[str, int, int, str, int], None]] = None,
+    ) -> tuple[int, int]:
         """Process files and return (processed_count, total_blocks)."""
         processed_count = 0
+        skipped_count = 0
         total_blocks = 0
 
-        for file_path in file_paths:
+        total_files = len(file_paths)
+
+        if progress_callback and total_files:
+            progress_callback("", 0, total_files, "init", 0)
+
+        for file_index, file_path in enumerate(file_paths, start=1):
             try:
+                if progress_callback:
+                    completed = processed_count + skipped_count
+                    progress_callback(file_path, completed, total_files, "start", 0)
+
                 rel_path = path_utils.get_workspace_relative_path(file_path) or path_utils.normalize_path(file_path)
                 context_tokens = push_logging_context(file_path=rel_path, language=None)
                 self.processing_logger.info(f"Processing {rel_path}")
@@ -415,6 +449,10 @@ class IndexingService:
                 current_hash = self.file_processor.get_file_hash(file_path)
                 cached_hash = cache_manager.get_hash(file_path)
                 if current_hash == cached_hash:
+                    if progress_callback:
+                        skipped_count += 1
+                        completed = processed_count + skipped_count
+                        progress_callback(file_path, completed, total_files, "skipped", 0)
                     continue  # File hasn't changed, skip processing
 
                 # Parse file into blocks
@@ -495,6 +533,10 @@ class IndexingService:
                 processed_count += 1
                 total_blocks += len(blocks)
 
+                if progress_callback:
+                    completed = processed_count + skipped_count
+                    progress_callback(file_path, completed, total_files, "success", len(blocks))
+
             except Exception as e:
                 error_context = ErrorContext(
                     component="indexing_service",
@@ -503,6 +545,9 @@ class IndexingService:
                 )
                 error_response = self.error_handler.handle_file_error(e, error_context, "file_processing")
                 errors.append(f"Failed to process {file_path}: {error_response.message}")
+                if progress_callback:
+                    completed = processed_count + skipped_count
+                    progress_callback(file_path, completed, total_files, "error", 0)
             finally:
                 reset_logging_context(context_tokens)
 

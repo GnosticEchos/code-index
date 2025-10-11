@@ -7,7 +7,7 @@ and comprehensive collection operations.
 
 import os
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable
 
 # Robust import of Context to tolerate environments where fastmcp may be missing or incomplete.
 try:
@@ -51,6 +51,20 @@ try:  # pragma: no cover - import-time compat code
 except Exception:
     # Never fail import of this module due to shim problems
     pass
+
+_command_context_factory: Optional[Callable[[], CommandContext]] = None
+
+
+def set_command_context_factory(factory: Optional[Callable[[], CommandContext]]) -> None:
+    """Register factory for creating CommandContext instances (primarily for tests)."""
+    global _command_context_factory
+    _command_context_factory = factory
+
+
+def _get_command_context() -> CommandContext:
+    factory = _command_context_factory or CommandContext
+    return factory()
+
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +194,7 @@ async def collections(
         
         logger.info(f"Starting collections operation: {subcommand}")
 
-        command_context = CommandContext()
+        command_context = _get_command_context()
         config_path = os.path.abspath("code_index.json")
         workspace_path = os.path.dirname(config_path) or os.getcwd()
 

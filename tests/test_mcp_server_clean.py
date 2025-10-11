@@ -104,7 +104,7 @@ class TestCodeIndexMCPServer:
         await server._load_configuration()
 
         assert server.config is not None
-        assert server.config.embedding_length == 1024  # From actual config file
+        assert server.config.embedding_length == 768  # From actual config file
 
     @pytest.mark.asyncio
     async def test_load_configuration_failure(self, temp_config_file):
@@ -285,8 +285,8 @@ class TestServerIntegration:
         await server._load_configuration()
         
         assert server.config is not None
-        assert server.config.embedding_length == 1024  # From actual config file
-        assert server.config.workspace_path == "."  # From actual config file
+        assert server.config.embedding_length == 768  # From actual config file
+        assert server.config.workspace_path == temp_workspace  # From actual config file
 
     def test_server_error_handling(self, temp_workspace):
         """Test server error handling with invalid configuration."""

@@ -9,7 +9,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
@@ -137,193 +137,200 @@ class TestSearchTool:
             )
     
     @pytest.mark.asyncio
-    async def test_search_tool_configuration_error(self, mock_context, temp_workspace):
+    async def test_search_tool_configuration_error(self, mock_context, temp_workspace, command_context_mock):
         """Test search tool with configuration loading error."""
-        with patch('src.code_index.mcp_server.tools.search_tool.CommandContext') as mock_context_cls:
-            mock_command_context = mock_context_cls.return_value
-            mock_command_context.load_search_dependencies.side_effect = ValueError(
-                "Configuration error: invalid file"
-            )
+        command_context_mock.load_search_dependencies.side_effect = ValueError(
+            "Configuration error: invalid file"
+        )
 
-            with pytest.raises(ValueError, match="Configuration error"):
-                await search(
-                    ctx=mock_context,
-                    query="test query",
-                    workspace=temp_workspace
-                )
-
-    @pytest.mark.asyncio
-    async def test_search_tool_service_error(self, mock_context, temp_workspace):
-        """Test search tool handling of service errors from SearchService."""
-        with patch('src.code_index.mcp_server.tools.search_tool.CommandContext') as mock_context_cls:
-            mock_command_context = mock_context_cls.return_value
-
-            config = Config()
-            config.search_min_score = 0.4
-            config.search_max_results = 50
-
-            failing_result = SearchResult(
-                query="test query",
-                matches=[],
-                total_found=0,
-                execution_time_seconds=0.1,
-                search_method="text",
-                config_summary={},
-                errors=["Ollama service validation failed"],
-                warnings=[],
-            )
-
-            search_service = MagicMock()
-            search_service.search_code.return_value = failing_result
-
-            deps = SearchDependencies(
-                config=config,
-                search_service=search_service,
-                collection_manager=MagicMock(),
-            )
-            mock_command_context.load_search_dependencies.return_value = deps
-
-            with pytest.raises(Exception, match="Ollama service validation failed"):
-                await search(
-                    ctx=mock_context,
-                    query="test query",
-                    workspace=temp_workspace
-                )
-
-    @pytest.mark.asyncio
-    async def test_search_tool_search_failure(self, mock_context, temp_workspace):
-        """Test search tool when SearchService raises an exception."""
-        with patch('src.code_index.mcp_server.tools.search_tool.CommandContext') as mock_context_cls:
-            mock_command_context = mock_context_cls.return_value
-
-            config = Config()
-
-            search_service = MagicMock()
-            search_service.search_code.side_effect = Exception("Search service failed")
-
-            deps = SearchDependencies(
-                config=config,
-                search_service=search_service,
-                collection_manager=MagicMock(),
-            )
-            mock_command_context.load_search_dependencies.return_value = deps
-
-            with pytest.raises(Exception, match="Search failed: Search service failed"):
-                await search(
-                    ctx=mock_context,
-                    query="test query",
-                    workspace=temp_workspace
-                )
-
-    @pytest.mark.asyncio
-    async def test_search_tool_successful_search(self, mock_context, temp_workspace):
-        """Test successful search execution."""
-        with patch('src.code_index.mcp_server.tools.search_tool.CommandContext') as mock_context_cls:
-            mock_command_context = mock_context_cls.return_value
-
-            config = Config()
-            config.search_snippet_preview_chars = 120
-
-            matches = [
-                SearchMatch(
-                    file_path="main.py",
-                    start_line=1,
-                    end_line=3,
-                    code_chunk="def main():\n    print('Hello, World!')\n",
-                    match_type="function",
-                    score=0.85,
-                    adjusted_score=0.9,
-                    metadata={},
-                ),
-                SearchMatch(
-                    file_path="utils.py",
-                    start_line=5,
-                    end_line=6,
-                    code_chunk="def helper():\n    return True\n",
-                    match_type="function",
-                    score=0.75,
-                    adjusted_score=0.8,
-                    metadata={},
-                ),
-            ]
-
-            successful_result = SearchResult(
-                query="test query",
-                matches=matches,
-                total_found=2,
-                execution_time_seconds=0.05,
-                search_method="text",
-                config_summary={},
-                errors=[],
-                warnings=[],
-            )
-
-            search_service = MagicMock()
-            search_service.search_code.return_value = successful_result
-
-            deps = SearchDependencies(
-                config=config,
-                search_service=search_service,
-                collection_manager=MagicMock(),
-            )
-            mock_command_context.load_search_dependencies.return_value = deps
-
-            result = await search(
+        with pytest.raises(ValueError, match="Configuration error"):
+            await search(
                 ctx=mock_context,
                 query="test query",
-                workspace=temp_workspace,
-                min_score=0.5,
-                max_results=10,
-            )
-
-            assert isinstance(result, list)
-            assert len(result) == 2
-            first_result = result[0]
-            assert first_result["filePath"] == "main.py"
-            assert first_result["startLine"] == 1
-            assert first_result["endLine"] == 3
-            assert first_result["type"] == "function"
-            assert first_result["score"] == 0.85
-            assert first_result["adjustedScore"] == 0.9
-            assert "def main()" in first_result["snippet"]
-
-    @pytest.mark.asyncio
-    async def test_search_tool_empty_results(self, mock_context, temp_workspace):
-        """Test search tool returning no matches."""
-        with patch('src.code_index.mcp_server.tools.search_tool.CommandContext') as mock_context_cls:
-            mock_command_context = mock_context_cls.return_value
-
-            config = Config()
-            config.search_min_score = 0.4
-
-            empty_result = SearchResult(
-                query="nonexistent query",
-                matches=[],
-                total_found=0,
-                execution_time_seconds=0.02,
-                search_method="text",
-                config_summary={},
-                errors=[],
-                warnings=[],
-            )
-
-            search_service = MagicMock()
-            search_service.search_code.return_value = empty_result
-
-            deps = SearchDependencies(
-                config=config,
-                search_service=search_service,
-                collection_manager=MagicMock(),
-            )
-            mock_command_context.load_search_dependencies.return_value = deps
-
-            result = await search(
-                ctx=mock_context,
-                query="nonexistent query",
                 workspace=temp_workspace
             )
 
-            assert result == []
+    @pytest.mark.asyncio
+    async def test_search_tool_service_error(self, mock_context, temp_workspace, command_context_mock):
+        """Test search tool handling of service errors from SearchService."""
+        config = Config()
+        config.search_min_score = 0.4
+        config.search_max_results = 50
+
+        failing_result = SearchResult(
+            query="test query",
+            matches=[],
+            total_found=0,
+            execution_time_seconds=0.1,
+            search_method="text",
+            config_summary={},
+            errors=["Ollama service validation failed"],
+            warnings=[],
+        )
+
+        search_service = MagicMock()
+        search_service.search_code.return_value = failing_result
+
+        collection_manager = MagicMock()
+        collection_manager.list_collections.return_value = [
+            {"workspace_path": temp_workspace, "name": "test-collection"}
+        ]
+
+        deps = SearchDependencies(
+            config=config,
+            search_service=search_service,
+            collection_manager=collection_manager,
+        )
+        command_context_mock.load_search_dependencies.side_effect = None
+        command_context_mock.load_search_dependencies.return_value = deps
+
+        # Search should raise exception when there are service errors
+        with pytest.raises(Exception, match="Search failed: Search execution reported errors: Ollama service validation failed"):
+            await search(
+                ctx=mock_context,
+                query="test query",
+                workspace=temp_workspace
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_tool_search_failure(self, mock_context, temp_workspace, command_context_mock):
+        """Test search tool when SearchService raises an exception."""
+        config = Config()
+
+        search_service = MagicMock()
+        search_service.search_code.side_effect = Exception("Search service failed")
+
+        collection_manager = MagicMock()
+        collection_manager.list_collections.return_value = [
+            {"workspace_path": temp_workspace, "name": "test-collection"}
+        ]
+
+        deps = SearchDependencies(
+            config=config,
+            search_service=search_service,
+            collection_manager=collection_manager,
+        )
+        command_context_mock.load_search_dependencies.side_effect = None
+        command_context_mock.load_search_dependencies.return_value = deps
+
+        # Search should raise exception when search service fails
+        with pytest.raises(Exception, match="Search failed: Search service failed"):
+            await search(
+                ctx=mock_context,
+                query="test query",
+                workspace=temp_workspace
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_tool_successful_search(self, mock_context, temp_workspace, command_context_mock):
+        """Test successful search execution."""
+        config = Config()
+        config.search_snippet_preview_chars = 120
+
+        matches = [
+            SearchMatch(
+                file_path="main.py",
+                start_line=1,
+                end_line=3,
+                code_chunk="def main():\n    print('Hello, World!')\n",
+                match_type="function",
+                score=0.85,
+                adjusted_score=0.9,
+                metadata={},
+            ),
+            SearchMatch(
+                file_path="utils.py",
+                start_line=5,
+                end_line=6,
+                code_chunk="def helper():\n    return True\n",
+                match_type="function",
+                score=0.75,
+                adjusted_score=0.8,
+                metadata={},
+            ),
+        ]
+
+        successful_result = SearchResult(
+            query="test query",
+            matches=matches,
+            total_found=2,
+            execution_time_seconds=0.05,
+            search_method="text",
+            config_summary={},
+            errors=[],
+            warnings=[],
+        )
+
+        search_service = MagicMock()
+        search_service.search_code.return_value = successful_result
+
+        collection_manager = MagicMock()
+        collection_manager.list_collections.return_value = [
+            {"workspace_path": temp_workspace, "name": "test-collection"}
+        ]
+
+        deps = SearchDependencies(
+            config=config,
+            search_service=search_service,
+            collection_manager=collection_manager,
+        )
+        command_context_mock.load_search_dependencies.side_effect = None
+        command_context_mock.load_search_dependencies.return_value = deps
+
+        result = await search(
+            ctx=mock_context,
+            query="test query",
+            workspace=temp_workspace,
+            min_score=0.5,
+            max_results=10,
+        )
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        first_result = result[0]
+        assert first_result["filePath"] == "main.py"
+        assert first_result["startLine"] == 1
+        assert first_result["endLine"] == 3
+        assert first_result["type"] == "function"
+        assert first_result["score"] == 0.85
+        assert first_result["adjustedScore"] == 0.9
+        assert "def main()" in first_result["snippet"]
+
+    @pytest.mark.asyncio
+    async def test_search_tool_empty_results(self, mock_context, temp_workspace, command_context_mock):
+        """Test search tool returning no matches."""
+        config = Config()
+        config.search_min_score = 0.4
+
+        empty_result = SearchResult(
+            query="nonexistent query",
+            matches=[],
+            total_found=0,
+            execution_time_seconds=0.02,
+            search_method="text",
+            config_summary={},
+            errors=[],
+            warnings=[],
+        )
+
+        search_service = MagicMock()
+        search_service.search_code.return_value = empty_result
+
+        deps = SearchDependencies(
+            config=config,
+            search_service=search_service,
+            collection_manager=MagicMock(),
+        )
+        command_context_mock.load_search_dependencies.side_effect = None
+        command_context_mock.load_search_dependencies.return_value = deps
+
+        result = await search(
+            ctx=mock_context,
+            query="nonexistent query",
+            workspace=temp_workspace
+        )
+
+        assert result == []
 
 
 class TestSearchToolHelpers:

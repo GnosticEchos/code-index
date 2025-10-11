@@ -2,11 +2,23 @@
 
 import os
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 
 from fastmcp import Context
 from ...services.command_context import CommandContext
 from ...services.config_overrides import build_search_overrides
+_command_context_factory: Optional[Callable[[], CommandContext]] = None
+
+
+def set_command_context_factory(factory: Optional[Callable[[], CommandContext]]) -> None:
+    """Register factory for creating CommandContext instances (primarily for tests)."""
+    global _command_context_factory
+    _command_context_factory = factory
+
+
+def _get_command_context() -> CommandContext:
+    factory = _command_context_factory or CommandContext
+    return factory()
 
 
 logger = logging.getLogger(__name__)
@@ -118,12 +130,29 @@ async def search(
         config_path = os.path.join(workspace_path, "code_index.json")
         overrides = build_search_overrides(min_score=min_score, max_results=max_results)
 
-        command_context = CommandContext()
+        command_context = _get_command_context()
         deps = command_context.load_search_dependencies(
             workspace_path=workspace_path,
             config_path=config_path,
             overrides=overrides,
         )
+
+        collection_manager = deps.collection_manager
+        workspace_collections = collection_manager.list_collections()
+        matching_collections = [
+            collection for collection in workspace_collections
+            if collection.get("workspace_path") == workspace_path
+        ]
+        if not matching_collections:
+            logger.warning(
+                "Workspace '%s' has not been indexed yet; returning empty search results",
+                workspace_path,
+            )
+            return _create_empty_results_response(
+                query,
+                getattr(deps.config, "search_min_score", 0.0),
+                workspace_path,
+            )
 
         # Perform search via shared service with validation
         result = deps.search_service.search_code(query, deps.config)

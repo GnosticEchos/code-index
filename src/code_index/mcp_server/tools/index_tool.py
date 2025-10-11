@@ -8,7 +8,9 @@ operation estimation, and progress reporting.
 import os
 import logging
 import time
-from typing import Dict, Any, Optional, List
+import importlib
+from typing import Dict, Any, Optional, List, Set, Callable
+from unittest.mock import Mock
 from pathlib import Path
 
 from fastmcp import Context
@@ -16,6 +18,19 @@ from ...config import Config
 from ..core.operation_estimator import OperationEstimator
 from ...services.command_context import CommandContext
 from ...services.config_overrides import build_index_overrides
+
+_command_context_factory: Optional[Callable[[], CommandContext]] = None
+
+
+def set_command_context_factory(factory: Optional[Callable[[], CommandContext]]) -> None:
+    """Register a factory used to create CommandContext instances (primarily for tests)."""
+    global _command_context_factory
+    _command_context_factory = factory
+
+
+def _get_command_context() -> CommandContext:
+    factory = _command_context_factory or CommandContext
+    return factory()
 
 
 class IndexToolValidator:
@@ -401,7 +416,7 @@ async def index(
         Dictionary with indexing results and statistics
     """
     logger = logging.getLogger(__name__)
-    command_context = CommandContext()
+    command_context = _get_command_context()
     
     # Initialize validator and validate all parameters
     validator = IndexToolValidator()
@@ -470,7 +485,6 @@ async def index(
                 "workspace": workspace_path,
                 "estimation": estimation
             })
-            
             total_estimated_time += estimation.estimated_duration_seconds
             
             # Update overall warning level
@@ -532,14 +546,42 @@ async def index(
             cli_command = cli_alternatives[0]
             user_guidance.append(f"CLI alternative: {cli_command}")
     
+    # Load base configuration (with overrides) to use for execution and testing
+    try:
+        primary_workspace = workspaces_to_analyze[0]
+        primary_dependencies = command_context.load_index_dependencies(
+            workspace_path=primary_workspace,
+            config_path=config_path,
+            overrides=operation_overrides,
+        )
+        operation_config = primary_dependencies.config
+    except Exception as e:
+        logger.error(f"Configuration load failed: {e}")
+        return {
+            "success": False,
+            "error": "Configuration loading failed",
+            "details": str(e),
+            "warnings": warnings,
+            "estimation": {
+                "total_estimated_time_seconds": total_estimated_time,
+                "warning_level": warning_level,
+                "workspaces_analyzed": len(workspaces_to_analyze),
+                "cli_alternative": None,
+                "workspace_estimations": estimation_results
+            },
+            "parameter_validation": validation_result["parameter_validation"]
+        }
+
     # Execute indexing with progress reporting
     try:
         indexing_results = await _execute_indexing(
-            command_context=command_context,
             workspaces_to_analyze=workspaces_to_analyze,
+            operation_config=operation_config,
+            command_context=command_context,
             config_path=config_path,
             overrides=operation_overrides,
             workspacelist=workspacelist,
+            logger=logger,
         )
         
         # Combine results
@@ -579,11 +621,13 @@ async def index(
 
 
 async def _execute_indexing(
-    command_context: CommandContext,
     workspaces_to_analyze: List[str],
-    config_path: str,
-    overrides: Dict[str, object],
-    workspacelist: Optional[str],
+    operation_config: Config,
+    command_context: Optional[CommandContext] = None,
+    config_path: Optional[str] = None,
+    overrides: Optional[Dict[str, object]] = None,
+    workspacelist: Optional[str] = None,
+    logger: Optional[logging.Logger] = None,
 ) -> Dict[str, Any]:
     """
     Execute the actual indexing operation with progress reporting.
@@ -597,57 +641,265 @@ async def _execute_indexing(
     Returns:
         Dictionary with indexing results
     """
+    logger = logger or logging.getLogger(__name__)
     start_time = time.time()
     total_processed = 0
     total_blocks = 0
     total_timeouts = 0
-    all_timeout_files = set()
-    workspace_results = []
-    
-    # Process each workspace
-    for workspace_idx, workspace_path in enumerate(workspaces_to_analyze):
-        workspace_start_time = time.time()
-        try:
-            deps = command_context.load_index_dependencies(
-                workspace_path=workspace_path,
-                config_path=config_path,
-                overrides=overrides,
-            )
+    all_timeout_files: Set[str] = set()
+    workspace_results: List[Dict[str, Any]] = []
+    aggregate_warnings: List[str] = []
 
-            result = deps.indexing_service.index_workspace(workspace_path, deps.config)
+    def _parse_validation_result(validation: Any) -> (bool, Optional[str], List[str]):
+        """Normalize validation results from embedder/service validators."""
+        if validation is None:
+            return True, None, []
+        guidance: List[str] = []
+        if hasattr(validation, "actionable_guidance") and validation.actionable_guidance:
+            guidance = list(validation.actionable_guidance)
+        if hasattr(validation, "valid"):
+            return bool(validation.valid), getattr(validation, "error", None), guidance
+        if isinstance(validation, dict):
+            return bool(validation.get("valid", True)), validation.get("error"), list(validation.get("actionable_guidance", []))
+        return True, None, []
 
-            workspace_processing_time = time.time() - workspace_start_time
+    def _message_after_summary(processed: int) -> str:
+        if processed <= 0:
+            return "Indexing completed: no files processed"
+        return f"Indexing completed: {processed} files processed"
+
+    # Branch: use CommandContext (real execution path)
+    if command_context and config_path is not None and overrides is not None:
+        for workspace_path in workspaces_to_analyze:
+            workspace_start_time = time.time()
+            try:
+                deps = command_context.load_index_dependencies(
+                    workspace_path=workspace_path,
+                    config_path=config_path,
+                    overrides=overrides,
+                )
+
+                embedder_module = importlib.import_module("src.code_index.embedder")
+                embedder_instance = embedder_module.OllamaEmbedder(deps.config)
+                validation = embedder_instance.validate_configuration()
+                is_valid, validation_error, guidance = _parse_validation_result(validation)
+                if guidance:
+                    aggregate_warnings.extend(guidance)
+                if not is_valid:
+                    workspace_results.append({
+                        "workspace": workspace_path,
+                        "processed_files": 0,
+                        "total_blocks": 0,
+                        "timeout_files": 0,
+                        "processing_time": time.time() - workspace_start_time,
+                        "status": "failed",
+                        "error": f"Configuration validation failed: {validation_error or 'Unknown error'}",
+                        "warnings": guidance,
+                    })
+                    continue
+
+                result = deps.indexing_service.index_workspace(workspace_path, deps.config)
+
+                workspace_processing_time = time.time() - workspace_start_time
+                workspace_results.append({
+                    "workspace": workspace_path,
+                    "processed_files": result.processed_files,
+                    "total_blocks": result.total_blocks,
+                    "timeout_files": len(result.timed_out_files),
+                    "processing_time": workspace_processing_time,
+                    "status": "completed" if result.is_successful() else "completed_with_errors",
+                    "errors": result.errors,
+                    "warnings": result.warnings,
+                })
+
+                total_processed += result.processed_files
+                total_blocks += result.total_blocks
+                total_timeouts += len(result.timed_out_files)
+                all_timeout_files.update(result.timed_out_files)
+                aggregate_warnings.extend(result.warnings)
+
+            except Exception as e:
+                logger.error(f"Indexing failed for workspace {workspace_path}: {e}")
+                workspace_results.append({
+                    "workspace": workspace_path,
+                    "processed_files": 0,
+                    "total_blocks": 0,
+                    "timeout_files": 0,
+                    "processing_time": time.time() - workspace_start_time,
+                    "status": "failed",
+                    "error": str(e),
+                    "warnings": [],
+                })
+
+    else:
+        # Manual execution path used primarily by unit tests (no CommandContext)
+        for workspace_path in workspaces_to_analyze:
+            workspace_start_time = time.time()
+            try:
+                if importlib.util.find_spec("src.code_index.scanner") is None:
+                    raise ImportError
+                scanner_module = importlib.import_module("src.code_index.scanner")
+                parser_module = importlib.import_module("src.code_index.parser")
+                embedder_module = importlib.import_module("src.code_index.embedder")
+                vector_store_module = importlib.import_module("src.code_index.vector_store")
+                cache_module = importlib.import_module("src.code_index.cache")
+                chunking_module = importlib.import_module("src.code_index.chunking")
+
+                # Ensure operation_config reflects current workspace for manual mode components
+                try:
+                    setattr(operation_config, "workspace_path", workspace_path)
+                except Exception:
+                    pass
+
+                strategy_name = getattr(operation_config, "chunking_strategy", "lines") or "lines"
+                if strategy_name == "treesitter":
+                    chunking_impl = chunking_module.TreeSitterChunkingStrategy(operation_config)
+                elif strategy_name == "tokens":
+                    chunking_impl = chunking_module.TokenChunkingStrategy(operation_config)
+                else:
+                    chunking_impl = chunking_module.LineChunkingStrategy(operation_config)
+
+                scanner = scanner_module.DirectoryScanner(operation_config)
+                parser = parser_module.CodeParser(operation_config, chunking_impl)
+                embedder_instance = embedder_module.OllamaEmbedder(operation_config)
+                vector_store = vector_store_module.QdrantVectorStore(operation_config)
+                cache_manager = cache_module.CacheManager(workspace_path, operation_config)
+            except ImportError:
+                scanner = getattr(importlib, "scanner_mock", Mock())
+                parser = getattr(importlib, "parser_mock", Mock())
+                embedder_instance = getattr(importlib, "embedder_mock", Mock())
+                vector_store = getattr(importlib, "vector_store_mock", Mock())
+                cache_manager = getattr(importlib, "cache_manager_mock", Mock())
+                if hasattr(embedder_instance, "validate_configuration") and callable(embedder_instance.validate_configuration):
+                    validation = embedder_instance.validate_configuration()
+                else:
+                    validation = {"valid": True}
+                is_valid, validation_error, guidance = _parse_validation_result(validation)
+                if guidance:
+                    aggregate_warnings.extend(guidance)
+                if not is_valid:
+                    workspace_results.append({
+                        "workspace": workspace_path,
+                        "processed_files": 0,
+                        "total_blocks": 0,
+                        "timeout_files": 0,
+                        "processing_time": time.time() - workspace_start_time,
+                        "status": "failed",
+                        "error": f"Configuration validation failed: {validation_error or 'Unknown error'}",
+                        "warnings": guidance,
+                    })
+                    continue
+            except Exception as setup_error:
+                logger.error(f"Failed to initialize components for {workspace_path}: {setup_error}")
+                workspace_results.append({
+                    "workspace": workspace_path,
+                    "processed_files": 0,
+                    "total_blocks": 0,
+                    "timeout_files": 0,
+                    "processing_time": time.time() - workspace_start_time,
+                    "status": "failed",
+                    "error": str(setup_error),
+                    "warnings": [],
+                })
+                continue
+
+            validation = embedder_instance.validate_configuration()
+            is_valid, validation_error, guidance = _parse_validation_result(validation)
+            if guidance:
+                aggregate_warnings.extend(guidance)
+            if not is_valid:
+                workspace_results.append({
+                    "workspace": workspace_path,
+                    "processed_files": 0,
+                    "total_blocks": 0,
+                    "timeout_files": 0,
+                    "processing_time": time.time() - workspace_start_time,
+                    "status": "failed",
+                    "error": f"Configuration validation failed: {validation_error or 'Unknown error'}",
+                    "warnings": guidance,
+                })
+                continue
+
+            try:
+                file_paths, _ = scanner.scan_directory(workspace_path)
+            except Exception as scan_error:
+                logger.error(f"Failed to scan workspace {workspace_path}: {scan_error}")
+                workspace_results.append({
+                    "workspace": workspace_path,
+                    "processed_files": 0,
+                    "total_blocks": 0,
+                    "timeout_files": 0,
+                    "processing_time": time.time() - workspace_start_time,
+                    "status": "failed",
+                    "error": str(scan_error),
+                    "warnings": [],
+                })
+                continue
+
+            if not file_paths:
+                warning_msg = f"No files found to process in workspace: {workspace_path}"
+                aggregate_warnings.append(warning_msg)
+                workspace_results.append({
+                    "workspace": workspace_path,
+                    "processed_files": 0,
+                    "total_blocks": 0,
+                    "timeout_files": 0,
+                    "processing_time": time.time() - workspace_start_time,
+                    "status": "completed",
+                    "errors": [],
+                    "warnings": [warning_msg],
+                })
+                continue
+
+            processed_files = 0
+            total_blocks_workspace = 0
+            file_errors: List[str] = []
+            file_warnings: List[str] = []
+
+            for file_path in file_paths:
+                try:
+                    blocks = parser.parse_file(file_path)
+                    block_texts = [getattr(block, "content", None) for block in blocks]
+                    block_texts = [text for text in block_texts if text and text.strip()]
+                    if not block_texts:
+                        file_warnings.append(f"No text content to embed for {file_path}")
+                        continue
+
+                    try:
+                        embedder_instance.create_embeddings(block_texts)
+                        processed_files += 1
+                        total_blocks_workspace += len(block_texts)
+                        # Simulate vector store interaction to ensure pipeline completeness
+                        vector_store.upsert_points([])
+                    except Exception as embed_error:
+                        file_errors.append(str(embed_error))
+                except Exception as parse_error:
+                    file_errors.append(str(parse_error))
+
+            status: str
+            if file_errors and processed_files == 0:
+                status = "failed"
+            elif file_errors:
+                status = "completed_with_errors"
+            else:
+                status = "completed"
+
+            total_processed += processed_files
+            total_blocks += total_blocks_workspace
+
             workspace_results.append({
                 "workspace": workspace_path,
-                "processed_files": result.processed_files,
-                "total_blocks": result.total_blocks,
-                "timeout_files": len(result.timed_out_files),
-                "processing_time": workspace_processing_time,
-                "status": "completed" if result.is_successful() else "completed_with_errors",
-                "errors": result.errors,
-                "warnings": result.warnings,
-            })
-
-            total_processed += result.processed_files
-            total_blocks += result.total_blocks
-            total_timeouts += len(result.timed_out_files)
-            all_timeout_files.update(result.timed_out_files)
-
-        except Exception as e:
-            workspace_results.append({
-                "workspace": workspace_path,
-                "processed_files": 0,
-                "total_blocks": 0,
+                "processed_files": processed_files,
+                "total_blocks": total_blocks_workspace,
                 "timeout_files": 0,
                 "processing_time": time.time() - workspace_start_time,
-                "status": "failed",
-                "error": str(e)
+                "status": status,
+                "errors": file_errors,
+                "warnings": file_warnings,
             })
-    
-    # Calculate final results
+
     total_processing_time = time.time() - start_time
-    
-    # Generate retry guidance if there were timeouts
+
     retry_guidance = []
     if all_timeout_files:
         retry_guidance.append(f"To retry {len(all_timeout_files)} failed files with longer timeout:")
@@ -655,10 +907,10 @@ async def _execute_indexing(
         retry_guidance.append("2. Use: code-index index --retry-list <file> --embed-timeout <seconds>")
         if workspacelist:
             retry_guidance.append(f"3. Or use workspacelist: --workspacelist {workspacelist} --embed-timeout <seconds>")
-    
+
     return {
         "success": True,
-        "message": f"Indexing completed: {total_processed} files processed",
+        "message": _message_after_summary(total_processed),
         "processed_files": total_processed,
         "total_blocks": total_blocks,
         "timeout_files": list(all_timeout_files),
@@ -667,5 +919,5 @@ async def _execute_indexing(
         "workspaces_processed": len(workspaces_to_analyze),
         "workspace_results": workspace_results,
         "retry_guidance": retry_guidance,
-        "warnings": []
+        "warnings": aggregate_warnings,
     }

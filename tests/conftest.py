@@ -20,6 +20,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from tests.utilities.test_data_generator import TestDataGenerator
 from tests.utilities.service_mocks import ServiceMocks
 
+from src.code_index.services.command_context import (
+    CommandContext,
+    IndexDependencies,
+    SearchDependencies,
+    CollectionDependencies,
+)
+from src.code_index.config import Config
+from src.code_index.mcp_server.tools import index_tool, search_tool, collections_tool
+from src.code_index.embedder import OllamaEmbedder
+from src.code_index.vector_store import QdrantVectorStore
+from src.code_index.collections import CollectionManager
+from src.code_index.services.indexing_service import IndexingService
+from src.code_index.services.search_service import SearchService
+from src.code_index.models import SearchMatch
+
 
 @pytest.fixture(scope="session")
 def test_data_dir():
@@ -55,10 +70,10 @@ def temp_config_file(temp_workspace):
         "ollama_base_url": "http://localhost:11434",
         "ollama_model": "nomic-embed-text:latest",
         "qdrant_url": "http://localhost:6333",
-        "embedding_length": 768,
+        "embedding_length": 1024,
         "workspace_path": temp_workspace,
-        "chunking_strategy": "lines",
-        "use_tree_sitter": False,
+        "chunking_strategy": "treesitter",
+        "use_tree_sitter": True,
         "search_min_score": 0.4,
         "search_max_results": 50,
         "batch_segment_threshold": 60,
@@ -69,6 +84,14 @@ def temp_config_file(temp_workspace):
     config_file.write_text(json.dumps(config_data, indent=2))
     
     return str(config_file)
+
+
+@pytest.fixture
+def default_test_config(temp_workspace):
+    """Provide an in-memory configuration matching MCP defaults."""
+    config = Config()
+    config.workspace_path = temp_workspace
+    return config
 
 
 @pytest.fixture
@@ -180,42 +203,132 @@ def mock_all_services(mock_ollama_embedder, mock_qdrant_vector_store, mock_colle
 
 
 @pytest.fixture
+def index_dependencies(default_test_config):
+    """Provide mocked index dependencies for the MCP tools."""
+    indexing_service = Mock(spec=IndexingService)
+    indexing_result = Mock()
+    indexing_result.processed_files = 2
+    indexing_result.total_blocks = 10
+    indexing_result.timed_out_files = []
+    indexing_result.errors = []
+    indexing_result.warnings = []
+    indexing_result.is_successful.return_value = True
+    indexing_service.index_workspace.return_value = indexing_result
+
+    return IndexDependencies(
+        config=default_test_config,
+        indexing_service=indexing_service,
+    )
+
+
+@pytest.fixture
+def search_dependencies(default_test_config, mock_all_services, sample_search_results):
+    """Provide mocked search dependencies for the MCP tools."""
+    search_service = Mock(spec=SearchService)
+    search_result = Mock()
+    search_result.matches = []
+    search_result.warnings = []
+    search_result.errors = []
+    search_result.has_matches.return_value = False
+    search_result.is_successful.return_value = True
+    search_service.search_code.return_value = search_result
+
+    collection_manager = mock_all_services["collection_manager"]
+    collection_manager.list_collections.return_value = []
+
+    return SearchDependencies(
+        config=default_test_config,
+        search_service=search_service,
+        collection_manager=collection_manager,
+    )
+
+
+@pytest.fixture
+def collection_dependencies(default_test_config, mock_all_services):
+    """Provide mocked collection dependencies for the MCP tools."""
+    collection_manager = mock_all_services["collection_manager"]
+    collection_manager.list_collections.return_value = []
+    return CollectionDependencies(
+        config=default_test_config,
+        collection_manager=collection_manager,
+    )
+
+
+@pytest.fixture
+def mock_command_context_factory(index_dependencies, search_dependencies, collection_dependencies):
+    """Return a callable producing a command context mock wired to dependency fixtures."""
+
+    context = Mock(spec=CommandContext)
+    context.load_index_dependencies.return_value = index_dependencies
+    context.load_search_dependencies.return_value = search_dependencies
+    context.load_collection_dependencies.return_value = collection_dependencies
+    context.error_handler = Mock()
+    context.config_service = Mock()
+
+    def _factory():
+        return context
+
+    _factory.context = context  # type: ignore[attr-defined]
+    return _factory
+
+
+@pytest.fixture
+def command_context_mock(mock_command_context_factory):
+    """Expose the command context mock for tests to customize behavior."""
+    context = mock_command_context_factory.context
+    original_index_return = context.load_index_dependencies.return_value
+    original_search_return = context.load_search_dependencies.return_value
+    original_collection_return = context.load_collection_dependencies.return_value
+
+    yield context
+
+    context.load_index_dependencies.side_effect = None
+    context.load_search_dependencies.side_effect = None
+    context.load_collection_dependencies.side_effect = None
+
+    context.load_index_dependencies.return_value = original_index_return
+    context.load_search_dependencies.return_value = original_search_return
+    context.load_collection_dependencies.return_value = original_collection_return
+
+    context.load_index_dependencies.reset_mock()
+    context.load_search_dependencies.reset_mock()
+    context.load_collection_dependencies.reset_mock()
+
+
+@pytest.fixture
 def sample_search_results():
-    """Provide sample search results for testing."""
+    """Provide sample search result objects for testing."""
     return [
-        {
-            "score": 0.85,
-            "adjustedScore": 0.90,
-            "payload": {
-                "filePath": "main.py",
-                "startLine": 1,
-                "endLine": 3,
-                "type": "function",
-                "codeChunk": "def main():\n    print('Hello, World!')\n    return 0"
-            }
-        },
-        {
-            "score": 0.75,
-            "adjustedScore": 0.80,
-            "payload": {
-                "filePath": "utils.py",
-                "startLine": 1,
-                "endLine": 2,
-                "type": "function",
-                "codeChunk": "def helper_function():\n    return True"
-            }
-        },
-        {
-            "score": 0.65,
-            "adjustedScore": 0.70,
-            "payload": {
-                "filePath": "models.py",
-                "startLine": 1,
-                "endLine": 3,
-                "type": "class",
-                "codeChunk": "class User:\n    def __init__(self, name):\n        self.name = name"
-            }
-        }
+        SearchMatch(
+            file_path="main.py",
+            start_line=1,
+            end_line=3,
+            code_chunk="def main():\n    print('Hello, World!')\n    return 0",
+            match_type="function",
+            score=0.85,
+            adjusted_score=0.90,
+            metadata={},
+        ),
+        SearchMatch(
+            file_path="utils.py",
+            start_line=1,
+            end_line=2,
+            code_chunk="def helper_function():\n    return True",
+            match_type="function",
+            score=0.75,
+            adjusted_score=0.80,
+            metadata={},
+        ),
+        SearchMatch(
+            file_path="models.py",
+            start_line=1,
+            end_line=3,
+            code_chunk="class User:\n    def __init__(self, name):\n        self.name = name",
+            match_type="class",
+            score=0.65,
+            adjusted_score=0.70,
+            metadata={},
+        ),
     ]
 
 
@@ -249,6 +362,31 @@ def mock_path_exists():
     """Mock Path.exists to return True for workspace validation."""
     with patch('pathlib.Path.exists', return_value=True):
         yield
+
+
+@pytest.fixture(autouse=True)
+def inject_command_context_factory(request):
+    """Inject mock command context factory for MCP tool tests."""
+    module = getattr(request, "module", None)
+    if not module or not module.__name__.startswith("tests.test_mcp_"):
+        return
+
+    factory = request.getfixturevalue("mock_command_context_factory")
+
+    previous_index_factory = getattr(index_tool, "_command_context_factory", None)
+    previous_search_factory = getattr(search_tool, "_command_context_factory", None)
+    previous_collections_factory = getattr(collections_tool, "_command_context_factory", None)
+
+    index_tool.set_command_context_factory(factory)
+    search_tool.set_command_context_factory(factory)
+    collections_tool.set_command_context_factory(factory)
+
+    def _restore():
+        index_tool.set_command_context_factory(previous_index_factory)
+        search_tool.set_command_context_factory(previous_search_factory)
+        collections_tool.set_command_context_factory(previous_collections_factory)
+
+    request.addfinalizer(_restore)
 
 
 @pytest.fixture

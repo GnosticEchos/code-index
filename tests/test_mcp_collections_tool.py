@@ -130,152 +130,137 @@ class TestCollectionsTool:
         return CollectionDependencies(config=config, collection_manager=collection_manager)
 
     @pytest.mark.asyncio
-    async def test_collections_tool_configuration_error(self, mock_context):
+    async def test_collections_tool_configuration_error(self, mock_context, command_context_mock):
         """Test collections tool with configuration loading error."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls:
-            mock_command_context = mock_context_cls.return_value
-            mock_command_context.load_collection_dependencies.side_effect = ValueError("Config error")
+        command_context_mock.load_collection_dependencies.side_effect = ValueError("Config error")
 
-            with pytest.raises(ValueError, match="Configuration error"):
-                await collections(
-                    ctx=mock_context,
-                    subcommand="list"
-                )
+        with pytest.raises(ValueError, match="Configuration error"):
+            await collections(
+                ctx=mock_context,
+                subcommand="list"
+            )
 
     @pytest.mark.asyncio
-    async def test_collections_tool_collection_manager_failure(self, mock_context):
+    async def test_collections_tool_collection_manager_failure(self, mock_context, command_context_mock):
         """Test collections tool with collection manager initialization failure."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls:
-            mock_command_context = mock_context_cls.return_value
-            mock_command_context.load_collection_dependencies.side_effect = Exception("Manager init failed")
+        command_context_mock.load_collection_dependencies.side_effect = Exception("Manager init failed")
 
-            with pytest.raises(Exception, match="Manager init failed"):
-                await collections(
-                    ctx=mock_context,
-                    subcommand="list"
-                )
+        with pytest.raises(Exception, match="Manager init failed"):
+            await collections(
+                ctx=mock_context,
+                subcommand="list"
+            )
 
     @pytest.mark.asyncio
-    async def test_collections_tool_list_success(self, mock_context):
+    async def test_collections_tool_list_success(self, mock_context, command_context_mock):
         """Test successful collections list operation."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls:
-            mock_command_context = mock_context_cls.return_value
-
-            mock_collections_data = [
-                {
-                    "name": "ws-abc123def456",
-                    "points_count": 100,
-                    "workspace_path": "/test/workspace1",
-                    "dimensions": {"vector": 768},
-                    "model_identifier": "nomic-embed-text"
-                },
-                {
-                    "name": "ws-def456ghi789",
-                    "points_count": 50,
-                    "workspace_path": "/test/workspace2",
-                    "dimensions": {"vector": 768},
-                    "model_identifier": "nomic-embed-text"
-                }
-            ]
-            mock_collection_manager = MagicMock()
-            mock_collection_manager.list_collections.return_value = mock_collections_data
-            deps = self.create_mock_deps(collection_manager=mock_collection_manager)
-            mock_command_context.load_collection_dependencies.return_value = deps
-
-            result = await collections(
-                ctx=mock_context,
-                subcommand="list"
-            )
-
-            assert result["success"] is True
-            assert "data" in result
-            assert result["data"]["total_count"] == 2
-            assert len(result["data"]["collections"]) == 2
-
-            first_collection = result["data"]["collections"][0]
-            assert first_collection["name"] == "ws-abc123def456"
-            assert first_collection["points_count"] == 100
-            assert first_collection["workspace_path"] == "/test/workspace1"
-    
-    @pytest.mark.asyncio
-    async def test_collections_tool_list_empty(self, mock_context):
-        """Test collections list with no collections."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls:
-            mock_command_context = mock_context_cls.return_value
-
-            mock_collection_manager = MagicMock()
-            mock_collection_manager.list_collections.return_value = []
-            deps = self.create_mock_deps(collection_manager=mock_collection_manager)
-            mock_command_context.load_collection_dependencies.return_value = deps
-
-            result = await collections(
-                ctx=mock_context,
-                subcommand="list"
-            )
-
-            assert result["success"] is True
-            assert result["data"]["total_count"] == 0
-            assert len(result["data"]["collections"]) == 0
-            assert "No collections found" in result["message"]
-    
-    @pytest.mark.asyncio
-    async def test_collections_tool_info_success(self, mock_context):
-        """Test successful collections info operation."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls:
-            mock_command_context = mock_context_cls.return_value
-
-            mock_collection_manager = MagicMock()
-            mock_collection_info = {
+        mock_collections_data = [
+            {
                 "name": "ws-abc123def456",
-                "status": "green",
                 "points_count": 100,
-                "vectors_count": 100,
-                "workspace_path": "/test/workspace",
+                "workspace_path": "/test/workspace1",
                 "dimensions": {"vector": 768},
-                "model_identifier": "nomic-embed-text",
-                "config": "test_config"
+                "model_identifier": "nomic-embed-text"
+            },
+            {
+                "name": "ws-def456ghi789",
+                "points_count": 50,
+                "workspace_path": "/test/workspace2",
+                "dimensions": {"vector": 768},
+                "model_identifier": "nomic-embed-text"
             }
-            mock_collection_manager.get_collection_info.return_value = mock_collection_info
-            deps = self.create_mock_deps(collection_manager=mock_collection_manager)
-            mock_command_context.load_collection_dependencies.return_value = deps
+        ]
+        mock_collection_manager = MagicMock()
+        mock_collection_manager.list_collections.return_value = mock_collections_data
+        deps = self.create_mock_deps(collection_manager=mock_collection_manager)
+        command_context_mock.load_collection_dependencies.side_effect = None
+        command_context_mock.load_collection_dependencies.return_value = deps
 
-            result = await collections(
+        result = await collections(
+            ctx=mock_context,
+            subcommand="list"
+        )
+
+        assert result["success"] is True
+        assert "data" in result
+        assert result["data"]["total_count"] == 2
+        assert len(result["data"]["collections"]) == 2
+
+        first_collection = result["data"]["collections"][0]
+        assert first_collection["name"] == "ws-abc123def456"
+        assert first_collection["points_count"] == 100
+        assert first_collection["workspace_path"] == "/test/workspace1"
+
+    @pytest.mark.asyncio
+    async def test_collections_tool_list_empty(self, mock_context, command_context_mock):
+        """Test collections list with no collections."""
+        mock_collection_manager = MagicMock()
+        mock_collection_manager.list_collections.return_value = []
+        deps = self.create_mock_deps(collection_manager=mock_collection_manager)
+        command_context_mock.load_collection_dependencies.side_effect = None
+        command_context_mock.load_collection_dependencies.return_value = deps
+
+        result = await collections(
+            ctx=mock_context,
+            subcommand="list"
+        )
+
+        assert result["success"] is True
+        assert result["data"]["total_count"] == 0
+        assert len(result["data"]["collections"]) == 0
+        assert "No collections found" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_collections_tool_info_success(self, mock_context, command_context_mock):
+        """Test successful collections info operation."""
+        mock_collection_manager = MagicMock()
+        mock_collection_info = {
+            "name": "ws-abc123def456",
+            "status": "green",
+            "points_count": 100,
+            "vectors_count": 100,
+            "workspace_path": "/test/workspace",
+            "dimensions": {"vector": 768},
+            "model_identifier": "nomic-embed-text",
+            "config": "test_config"
+        }
+        mock_collection_manager.get_collection_info.return_value = mock_collection_info
+        deps = self.create_mock_deps(collection_manager=mock_collection_manager)
+        command_context_mock.load_collection_dependencies.side_effect = None
+        command_context_mock.load_collection_dependencies.return_value = deps
+
+        result = await collections(
+            ctx=mock_context,
+            subcommand="info",
+            collection_name="ws-abc123def456"
+        )
+
+        assert result["success"] is True
+        collection_data = result["data"]["collection"]
+        assert collection_data["name"] == "ws-abc123def456"
+        assert collection_data["points_count"] == 100
+        assert collection_data["workspace_path"] == "/test/workspace"
+
+    @pytest.mark.asyncio
+    async def test_collections_tool_info_not_found(self, mock_context, command_context_mock):
+        """Test collections info with collection not found."""
+        mock_collection_manager = MagicMock()
+        mock_collection_manager.get_collection_info.side_effect = Exception("Collection not found")
+        deps = self.create_mock_deps(collection_manager=mock_collection_manager)
+        command_context_mock.load_collection_dependencies.side_effect = None
+        command_context_mock.load_collection_dependencies.return_value = deps
+
+        with pytest.raises(ValueError, match="Collection .* not found"):
+            await collections(
                 ctx=mock_context,
                 subcommand="info",
-                collection_name="ws-abc123def456"
+                collection_name="nonexistent"
             )
 
-            assert result["success"] is True
-            collection_data = result["data"]["collection"]
-            assert collection_data["name"] == "ws-abc123def456"
-            assert collection_data["points_count"] == 100
-            assert collection_data["workspace_path"] == "/test/workspace"
-    
     @pytest.mark.asyncio
-    async def test_collections_tool_info_not_found(self, mock_context):
-        """Test collections info with collection not found."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls:
-            mock_command_context = mock_context_cls.return_value
-
-            mock_collection_manager = MagicMock()
-            mock_collection_manager.get_collection_info.side_effect = Exception("Collection not found")
-            deps = self.create_mock_deps(collection_manager=mock_collection_manager)
-            mock_command_context.load_collection_dependencies.return_value = deps
-
-            with pytest.raises(ValueError, match="Collection .* not found"):
-                await collections(
-                    ctx=mock_context,
-                    subcommand="info",
-                    collection_name="nonexistent"
-                )
-
-    @pytest.mark.asyncio
-    async def test_collections_tool_delete_with_confirmation_bypass(self, mock_context):
+    async def test_collections_tool_delete_with_confirmation_bypass(self, mock_context, command_context_mock):
         """Test collections delete with confirmation bypass."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls, \
-             patch('src.code_index.cache.delete_collection_cache') as mock_delete_cache:
-            mock_command_context = mock_context_cls.return_value
-
+        with patch('src.code_index.cache.delete_collection_cache') as mock_delete_cache:
             config = Config()
             mock_collection_manager = MagicMock()
             mock_collection_info = {
@@ -288,7 +273,8 @@ class TestCollectionsTool:
             mock_delete_cache.return_value = 5
 
             deps = self.create_mock_deps(config=config, collection_manager=mock_collection_manager)
-            mock_command_context.load_collection_dependencies.return_value = deps
+            command_context_mock.load_collection_dependencies.side_effect = None
+            command_context_mock.load_collection_dependencies.return_value = deps
 
             result = await collections(
                 ctx=mock_context,
@@ -304,12 +290,9 @@ class TestCollectionsTool:
             mock_collection_manager.delete_collection.assert_called_once_with("ws-abc123def456")
 
     @pytest.mark.asyncio
-    async def test_collections_tool_delete_with_confirmation_denied(self, mock_context):
+    async def test_collections_tool_delete_with_confirmation_denied(self, mock_context, command_context_mock):
         """Test collections delete with confirmation denied."""
-        with patch('src.code_index.mcp_server.tools.collections_tool.CommandContext') as mock_context_cls, \
-             patch('src.code_index.mcp_server.tools.collections_tool._request_confirmation') as mock_request_confirmation:
-            mock_command_context = mock_context_cls.return_value
-
+        with patch('src.code_index.mcp_server.tools.collections_tool._request_confirmation') as mock_request_confirmation:
             mock_collection_manager = MagicMock()
             mock_collection_manager.get_collection_info.return_value = {
                 "name": "ws-abc123def456",
@@ -319,7 +302,8 @@ class TestCollectionsTool:
             mock_collection_manager.delete_collection.return_value = True
 
             deps = self.create_mock_deps(collection_manager=mock_collection_manager)
-            mock_command_context.load_collection_dependencies.return_value = deps
+            command_context_mock.load_collection_dependencies.side_effect = None
+            command_context_mock.load_collection_dependencies.return_value = deps
 
             mock_request_confirmation.return_value = {
                 "confirmed": False,
@@ -337,7 +321,6 @@ class TestCollectionsTool:
             assert "cancelled by user" in result["message"]
             assert result["data"]["cancelled"] is True
             mock_collection_manager.delete_collection.assert_not_called()
-
 
 class TestCollectionsToolHelpers:
     """Test cases for collections tool helper functions."""

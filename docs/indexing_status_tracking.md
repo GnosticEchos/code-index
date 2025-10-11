@@ -2,7 +2,13 @@
 
 ## Overview
 
-This document describes the design for implementing indexing status tracking in the Code Index Tool, inspired by KiloCode's approach.
+This document describes the indexing status tracking capabilities in the Code Index Tool, inspired by KiloCode's approach. The current implementation ships with a lightweight Rich-based progress UI that is enabled by default for all CLI indexing runs. Users can opt out with `--no-progress` if they prefer plain text output. The default experience surfaces:
+
+- Overall progress bar with the currently processed file name.
+- Recent file activity via the file scroller.
+- Status panel summarizing processed counts.
+
+Future iterations may layer in the more advanced orchestration model outlined below.
 
 ## KiloCode Implementation Analysis
 
@@ -293,12 +299,10 @@ code-index index --progress --format json
 ### Progress Output Examples
 
 ```
-[Indexing] Initializing services... 
-[Indexing] Services ready. Starting workspace scan...
-[Indexing] Processing main.py (12/156 files)
-[Indexing] Indexed 45/234 blocks
-[Indexing] Processing utils.py (45/156 files)
-[Indexed] Index up-to-date.
+⠙  📄 src/app/main.py ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  12%  0:01:32
+Processing src/app/main.py
+...
+Successfully processed 21 files with 384 code blocks.
 ```
 
 ## Implementation Roadmap
