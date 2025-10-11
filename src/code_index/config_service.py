@@ -13,10 +13,12 @@ import logging
 from typing import Dict, Any, Optional, List, Union, TypeVar, Type, Generic
 from pathlib import Path
 from dataclasses import dataclass, asdict
+from urllib.parse import urlparse
 
 from .config import Config
 from .service_validation import ServiceValidator, ValidationResult
 from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from .path_utils import PathUtils
 
 T = TypeVar('T')
 
@@ -142,28 +144,32 @@ class ConfigurationService:
     def _apply_environment_overrides(self, config: Config) -> Config:
         """Apply environment variable overrides to configuration."""
         try:
-            # Core service endpoints
-            if os.getenv("OLLAMA_BASE_URL"):
-                config.ollama_base_url = os.getenv("OLLAMA_BASE_URL")
-            if os.getenv("OLLAMA_MODEL"):
-                config.ollama_model = os.getenv("OLLAMA_MODEL")
-            if os.getenv("QDRANT_URL"):
-                config.qdrant_url = os.getenv("QDRANT_URL")
-            if os.getenv("QDRANT_API_KEY"):
-                config.qdrant_api_key = os.getenv("QDRANT_API_KEY")
-            if os.getenv("WORKSPACE_PATH"):
-                config.workspace_path = os.getenv("WORKSPACE_PATH")
+            env_mappings = [
+                ("WORKSPACE_PATH", "workspace_path"),
+                ("OLLAMA_BASE_URL", "ollama_base_url"),
+                ("OLLAMA_MODEL", "ollama_model"),
+                ("QDRANT_URL", "qdrant_url"),
+                ("QDRANT_API_KEY", "qdrant_api_key"),
+                ("CODE_INDEX_EMBED_TIMEOUT", "embed_timeout_seconds"),
+                ("CODE_INDEX_USE_TREE_SITTER", "use_tree_sitter"),
+            ]
 
-            # Performance settings
-            if os.getenv("CODE_INDEX_EMBED_TIMEOUT"):
-                try:
-                    config.embed_timeout_seconds = int(os.getenv("CODE_INDEX_EMBED_TIMEOUT"))
-                except ValueError:
-                    self.logger.warning("Invalid CODE_INDEX_EMBED_TIMEOUT value, ignoring")
+            for env_key, config_key in env_mappings:
+                raw_value = os.getenv(env_key)
+                if raw_value is None:
+                    continue
 
-            # Feature flags
-            if os.getenv("CODE_INDEX_USE_TREE_SITTER"):
-                config.use_tree_sitter = os.getenv("CODE_INDEX_USE_TREE_SITTER").lower() in ("true", "1", "yes")
+                applied = self._apply_validated_override(
+                    config,
+                    config_key,
+                    raw_value,
+                    source="environment",
+                )
+
+                if not applied:
+                    self.logger.warning(
+                        "Rejected environment override %s for key %s", env_key, config_key
+                    )
 
             self.logger.debug("Applied environment variable overrides")
             return config
@@ -241,12 +247,15 @@ class ConfigurationService:
 
             # Apply overrides
             for key, value in overrides.items():
-                if hasattr(new_config, key):
-                    old_value = getattr(new_config, key)
-                    setattr(new_config, key, value)
-                    self.logger.debug(f"Applied CLI override: {key} = {value} (was: {old_value})")
-                else:
-                    self.logger.warning(f"Unknown configuration parameter: {key}")
+                applied = self._apply_validated_override(
+                    new_config,
+                    key,
+                    value,
+                    source="cli",
+                )
+
+                if not applied:
+                    self.logger.warning(f"CLI override rejected or unknown parameter: {key}")
 
             self.logger.debug(f"After CLI overrides: ollama_model={new_config.ollama_model}, embedding_length={new_config.embedding_length}")
 
@@ -268,6 +277,97 @@ class ConfigurationService:
             )
             self.logger.error(f"Failed to apply CLI overrides: {error_response.message}")
             raise ValueError(f"CLI override application failed: {error_response.message}")
+
+    def _apply_validated_override(self, config: Config, key: str, value: Any, source: str) -> bool:
+        """Apply a configuration override after validating its type and safety."""
+        allowed_keys = {
+            "workspace_path",
+            "ollama_base_url",
+            "ollama_model",
+            "qdrant_url",
+            "qdrant_api_key",
+            "embed_timeout_seconds",
+            "use_tree_sitter",
+            "chunking_strategy",
+            "search_min_score",
+            "search_max_results",
+            "timeout_log_path",
+            "ignore_config_path",
+            "ignore_override_pattern",
+            "auto_ignore_detection",
+            "exclude_files_path",
+            "max_file_size_bytes",
+            "batch_segment_threshold",
+        }
+
+        if key not in allowed_keys or not hasattr(config, key):
+            self.logger.debug("Override key %s from %s not permitted", key, source)
+            return False
+
+        path_keys = {"timeout_log_path", "ignore_config_path", "exclude_files_path"}
+        bool_keys = {"use_tree_sitter", "auto_ignore_detection"}
+        int_keys = {"embed_timeout_seconds", "search_max_results", "max_file_size_bytes", "batch_segment_threshold"}
+        float_keys = {"search_min_score"}
+        url_keys = {"ollama_base_url", "qdrant_url"}
+
+        try:
+            parsed_value = value
+
+            if key == "workspace_path":
+                if not isinstance(parsed_value, str):
+                    return False
+                normalized_workspace = str(Path(parsed_value).resolve())
+                setattr(config, key, normalized_workspace)
+                return True
+
+            if key in bool_keys:
+                if isinstance(parsed_value, str):
+                    parsed_value = parsed_value.strip().lower()
+                    parsed_value = parsed_value in {"true", "1", "yes", "on"}
+                else:
+                    parsed_value = bool(parsed_value)
+
+            elif key in int_keys:
+                parsed_value = int(parsed_value)
+                if parsed_value <= 0:
+                    raise ValueError("integer overrides must be positive")
+
+            elif key in float_keys:
+                parsed_value = float(parsed_value)
+                if not 0 <= parsed_value <= 1:
+                    raise ValueError("search_min_score must be between 0 and 1")
+
+            elif key in url_keys:
+                if not isinstance(parsed_value, str):
+                    return False
+                parsed_url = urlparse(parsed_value)
+                if parsed_url.scheme not in {"http", "https"}:
+                    raise ValueError("unsupported URL scheme")
+                parsed_value = parsed_value
+
+            elif key in path_keys:
+                if not isinstance(parsed_value, str):
+                    return False
+                workspace_root = config.workspace_path or "."
+                path_utils = PathUtils(self.error_handler, workspace_root)
+                candidate = parsed_value if os.path.isabs(parsed_value) else os.path.join(workspace_root, parsed_value)
+                normalized = path_utils.validate_and_normalize(candidate)
+                if not normalized or not path_utils.is_path_within_workspace(normalized, workspace_root):
+                    raise ValueError("path override must reside within workspace")
+                parsed_value = path_utils.calculate_relative_path(normalized, workspace_root)
+
+            elif key == "ignore_override_pattern":
+                if not isinstance(parsed_value, str):
+                    return False
+
+            setattr(config, key, parsed_value)
+            return True
+
+        except (ValueError, TypeError) as validation_error:
+            self.logger.warning(
+                "Override %s from %s rejected: %s", key, source, validation_error
+            )
+            return False
 
     def validate_and_initialize(self, config: Config, skip_service_validation: bool = False) -> ValidationResult:
         """

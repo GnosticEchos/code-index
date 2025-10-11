@@ -12,6 +12,7 @@ import platform
 from typing import List, Dict, Any, Optional, Iterator, Set, Callable
 from pathlib import Path
 from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from .path_utils import PathUtils
 
 # Set up logging for mmap operations
 mmap_logger = logging.getLogger('code_index.file_processing.mmap')
@@ -36,6 +37,9 @@ class FileProcessingService:
         self.default_chunk_size = 64 * 1024  # 64KB default chunk size
         self.large_file_threshold = 256 * 1024  # 256KB threshold for large files
         self.streaming_threshold = 1024 * 1024  # 1MB threshold for streaming
+
+        # Reuse a single PathUtils instance per service to minimize repeated setup cost
+        self._path_utils = PathUtils(self.error_handler)
         
         # Initialize mmap metrics tracking
         self.mmap_metrics = {
@@ -769,6 +773,7 @@ class FileProcessingService:
 
             # Load file content
             content = self.load_file_with_encoding(exclude_file_path)
+            path_utils = PathUtils(self.error_handler, workspace_path)
 
             # Process lines
             for line in content.splitlines():
@@ -776,21 +781,28 @@ class FileProcessingService:
                 if not line or line.startswith("#"):
                     continue
 
-                # Normalize path relative to workspace
-                if os.path.isabs(line):
-                    rel = os.path.relpath(line, workspace_path)
-                else:
-                    rel = line
+                is_pattern = any(char in line for char in ['*', '?', '[', ']'])
 
-                # Normalize glob patterns and paths
-                rel = os.path.normpath(rel)
-                # Handle glob patterns by removing leading * from extensions
-                if rel.startswith('*.'):
-                    rel = rel[1:]
-                # Add trailing slash for directory patterns (those ending with /)
+                # Patterns should remain relative to workspace and must not traverse upwards
+                if is_pattern:
+                    rel_pattern = os.path.normpath(line)
+                    if rel_pattern.startswith('..'):
+                        continue
+                    if rel_pattern.startswith('*.'):
+                        rel_pattern = rel_pattern[1:]
+                    if line.endswith('/') or line.endswith('/*'):
+                        rel_pattern = rel_pattern.rstrip(os.sep) + '/'
+                    excluded.add(rel_pattern)
+                    continue
+
+                candidate_path = line if os.path.isabs(line) else os.path.join(workspace_path, line)
+                normalized = path_utils.validate_and_normalize(candidate_path)
+                if not normalized or not path_utils.is_path_within_workspace(normalized, workspace_path):
+                    continue
+
+                rel = path_utils.calculate_relative_path(normalized, workspace_path)
                 if line.endswith('/') or line.endswith('/*'):
-                    rel = rel + '/'
-
+                    rel = rel.rstrip('/') + '/'
                 excluded.add(rel)
 
             return excluded
@@ -828,17 +840,29 @@ class FileProcessingService:
 
             # Process lines
             results: List[str] = []
+            path_utils = PathUtils(self.error_handler, workspace)
             for line in content.splitlines():
                 s = line.strip()
                 if not s or s.startswith("#"):
                     continue
 
-                # Normalize path relative to workspace
-                if os.path.isabs(s):
-                    rel = os.path.relpath(s, workspace)
-                else:
-                    rel = s
-                results.append(os.path.normpath(rel))
+                is_pattern = any(char in s for char in ['*', '?', '[', ']'])
+                if is_pattern:
+                    normalized_pattern = os.path.normpath(s)
+                    if normalized_pattern.startswith('..'):
+                        continue
+                    if normalized_pattern.startswith('*.'):
+                        normalized_pattern = normalized_pattern[1:]
+                    results.append(normalized_pattern)
+                    continue
+
+                candidate_path = s if os.path.isabs(s) else os.path.join(workspace, s)
+                normalized = path_utils.validate_and_normalize(candidate_path)
+                if not normalized or not path_utils.is_path_within_workspace(normalized, workspace):
+                    continue
+
+                rel = path_utils.calculate_relative_path(normalized, workspace)
+                results.append(rel)
 
             return results
 

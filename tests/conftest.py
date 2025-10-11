@@ -4,14 +4,21 @@ Pytest configuration and fixtures for MCP Server tests.
 Provides common fixtures and configuration for all MCP server tests.
 """
 
-import pytest
-import tempfile
+import hashlib
 import os
 import json
 import sys
+import tempfile
+
+import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch
 from typing import Dict, Any, List
+from unittest.mock import Mock, patch
+
+try:
+    from qdrant_client import QdrantClient
+except ImportError:
+    QdrantClient = None
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -36,6 +43,82 @@ from src.code_index.services.search_service import SearchService
 from src.code_index.models import SearchMatch
 
 
+def _collection_name_for_workspace(workspace_path: str) -> str:
+    normalized = os.path.abspath(workspace_path)
+    workspace_hash = hashlib.sha256(normalized.encode()).hexdigest()
+    return f"ws-{workspace_hash[:16]}"
+
+
+class _QdrantCollectionGuard:
+    def __init__(self) -> None:
+        self._client: QdrantClient | None = None
+        self._initial_collections: set[str] = set()
+        self._registered_collections: set[str] = set()
+        self._initialized: bool = False
+
+    def _ensure_client(self) -> None:
+        if self._initialized:
+            return
+        self._initialized = True
+
+        if QdrantClient is None:
+            return
+
+        url = os.getenv("QDRANT_URL", "http://localhost:6333")
+        api_key = os.getenv("QDRANT_API_KEY")
+
+        try:
+            self._client = QdrantClient(url=url, api_key=api_key)
+            collections = self._client.get_collections()
+            self._initial_collections = {col.name for col in collections.collections}
+        except Exception as exc:
+            print(f"Warning: Unable to initialize Qdrant cleanup guard: {exc}")
+            self._client = None
+
+    def register_workspace(self, workspace_path: str) -> None:
+        self._ensure_client()
+        collection_name = _collection_name_for_workspace(workspace_path)
+        self._registered_collections.add(collection_name)
+
+    def cleanup(self) -> None:
+        if not self._client:
+            return
+
+        try:
+            collections = self._client.get_collections()
+        except Exception as exc:
+            print(f"Warning: Unable to list Qdrant collections during cleanup: {exc}")
+            return
+
+        existing = {col.name for col in collections.collections}
+        candidates = [
+            name
+            for name in existing
+            if name in self._registered_collections and name not in self._initial_collections
+        ]
+
+        for name in candidates:
+            try:
+                self._client.delete_collection(name)
+            except Exception as exc:
+                print(f"Warning: Failed to delete test collection {name}: {exc}")
+
+
+_test_collection_guard = _QdrantCollectionGuard()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def qdrant_collection_guard():
+    _test_collection_guard._ensure_client()
+    yield _test_collection_guard
+    _test_collection_guard.cleanup()
+
+
+@pytest.fixture
+def register_workspace_for_cleanup(qdrant_collection_guard):
+    return qdrant_collection_guard.register_workspace
+
+
 @pytest.fixture(scope="session")
 def test_data_dir():
     """Provide path to test data directory."""
@@ -43,7 +126,7 @@ def test_data_dir():
 
 
 @pytest.fixture
-def temp_workspace():
+def temp_workspace(qdrant_collection_guard):
     """Create a temporary workspace with test files."""
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create test files
@@ -56,6 +139,7 @@ def temp_workspace():
             ("requirements.txt", "requests>=2.25.0\npsycopg2>=2.8.0\npytest>=6.0.0\n")
         ]
         
+        qdrant_collection_guard.register_workspace(temp_dir)
         for filename, content in test_files:
             file_path = Path(temp_dir) / filename
             file_path.write_text(content)

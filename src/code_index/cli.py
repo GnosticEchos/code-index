@@ -110,32 +110,19 @@ def _load_workspace_list(workspace_list_file: str) -> List[str]:
     file_processor = FileProcessingService(error_handler)
     return file_processor.load_workspace_list(workspace_list_file, "load_workspace_list")
 
-
 def _write_timeout_log(paths: Set[str], log_path: str) -> None:
     """Write unique, sorted list of timed-out file paths to log file."""
     if not log_path:
         return
 
-    # Initialize file processing service with error handler
-    file_processor = FileProcessingService(error_handler)
-
-    # Ensure directory exists using PathUtils
-    path_utils = PathUtils(error_handler)
-    log_dir = path_utils.normalize_path(os.path.dirname(log_path) or ".")
-    os.makedirs(log_dir, exist_ok=True)
-
-    lines = sorted(paths)
+    log_dir = os.path.dirname(log_path) or "."
     try:
-        # Use FileProcessingService to write the file
-        content = "\n".join(lines)
-        if lines:
-            content += "\n"
-
-        # Write file using FileProcessingService (we'll need to add this method)
-        with open(log_path, "w", encoding="utf-8") as f:
-            f.write(content)
-    except (OSError, IOError):
-        print(f"Warning: Could not write timeout log to {log_path}")
+        os.makedirs(log_dir, exist_ok=True)
+        with open(log_path, 'w', encoding='utf-8') as f:
+            for path in sorted(paths):
+                f.write(f"{path}\n")
+    except OSError as exc:
+        print(f"Failed to write timeout log to {log_path}: {exc}")
 
 
 def _load_exclude_list(workspace_path: str, exclude_files_path: str | None) -> Set[str]:
@@ -348,11 +335,14 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
 
         # Write timeout log if specified
         if timeout_log:
-            # Normalize log path to absolute using PathUtils
             path_utils = PathUtils(error_handler, cfg.workspace_path)
-            log_path_abs = path_utils.resolve_path(timeout_log) or path_utils.join_path(cfg.workspace_path, timeout_log)
-            _write_timeout_log(set(result.timed_out_files), log_path_abs)
-            print(f"Timeout log written to: {log_path_abs}")
+            candidate = timeout_log if os.path.isabs(timeout_log) else os.path.join(cfg.workspace_path, timeout_log)
+            normalized = path_utils.validate_and_normalize(candidate)
+            if not normalized or not path_utils.is_path_within_workspace(normalized, cfg.workspace_path):
+                print("Timeout log path is outside workspace; skipping write.")
+            else:
+                _write_timeout_log(set(result.timed_out_files), normalized)
+                print(f"Timeout log written to: {normalized}")
 
     print(f"Processing time: {result.processing_time_seconds:.2f} seconds")
     print("To retry only failed files with a longer timeout, run: "

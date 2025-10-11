@@ -90,6 +90,12 @@ Create a `code_index.json` file:
 }
 ```
 
+### Override Safety and Path Restrictions
+
+- **Sanitized overrides**: Environment variables and CLI flags now undergo type and URL validation. Invalid values are rejected with warnings instead of silently mutating the configuration.
+- **Workspace-bound paths**: Overrides such as `timeout_log_path`, `exclude_files_path`, and paths provided through list/exclude files must resolve inside the configured workspace. Absolute or relative paths that escape the workspace are ignored to prevent directory traversal.
+- **Pattern handling**: Glob-style entries in path/exclude lists remain supported, but any entry beginning with `..` is discarded for safety.
+
 ## Usage
 
 ### Indexing Code
