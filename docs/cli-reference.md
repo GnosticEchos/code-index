@@ -76,9 +76,9 @@ Options
   - Default: None
   - Overrides Config.ignore_config_path for this run.
 - --ignore-override-pattern PATTERN
-  - Type: string
+  - Type: string (repeatable)
   - Default: None
-  - Sets Config.ignore_override_pattern for this run.
+  - Accepts comma-separated values or multiple flag instances; all patterns are normalized into `Config.ignore_override_patterns` (maintaining `Config.ignore_override_pattern` for legacy compatibility) and merged with the ignore stack for this run.
 - --auto-ignore-detection
   - Type: flag (single-form)
   - Default: True (show_default=True)
@@ -139,6 +139,8 @@ Examples
   - code-index index --retry-list timeout_files.txt --embed-timeout 180
 - Respect a custom ignore configuration:
   - code-index index --ignore-config .code-index-ignore
+- Combine manual ignore overrides:
+  - code-index index --ignore-override-pattern "*.txt,*.log" --ignore-override-pattern "docs/**/*.md"
 
 Notes/Pitfalls
 

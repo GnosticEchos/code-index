@@ -153,9 +153,8 @@ class ConfigLoaderService:
                             workspace_config = json.load(f)
                         
                         # Apply configuration with precedence rules
-                        for key, value in workspace_config.items():
-                            if hasattr(config, key):
-                                setattr(config, key, value)
+                        if isinstance(workspace_config, dict):
+                            config.update_from_dict(workspace_config)
                         break
 
             return config
@@ -167,16 +166,12 @@ class ConfigLoaderService:
         try:
             # Create a copy of the config to avoid modifying the original
             new_config = Config()
-            for key, value in vars(config).items():
-                setattr(new_config, key, value)
+            new_config.update_from_dict(config.to_dict())
 
             # Apply overrides
             for key, value in overrides.items():
                 if hasattr(new_config, key):
-                    old_value = getattr(new_config, key)
                     setattr(new_config, key, value)
-                else:
-                    pass
 
             # Validate the configuration with overrides
             validation_result = self.validate_and_initialize(new_config)

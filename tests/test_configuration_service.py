@@ -61,6 +61,25 @@ class TestQueryCache:
 class TestConfigurationService:
     """Test the ConfigurationService query operations."""
 
+    def test_config_round_trip_serialization(self):
+        base = Config()
+        base.workspace_path = "/tmp/workspace"
+        base.use_tree_sitter = True
+        base.tree_sitter_min_block_chars = 75
+        base.search_file_type_weights = {".py": 1.3, ".rs": 1.2}
+        base.logging_component_levels = {"src": "DEBUG"}
+
+        serialized = base.to_dict()
+
+        reconstructed = Config()
+        reconstructed.update_from_dict(serialized)
+
+        assert reconstructed.to_dict() == serialized
+        assert reconstructed.workspace_path == base.workspace_path
+        assert reconstructed.use_tree_sitter is True
+        assert reconstructed.tree_sitter_min_block_chars == 75
+        assert reconstructed.logging_component_levels == {"src": "DEBUG"}
+
     @pytest.fixture
     def config(self):
         """Create a test configuration."""

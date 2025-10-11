@@ -58,6 +58,12 @@ The system will automatically:
 3. Combine with existing `.gitignore` files
 4. Apply comprehensive ignore patterns during indexing
 
+### Manual Overrides
+
+- Provide additional patterns via the CLI flag `--ignore-override-pattern`. Supply comma-separated values or repeat the flag to add multiple rules; all values flow into `Config.ignore_override_patterns`/`Config.ignore_override_pattern` during normalization in `code_index/config.py`.
+- Persist overrides in configuration files by defining `"ignore_override_patterns": ["*.txt", "docs/**/*.md"]` within the `ignore` section. When loaded, the list is merged into the Smart ignore stack before scanning; see `code_index/smart_ignore_manager.py`.
+- These overrides integrate with automatic detection—manual entries are appended after community, project, and global patterns—ensuring handpicked exclusions take precedence without disabling adaptive sources.
+
 ## Future Enhancements
 
 ### Machine Learning Integration

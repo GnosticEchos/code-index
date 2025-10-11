@@ -83,7 +83,8 @@ class ConfigurationService:
         Raises:
             ValueError: If configuration is invalid or services fail validation
         """
-        cache_key = f"{config_path}:{workspace_path}:{hash(str(overrides))}"
+        base_override_repr = self._make_hashable(overrides) if overrides else ()
+        cache_key = f"{config_path}:{workspace_path}:{hash(base_override_repr)}"
 
         # Check cache first
         if cache_key in self._config_cache:
@@ -211,10 +212,8 @@ class ConfigurationService:
                 else:
                     data = json.load(f)
 
-            # Apply file configuration to base config
-            for key, value in data.items():
-                if hasattr(base_config, key):
-                    setattr(base_config, key, value)
+            if isinstance(data, dict):
+                base_config.update_from_dict(data)
 
             self.logger.debug(f"Loaded configuration from {file_path}")
             return base_config
@@ -240,8 +239,7 @@ class ConfigurationService:
 
             # Create a copy of the config to avoid modifying the original
             new_config = Config()
-            for key, value in vars(config).items():
-                setattr(new_config, key, value)
+            new_config.update_from_dict(config.to_dict())
 
             self.logger.debug(f"After copying config: ollama_model={new_config.ollama_model}, embedding_length={new_config.embedding_length}")
 
@@ -278,6 +276,14 @@ class ConfigurationService:
             self.logger.error(f"Failed to apply CLI overrides: {error_response.message}")
             raise ValueError(f"CLI override application failed: {error_response.message}")
 
+    @staticmethod
+    def _make_hashable(value: Any) -> Any:
+        if isinstance(value, dict):
+            return tuple(sorted((k, ConfigurationService._make_hashable(v)) for k, v in value.items()))
+        if isinstance(value, (list, tuple, set)):
+            return tuple(ConfigurationService._make_hashable(item) for item in value)
+        return value
+
     def _apply_validated_override(self, config: Config, key: str, value: Any, source: str) -> bool:
         """Apply a configuration override after validating its type and safety."""
         allowed_keys = {
@@ -289,8 +295,11 @@ class ConfigurationService:
             "embed_timeout_seconds",
             "use_tree_sitter",
             "chunking_strategy",
+            "tree_sitter_skip_test_files",
+            "use_mmap_file_reading",
             "search_min_score",
             "search_max_results",
+            "search_file_type_weights",
             "timeout_log_path",
             "ignore_config_path",
             "ignore_override_pattern",
@@ -305,7 +314,7 @@ class ConfigurationService:
             return False
 
         path_keys = {"timeout_log_path", "ignore_config_path", "exclude_files_path"}
-        bool_keys = {"use_tree_sitter", "auto_ignore_detection"}
+        bool_keys = {"use_tree_sitter", "auto_ignore_detection", "tree_sitter_skip_test_files", "use_mmap_file_reading"}
         int_keys = {"embed_timeout_seconds", "search_max_results", "max_file_size_bytes", "batch_segment_threshold"}
         float_keys = {"search_min_score"}
         url_keys = {"ollama_base_url", "qdrant_url"}
@@ -356,6 +365,20 @@ class ConfigurationService:
                     raise ValueError("path override must reside within workspace")
                 parsed_value = path_utils.calculate_relative_path(normalized, workspace_root)
 
+            elif key == "search_file_type_weights":
+                if not isinstance(parsed_value, dict):
+                    return False
+                normalized_weights: Dict[str, float] = {}
+                for ext, weight in parsed_value.items():
+                    if not isinstance(ext, str):
+                        return False
+                    trimmed_ext = ext.strip()
+                    try:
+                        normalized_weights[trimmed_ext] = float(weight)
+                    except (TypeError, ValueError):
+                        return False
+                parsed_value = normalized_weights
+
             elif key == "ignore_override_pattern":
                 if not isinstance(parsed_value, str):
                     return False
@@ -381,7 +404,7 @@ class ConfigurationService:
             ValidationResult indicating success or failure
         """
         try:
-            cache_key = str(hash(str(vars(config))))
+            cache_key = str(hash(self._make_hashable(config.to_dict())))
 
             # Check cache first
             if cache_key in self._validation_cache:
