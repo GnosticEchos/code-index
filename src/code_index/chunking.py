@@ -37,6 +37,7 @@ from .models import CodeBlock
 from .treesitter_queries import get_queries_for_language as get_ts_queries
 from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from .path_utils import PathUtils
+from .utils import split_content
 
 
 class ChunkingStrategy(ABC):
@@ -79,18 +80,43 @@ class LineChunkingStrategy(ChunkingStrategy):
             ):
                 chunk_content = "\n".join(current_chunk_lines)
                 if len(chunk_content.strip()) >= self.min_block_chars:
-                    segment_hash = file_hash + str(chunk_start_line)
-                    block = CodeBlock(
-                        file_path=file_path,
-                        identifier=None,
-                        type="chunk",
-                        start_line=chunk_start_line,
-                        end_line=chunk_start_line + len(current_chunk_lines) - 1,
-                        content=chunk_content,
-                        file_hash=file_hash,
-                        segment_hash=segment_hash,
-                    )
-                    blocks.append(block)
+                    # Split oversized chunks to preserve all data
+                    if len(chunk_content) > self.max_block_chars:
+                        content_chunks = split_content(chunk_content, self.max_block_chars)
+                        end_line = chunk_start_line + len(current_chunk_lines) - 1
+                        
+                        # Generate parent block ID for linking split parts
+                        parent_id = f"chunk_{chunk_start_line}_{end_line}"
+                        
+                        for chunk_idx, chunk_part in enumerate(content_chunks):
+                            segment_hash = file_hash + str(chunk_start_line) + f"_part{chunk_idx + 1}"
+                            block = CodeBlock(
+                                file_path=file_path,
+                                identifier=None,
+                                type="chunk",
+                                start_line=chunk_start_line,
+                                end_line=end_line,
+                                content=chunk_part,
+                                file_hash=file_hash,
+                                segment_hash=segment_hash,
+                                split_index=chunk_idx + 1,  # 1-based
+                                split_total=len(content_chunks),
+                                parent_block_id=parent_id,
+                            )
+                            blocks.append(block)
+                    else:
+                        segment_hash = file_hash + str(chunk_start_line)
+                        block = CodeBlock(
+                            file_path=file_path,
+                            identifier=None,
+                            type="chunk",
+                            start_line=chunk_start_line,
+                            end_line=chunk_start_line + len(current_chunk_lines) - 1,
+                            content=chunk_content,
+                            file_hash=file_hash,
+                            segment_hash=segment_hash,
+                        )
+                        blocks.append(block)
 
                 current_chunk_lines = []
                 current_chunk_length = 0
@@ -105,6 +131,7 @@ class TokenChunkingStrategy(ChunkingStrategy):
     def __init__(self, config: Config):
         super().__init__(config)
         self.min_block_chars = 50
+        self.max_block_chars = 6000  # Default max chars for token chunks
 
     def chunk(self, text: str, file_path: str, file_hash: str) -> List[CodeBlock]:
         """Chunk text into blocks based on tokens."""
@@ -150,19 +177,44 @@ class TokenChunkingStrategy(ChunkingStrategy):
                 consumed_lines = end_line + 1
 
             if len(chunk.strip()) >= self.min_block_chars:
-                segment_hash = file_hash + f"{start_line}"
-                blocks.append(
-                    CodeBlock(
-                        file_path=file_path,
-                        identifier=None,
-                        type="chunk",
-                        start_line=start_line,
-                        end_line=end_line,
-                        content=chunk,
-                        file_hash=file_hash,
-                        segment_hash=segment_hash,
+                # Split oversized chunks to preserve all data
+                if len(chunk) > self.max_block_chars:
+                    content_chunks = split_content(chunk, self.max_block_chars)
+                    
+                    # Generate parent block ID for linking split parts
+                    parent_id = f"token_chunk_{start_line}_{end_line}"
+                    
+                    for chunk_idx, chunk_part in enumerate(content_chunks):
+                        segment_hash = file_hash + f"{start_line}_part{chunk_idx + 1}"
+                        blocks.append(
+                            CodeBlock(
+                                file_path=file_path,
+                                identifier=None,
+                                type="chunk",
+                                start_line=start_line,
+                                end_line=end_line,
+                                content=chunk_part,
+                                file_hash=file_hash,
+                                segment_hash=segment_hash,
+                                split_index=chunk_idx + 1,  # 1-based
+                                split_total=len(content_chunks),
+                                parent_block_id=parent_id,
+                            )
+                        )
+                else:
+                    segment_hash = file_hash + f"{start_line}"
+                    blocks.append(
+                        CodeBlock(
+                            file_path=file_path,
+                            identifier=None,
+                            type="chunk",
+                            start_line=start_line,
+                            end_line=end_line,
+                            content=chunk,
+                            file_hash=file_hash,
+                            segment_hash=segment_hash,
+                        )
                     )
-                )
         return blocks
 
 # Remove the standalone function as it's causing circular imports
@@ -205,11 +257,10 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
 
     def _debug(self, msg: str) -> None:
         """Conditional Tree-sitter debug logging."""
-        try:
-            if self._debug_enabled:
-                print(f"TS-DEBUG: {msg}")
-        except Exception:
-            pass
+        if self._debug_enabled:
+            import logging
+
+            logging.getLogger("code_index.treesitter").debug(msg)
 
     def chunk(self, text: str, file_path: str, file_hash: str) -> List[CodeBlock]:
         """Chunk text into blocks using Tree-sitter with composition pattern."""
@@ -234,19 +285,7 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
     def _line_fallback(self, text: str, file_path: str, file_hash: str) -> List[CodeBlock]:
         return LineChunkingStrategy(self.config).chunk(text, file_path, file_hash)
 
-    def _should_process_file_for_treesitter(self, file_path: str) -> bool:
-        """Retain legacy API for tests by delegating to coordinator."""
-        return self._coordinator.should_process_file(file_path)
-
-    def _get_language_key_for_path(self, file_path: str) -> Optional[str]:
-        """Legacy helper to determine language key for tests."""
-        return self._coordinator.get_language_key(file_path)
-
-    def _get_queries_for_language(self, language_key: str) -> Optional[str]:
-        return self._coordinator.get_queries_for_language(language_key)
-
-    def _get_node_types_for_language(self, language_key: str) -> Optional[List[str]]:
-        return self._coordinator.get_node_types_for_language(language_key)
-
-    def _ensure_tree_sitter_version(self):
-        return self._coordinator.ensure_tree_sitter_version()
+    @property
+    def coordinator(self):
+        """Access the underlying Tree-sitter coordinator."""
+        return self._coordinator

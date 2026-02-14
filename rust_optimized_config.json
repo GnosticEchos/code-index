@@ -1,8 +1,8 @@
 {
   "ollama_base_url": "http://localhost:11434",
-  "ollama_model": "dengcao/Qwen3-Embedding-0.6B:F16",
+  "ollama_model": "nomic-embed-text:latest",
   "qdrant_url": "http://localhost:6333",
-  "embedding_length": 1024,
+  "embedding_length": 768,
   "chunking_strategy": "treesitter",
   "token_chunk_size": 1024,
   "token_chunk_overlap": 120,
@@ -12,6 +12,7 @@
   "tree_sitter_max_functions_per_file": 30,
   "tree_sitter_max_classes_per_file": 20,
   "tree_sitter_max_impl_blocks_per_file": 25,
+  "tree_sitter_max_block_chars": 6000,
   "tree_sitter_skip_test_files": true,
   "tree_sitter_skip_examples": true,
   "use_mmap_file_reading": true,
@@ -75,5 +76,5 @@
     "console-export",
     "Daisy_llms.txt"
   ],
-  "search_snippet_preview_chars": 200
+  "search_snippet_preview_chars": 2048
 }

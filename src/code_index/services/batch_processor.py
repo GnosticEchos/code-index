@@ -193,7 +193,7 @@ class TreeSitterBatchProcessor:
                 e, error_context, ErrorCategory.PARSING, ErrorSeverity.HIGH
             )
             if self.debug_enabled:
-                print(f"Warning: {error_response.message}")
+                batch_logger.debug("Batch processing warning: %s", error_response.message)
             
             batch_logger.error(f"Batch processing failed: {e}")
 
@@ -249,7 +249,11 @@ class TreeSitterBatchProcessor:
                     results.append(fallback_result)
                     
                     if self.debug_enabled:
-                        print(f"Warning: Parallel processing failed for {language_key}: {error_response.message}")
+                        batch_logger.debug(
+                            "Parallel processing fallback for %s due to: %s",
+                            language_key,
+                            error_response.message,
+                        )
         
         return results
 
@@ -285,7 +289,11 @@ class TreeSitterBatchProcessor:
                 results.append(fallback_result)
                 
                 if self.debug_enabled:
-                    print(f"Warning: Sequential processing failed for {language_key}: {error_response.message}")
+                    batch_logger.debug(
+                        "Sequential processing fallback for %s due to: %s",
+                        language_key,
+                        error_response.message,
+                    )
         
         return results
 
@@ -328,7 +336,7 @@ class TreeSitterBatchProcessor:
                 e, error_context, ErrorCategory.PARSING, ErrorSeverity.LOW
             )
             if self.debug_enabled:
-                print(f"Warning: {error_response.message}")
+                batch_logger.debug("Language grouping warning: %s", error_response.message)
 
             # Fallback to single-file groups
             return {f"file_{i}": [file_info] for i, file_info in enumerate(files)}
@@ -397,7 +405,7 @@ class TreeSitterBatchProcessor:
 
         except Exception as e:
             if self.debug_enabled:
-                print(f"Error optimizing batch config: {e}")
+                batch_logger.debug("Error optimizing batch config: %s", e)
             return {
                 "max_blocks_per_file": getattr(self.config, "tree_sitter_max_blocks_per_file", 100),
                 "timeout_multiplier": 1.0,
@@ -479,7 +487,11 @@ class TreeSitterBatchProcessor:
                         e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM
                     )
                     if self.debug_enabled:
-                        print(f"Warning: {error_response.message}")
+                        batch_logger.debug(
+                            "File processing warning for %s: %s",
+                            file_info['file_path'],
+                            error_response.message,
+                        )
 
                     failed_files += 1
 
@@ -506,7 +518,7 @@ class TreeSitterBatchProcessor:
 
         except Exception as e:
             if self.debug_enabled:
-                print(f"Error processing language group {language_key}: {e}")
+                batch_logger.debug("Error processing language group %s: %s", language_key, e)
             raise
 
     def _should_optimize_memory(self) -> bool:
@@ -637,7 +649,7 @@ class TreeSitterBatchProcessor:
 
         except Exception as e:
             if self.debug_enabled:
-                print(f"Error processing file with shared resources: {e}")
+                batch_logger.debug("Error processing file with shared resources: %s", e)
             raise
 
     def _acquire_shared_resources(self, language_key: str) -> Dict[str, Any]:
@@ -663,7 +675,7 @@ class TreeSitterBatchProcessor:
 
         except Exception as e:
             if self.debug_enabled:
-                print(f"Error acquiring shared resources for {language_key}: {e}")
+                batch_logger.debug("Error acquiring shared resources for %s: %s", language_key, e)
             return {}
 
     def _get_language_key_for_path(self, file_path: str) -> Optional[str]:
@@ -771,7 +783,11 @@ class TreeSitterBatchProcessor:
                         e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW
                     )
                     if self.debug_enabled:
-                        print(f"Warning: Could not read file {file_path}: {error_response.message}")
+                        batch_logger.debug(
+                            "Could not read file %s: %s",
+                            file_path,
+                            error_response.message,
+                        )
 
             # Process the files using the batch processor
             return self.process_batch(files)
@@ -785,7 +801,7 @@ class TreeSitterBatchProcessor:
                 e, error_context, ErrorCategory.PARSING, ErrorSeverity.HIGH
             )
             if self.debug_enabled:
-                print(f"Warning: {error_response.message}")
+                batch_logger.debug("Batch execution warning: %s", error_response.message)
 
             return BatchProcessingResult(
                 results={},

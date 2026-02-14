@@ -61,8 +61,8 @@ class ConfigLoaderService:
             # Apply environment variable overrides
             config = self._apply_environment_overrides(config)
 
-            # Apply workspace-specific configuration
-            config = self._apply_workspace_config(config, workspace_path)
+            # Apply workspace-specific configuration (skip if explicit non-default config)
+            config = self._apply_workspace_config(config, workspace_path, explicit_config_path=config_path)
 
             # Apply workspace validation using WorkspaceService
             workspace_validation = self.workspace_service.validate_workspace(workspace_path, config)
@@ -132,9 +132,28 @@ class ConfigLoaderService:
         except Exception as e:
             return config
 
-    def _apply_workspace_config(self, config: Config, workspace_path: str) -> Config:
-        """Apply workspace-specific configuration overrides."""
+    def _apply_workspace_config(self, config: Config, workspace_path: str, explicit_config_path: Optional[str] = None) -> Config:
+        """Apply workspace-specific configuration overrides.
+        
+        Args:
+            config: The current configuration
+            workspace_path: Path to the workspace
+            explicit_config_path: If provided, skip loading workspace configs that match this path
+                                  (user explicitly specified a config file)
+        """
         try:
+            # If user explicitly specified a config file, don't override with workspace configs
+            # This respects the user's choice when they use --config option
+            if explicit_config_path:
+                explicit_path = Path(explicit_config_path).resolve()
+                # Check if the explicit config is in the workspace directory
+                workspace_path_obj = Path(workspace_path).resolve()
+                # Only skip if the explicit config is NOT the default workspace config
+                default_workspace_config = workspace_path_obj / "code_index.json"
+                if explicit_path != default_workspace_config.resolve():
+                    # User specified a non-default config, skip workspace overrides
+                    return config
+            
             # Look for workspace-specific config files
             workspace_config_paths = [
                 Path(workspace_path) / ".code_index.json",
@@ -210,7 +229,7 @@ class ConfigLoaderService:
                         service="configuration",
                         valid=False,
                         error=f"Service validation failed: {health_validation.error}",
-                        details={"validation_results": [vars(result) for result in health_validation.details.get("validation_results", [])]}
+                        details={"validation_results": [vars(result) for result in health_validation.details.get('validation_results', [])]}
                     )
             else:
                 # Create mock successful validation results for testing
@@ -223,7 +242,7 @@ class ConfigLoaderService:
             return ValidationResult(
                 service="configuration",
                 valid=True,
-                details={"validation_results": [vars(result) for result in health_validation.details.get("validation_results", [])]}
+                details={"validation_results": [vars(result) for result in health_validation.details.get('validation_results', [])]}
             )
 
         except Exception as e:

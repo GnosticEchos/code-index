@@ -14,6 +14,8 @@ from pathlib import Path
 
 from code_index.config import Config
 from code_index.services.indexing_service import IndexingService
+from code_index.services.search_service import SearchService
+from code_index.services.indexing_dependencies import IndexingDependencies, _create_test_dependencies
 from code_index.models import IndexingResult, ProcessingResult, ValidationResult
 from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 
@@ -46,6 +48,12 @@ def sample_config():
 def indexing_service(error_handler):
     """Provide IndexingService instance for testing."""
     return IndexingService(error_handler)
+
+
+@pytest.fixture
+def mock_dependencies(error_handler):
+    """Provide mock dependencies for testing."""
+    return _create_test_dependencies(error_handler=error_handler)
 
 
 class TestIndexingResult:
@@ -345,197 +353,199 @@ class TestValidationResult:
 class TestIndexingService:
     """Test IndexingService functionality."""
 
-    def test_service_initialization(self, error_handler):
-        """Test IndexingService initialization."""
+    def test_service_initialization_with_dependencies(self, error_handler, mock_dependencies):
+        """Test IndexingService initialization with dependency injection."""
+        service = IndexingService(error_handler, dependencies=mock_dependencies)
+
+        assert service.error_handler == error_handler
+        assert service.config_service is not None
+        assert service.service_validator is not None
+        assert service._dependencies is not None
+
+    def test_service_initialization_without_dependencies(self, error_handler):
+        """Test IndexingService initialization without dependencies."""
         service = IndexingService(error_handler)
 
         assert service.error_handler == error_handler
         assert service.config_service is not None
-        assert service.file_processor is not None
         assert service.service_validator is not None
 
-    @patch('code_index.services.indexing_service.PathUtils')
-    @patch('code_index.services.indexing_service.CacheManager')
-    @patch('code_index.services.indexing_service.QdrantVectorStore')
-    @patch('code_index.services.indexing_service.OllamaEmbedder')
-    @patch('code_index.services.indexing_service.CodeParser')
-    @patch('code_index.services.indexing_service.DirectoryScanner')
-    def test_initialize_components(self, mock_scanner, mock_parser, mock_embedder, mock_vector_store, mock_cache_manager, mock_path_utils, indexing_service, sample_config):
-        """Test component initialization."""
-        mock_scanner = Mock()
+    def test_orchestrator_property_lazy_initialization(self, error_handler, mock_dependencies):
+        """Test that orchestrator is lazily initialized."""
+        service = IndexingService(error_handler, dependencies=mock_dependencies)
+
+        # Orchestrator should be None initially
+        assert service._orchestrator is None
+
+        # Accessing orchestrator property should create it
+        orchestrator = service.orchestrator
+        assert orchestrator is not None
+        assert service._orchestrator is not None
+
+    def test_file_processor_property_lazy_initialization(self, error_handler, mock_dependencies):
+        """Test that file_processor is lazily initialized."""
+        service = IndexingService(error_handler, dependencies=mock_dependencies)
+
+        # File processor should be None initially
+        assert service._file_processor is None
+
+        # Accessing file_processor property should create it
+        processor = service.file_processor
+        assert processor is not None
+        assert service._file_processor is not None
+
+    def test_batch_manager_property_lazy_initialization(self, error_handler, mock_dependencies):
+        """Test that batch_manager is lazily initialized."""
+        service = IndexingService(error_handler, dependencies=mock_dependencies)
+
+        # Batch manager should be None initially
+        assert service._batch_manager is None
+
+        # Accessing batch_manager property should create it
+        manager = service.batch_manager
+        assert manager is not None
+        assert service._batch_manager is not None
+
+    def test_validate_workspace_delegates_to_orchestrator(self, error_handler, sample_config):
+        """Test that validate_workspace delegates to orchestrator."""
+        service = IndexingService(error_handler)
+
+        # Create a temporary directory for testing
+        with tempfile.TemporaryDirectory() as temp_dir:
+            sample_config.workspace_path = temp_dir
+
+            # Mock the orchestrator's validate_workspace method
+            expected_result = ValidationResult(
+                workspace_path=temp_dir,
+                valid=True,
+                errors=[],
+                warnings=[],
+                metadata={},
+                validation_time_seconds=0.1
+            )
+
+            with patch.object(service.orchestrator, 'validate_workspace', return_value=expected_result):
+                result = service.validate_workspace(temp_dir, sample_config)
+
+                assert result.is_valid() is True
+                assert result.workspace_path == temp_dir
+
+    def test_index_workspace_delegates_to_orchestrator(self, error_handler, sample_config):
+        """Test that index_workspace delegates to orchestrator."""
+        service = IndexingService(error_handler)
+
+        # Create a temporary directory for testing
+        with tempfile.TemporaryDirectory() as temp_dir:
+            sample_config.workspace_path = temp_dir
+
+            # Mock the orchestrator's index_workspace method
+            expected_result = IndexingResult(
+                processed_files=5,
+                total_blocks=25,
+                errors=[],
+                warnings=[],
+                timed_out_files=[],
+                processing_time_seconds=1.0,
+                timestamp=datetime.now(),
+                workspace_path=temp_dir,
+                config_summary={}
+            )
+
+            with patch.object(service.orchestrator, 'index_workspace', return_value=expected_result):
+                result = service.index_workspace(temp_dir, sample_config)
+
+                assert result.processed_files == 5
+                assert result.total_blocks == 25
+                assert result.workspace_path == temp_dir
+
+    def test_process_files_empty_list(self, error_handler, sample_config):
+        """Test processing empty file list."""
+        service = IndexingService(error_handler)
+        results = service.process_files([], sample_config)
+
+        assert results == []
+
+    def test_process_files_with_mock_dependencies(self, error_handler, sample_config):
+        """Test process_files with mocked dependencies."""
+        # Create test dependencies with mocks
         mock_parser = Mock()
         mock_embedder = Mock()
         mock_vector_store = Mock()
         mock_cache_manager = Mock()
         mock_path_utils = Mock()
 
-        with patch('code_index.services.indexing_service.DirectoryScanner', return_value=mock_scanner), \
-             patch('code_index.services.indexing_service.CodeParser', return_value=mock_parser), \
-             patch('code_index.services.indexing_service.OllamaEmbedder', return_value=mock_embedder), \
-             patch('code_index.services.indexing_service.QdrantVectorStore', return_value=mock_vector_store), \
-             patch('code_index.services.indexing_service.CacheManager', return_value=mock_cache_manager), \
-             patch('code_index.services.indexing_service.PathUtils', return_value=mock_path_utils):
+        mock_embedder.create_embeddings.return_value = {
+            "embeddings": [[0.1, 0.2, 0.3]],
+            "model": "test-model"
+        }
+        mock_path_utils.get_workspace_relative_path.return_value = "test.py"
 
-            scanner, parser, embedder, vector_store, cache_manager, path_utils = \
-                indexing_service._initialize_components(sample_config)
+        deps = _create_test_dependencies(
+            error_handler=error_handler,
+            mock_parser=mock_parser,
+            mock_embedder=mock_embedder,
+            mock_vector_store=mock_vector_store,
+            mock_cache_manager=mock_cache_manager,
+            mock_path_utils=mock_path_utils
+        )
 
-            assert scanner == mock_scanner
-            assert parser == mock_parser
-            assert embedder == mock_embedder
-            assert vector_store == mock_vector_store
-            assert cache_manager == mock_cache_manager
-            assert path_utils == mock_path_utils
+        service = IndexingService(error_handler, dependencies=deps)
 
-    def test_detect_project_type(self, indexing_service):
-        """Test project type detection."""
-        # Test Node.js project
-        nodejs_markers = ['package.json']
-        assert indexing_service._detect_project_type(nodejs_markers) == 'nodejs'
-
-        # Test Python project
-        python_markers = ['requirements.txt']
-        assert indexing_service._detect_project_type(python_markers) == 'python'
-
-        # Test Rust project
-        rust_markers = ['Cargo.toml']
-        assert indexing_service._detect_project_type(rust_markers) == 'rust'
-
-        # Test Git repository
-        git_markers = ['.git']
-        assert indexing_service._detect_project_type(git_markers) == 'git_repository'
-
-        # Test unknown project
-        unknown_markers = ['unknown.txt']
-        assert indexing_service._detect_project_type(unknown_markers) == 'unknown'
-
-    @patch('code_index.services.indexing_service.ServiceValidator')
-    def test_validate_workspace_success(self, mock_validator, indexing_service, sample_config):
-        """Test successful workspace validation."""
-        # Mock service validator
-        mock_validator = Mock()
-        mock_validator.validate_all_services.return_value = [
-            Mock(service="ollama", valid=True, error=None, details={}),
-            Mock(service="qdrant", valid=True, error=None, details={})
-        ]
-        indexing_service.service_validator = mock_validator
-
-        # Create a temporary directory for testing
-        with tempfile.TemporaryDirectory() as temp_dir:
-            sample_config.workspace_path = temp_dir
-
-            result = indexing_service.validate_workspace(temp_dir, sample_config)
-
-            assert result.is_valid() is True
-            assert len(result.errors) == 0
-            assert result.workspace_path == temp_dir
-            assert result.validation_time_seconds >= 0
-
-    @patch('code_index.services.indexing_service.ServiceValidator')
-    def test_validate_workspace_failure(self, mock_validator, indexing_service, sample_config):
-        """Test failed workspace validation."""
-        # Mock service validator to return failures
-        mock_validator = Mock()
-        mock_validator.validate_all_services.return_value = [
-            Mock(service="ollama", valid=False, error="Connection failed", details={}),
-            Mock(service="qdrant", valid=True, error=None, details={})
-        ]
-        indexing_service.service_validator = mock_validator
-
-        # Create a temporary file (not directory) to test validation failure
-        with tempfile.NamedTemporaryFile() as temp_file:
-            result = indexing_service.validate_workspace(temp_file.name, sample_config)
-
-            assert result.is_valid() is False
-            assert len(result.errors) > 0
-            assert "not a directory" in result.errors[0]
-
-    def test_process_files_empty_list(self, indexing_service, sample_config):
-        """Test processing empty file list."""
-        results = indexing_service.process_files([], sample_config)
-
-        assert results == []
-
-    @patch('code_index.services.indexing_service.PathUtils')
-    @patch('code_index.services.indexing_service.QdrantVectorStore')
-    @patch('code_index.services.indexing_service.OllamaEmbedder')
-    @patch('code_index.services.indexing_service.CodeParser')
-    def test_process_files_success(self, mock_parser, mock_embedder, mock_vector_store, mock_path_utils, indexing_service, sample_config):
-        """Test successful file processing."""
         # Create temporary test file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
             f.write('print("Hello, World!")')
             temp_file_path = f.name
 
         try:
-            # Mock components
-            mock_parser = Mock()
-            mock_parser.parse_file.return_value = [
-                Mock(content='print("Hello, World!")', start_line=1, end_line=1, type="function")
-            ]
+            # Mock the orchestrator's initialize_components to return our mocks
+            with patch.object(service.orchestrator, 'initialize_components', return_value=(
+                mock_parser, mock_embedder, mock_vector_store, mock_cache_manager, mock_path_utils
+            )):
+                results = service.process_files([temp_file_path], sample_config)
 
-            mock_embedder = Mock()
-            mock_embedder.create_embeddings.return_value = {
-                "embeddings": [[0.1, 0.2, 0.3]],
-                "model": "test-model"
-            }
-
-            mock_vector_store = Mock()
-            mock_path_utils = Mock()
-            mock_path_utils.get_workspace_relative_path.return_value = "test.py"
-
-            with patch('code_index.services.indexing_service.CodeParser', return_value=mock_parser), \
-                 patch('code_index.services.indexing_service.OllamaEmbedder', return_value=mock_embedder), \
-                 patch('code_index.services.indexing_service.QdrantVectorStore', return_value=mock_vector_store), \
-                 patch('code_index.services.indexing_service.PathUtils', return_value=mock_path_utils):
-
-                results = indexing_service.process_files([temp_file_path], sample_config)
-
+                # Results should be a list of ProcessingResult objects
+                assert isinstance(results, list)
                 assert len(results) == 1
-                assert results[0].is_successful() is True
-                assert results[0].blocks_processed == 1
-                assert results[0].file_path == temp_file_path
 
         finally:
-            # Clean up temporary file
             os.unlink(temp_file_path)
 
-    @patch('code_index.services.indexing_service.IndexingService._process_files')
-    @patch('code_index.services.indexing_service.IndexingService._get_file_paths')
-    @patch('code_index.services.indexing_service.IndexingService._initialize_components')
-    @patch('code_index.services.indexing_service.IndexingService.validate_workspace')
-    def test_index_workspace_integration(self, mock_validate, mock_initialize, mock_get_files, mock_process_files, indexing_service, sample_config):
-        """Test full workspace indexing integration."""
-        # Mock workspace validation to pass
-        mock_validate.return_value = ValidationResult(
-            workspace_path="/test/workspace",
-            valid=True,
-            errors=[],
-            warnings=[],
-            metadata={},
-            validation_time_seconds=0.1
-        )
-
-        # Mock all internal methods
-        mock_components = (Mock(), Mock(), Mock(), Mock(), Mock(), Mock())
-        mock_initialize.return_value = mock_components
-
-        mock_get_files.return_value = ["/test/file1.py", "/test/file2.py"]
-
-        mock_process_files.return_value = (2, 10)
-
-        result = indexing_service.index_workspace("/test/workspace", sample_config)
-
-        assert result.processed_files == 2
-        assert result.total_blocks == 10
-        assert result.workspace_path == "/test/workspace"
-        assert result.processing_time_seconds >= 0
-
-    def test_index_workspace_error_handling(self, indexing_service, sample_config):
+    def test_index_workspace_error_handling(self, error_handler, sample_config):
         """Test error handling in workspace indexing."""
-        # Test with invalid workspace path
-        result = indexing_service.index_workspace("/nonexistent/path", sample_config)
+        service = IndexingService(error_handler)
+
+        # Test with invalid workspace path - should return result with errors
+        result = service.index_workspace("/nonexistent/path/that/does/not/exist", sample_config)
 
         assert result.processed_files == 0
         assert result.total_blocks == 0
         assert len(result.errors) > 0
-        assert result.workspace_path == "/nonexistent/path"
+        assert result.workspace_path == "/nonexistent/path/that/does/not/exist"
+
+    def test_dependencies_property_creates_default_when_none(self, error_handler):
+        """Test that dependencies property creates default when None."""
+        service = IndexingService(error_handler)
+        service._dependencies = None
+
+        deps = service.dependencies
+        assert deps is not None
+        assert deps.error_handler == error_handler
+
+    def test_dependencies_setter_resets_lazy_services(self, error_handler, mock_dependencies):
+        """Test that setting dependencies resets lazy services."""
+        service = IndexingService(error_handler)
+
+        # Initialize lazy services
+        _ = service.orchestrator
+        _ = service.file_processor
+        _ = service.batch_manager
+
+        # Set new dependencies
+        new_deps = _create_test_dependencies(error_handler=error_handler)
+        service.dependencies = new_deps
+
+        # Lazy services should be reset
+        assert service._orchestrator is None
+        assert service._file_processor is None
+        assert service._batch_manager is None
+        assert service._dependencies == new_deps

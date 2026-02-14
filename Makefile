@@ -21,37 +21,38 @@ install:
 	uv pip install -e .
 
 test:
-	.venv/bin/python -m pytest tests/ -v
+	uv run pytest tests/ -v
 
 clean:
 	rm -rf build/
 	rm -rf dist/
 	rm -rf *.egg-info/
 	find . -type f -name "*.pyc" -delete
-	find . -type d -name "__pycache__" -delete# Temporary change for stashing
+	find . -type d -name "__pycache__" -delete
+
 # Temporary change for stashing
 
 # Binary build targets
 build-cross-platform:
 	@echo "Building binaries for current platform..."
-	python scripts/build/build_cross_platform.py
+	uv run python scripts/build/build_cross_platform.py
 
 build-binaries:
 	@echo "Building both CLI and MCP binaries..."
-	python scripts/build/build_binaries.py
+	uv run python scripts/build/build_binaries.py
 
 build-cli:
 	@echo "Building CLI binary only..."
-	python scripts/build/build_cli.py
+	uv run python scripts/build/build_cli.py
 
 build-mcp:
 	@echo "Building MCP server binary only..."
-	python scripts/build/build_mcp.py
+	uv run python scripts/build/build_mcp.py
 
 build-windows:
 	@echo "Building Windows binaries..."
 	@if [ -f "scripts/build/build_windows.py" ]; then \
-		python scripts/build/build_windows.py; \
+		uv run python scripts/build/build_windows.py; \
 	else \
 		echo "Error: build_windows.py not found. Please create the Windows build script first."; \
 		exit 1; \
@@ -60,7 +61,7 @@ build-windows:
 build-macos:
 	@echo "Building macOS binaries (interactive architecture selection)..."
 	@if [ -f "scripts/build/build_macos.py" ]; then \
-		python scripts/build/build_macos.py; \
+		uv run python scripts/build/build_macos.py; \
 	else \
 		echo "Error: build_macos.py not found. Please create the macOS build script first."; \
 		exit 1; \
@@ -69,7 +70,7 @@ build-macos:
 build-macos-universal:
 	@echo "Building macOS universal binaries (Intel + Apple Silicon)..."
 	@if [ -f "scripts/build/build_macos.py" ]; then \
-		python scripts/build/build_macos.py --universal; \
+		uv run python scripts/build/build_macos.py --universal; \
 	else \
 		echo "Error: build_macos.py not found. Please create the macOS build script first."; \
 		exit 1; \

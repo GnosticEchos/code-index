@@ -8,6 +8,7 @@ from fastmcp import Context
 from ...services.command_context import CommandContext
 from ...services.config_overrides import build_search_overrides
 _command_context_factory: Optional[Callable[[], CommandContext]] = None
+_default_config_path: Optional[str] = None
 
 
 def set_command_context_factory(factory: Optional[Callable[[], CommandContext]]) -> None:
@@ -16,9 +17,21 @@ def set_command_context_factory(factory: Optional[Callable[[], CommandContext]])
     _command_context_factory = factory
 
 
+def set_default_config_path(config_path: Optional[str]) -> None:
+    """Set default config path for MCP server usage."""
+    global _default_config_path
+    _default_config_path = config_path
+
+
 def _get_command_context() -> CommandContext:
     factory = _command_context_factory or CommandContext
     return factory()
+
+
+def _resolve_config_path(workspace_path: str) -> str:
+    if _default_config_path:
+        return _default_config_path
+    return os.path.join(workspace_path, "code_index.json")
 
 
 logger = logging.getLogger(__name__)
@@ -127,7 +140,7 @@ async def search(
 
         logger.info(f"Starting search for query: '{query}' in workspace: {workspace_path}")
 
-        config_path = os.path.join(workspace_path, "code_index.json")
+        config_path = _resolve_config_path(workspace_path)
         overrides = build_search_overrides(min_score=min_score, max_results=max_results)
 
         command_context = _get_command_context()

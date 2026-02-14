@@ -109,8 +109,8 @@ class ConfigurationService:
             # Apply environment variable overrides
             config = self._apply_environment_overrides(config)
 
-            # Apply workspace-specific configuration
-            config = self._apply_workspace_config(config, workspace_path)
+            # Apply workspace-specific configuration (skip if explicit non-default config)
+            config = self._apply_workspace_config(config, workspace_path, explicit_config_path=config_path)
 
             # Apply CLI overrides if provided
             if overrides:
@@ -179,9 +179,35 @@ class ConfigurationService:
             self.logger.warning(f"Error applying environment overrides: {e}")
             return config
 
-    def _apply_workspace_config(self, config: Config, workspace_path: str) -> Config:
-        """Apply workspace-specific configuration overrides."""
+    def _apply_workspace_config(self, config: Config, workspace_path: str, explicit_config_path: Optional[str] = None) -> Config:
+        """Apply workspace-specific configuration overrides.
+
+        Args:
+            config: Base configuration to apply overrides to
+            workspace_path: Path to the workspace directory
+            explicit_config_path: Optional path to explicitly specified config file.
+                                 If provided and differs from default workspace config,
+                                 workspace overrides will be skipped.
+
+        Returns:
+            Configuration with workspace overrides applied (or skipped if explicit config)
+        """
         try:
+            # If user explicitly specified a config file, check if it's different from
+            # the default workspace config. If so, skip workspace overrides to respect
+            # the user's explicit configuration choice.
+            if explicit_config_path:
+                explicit_path = Path(explicit_config_path).resolve()
+                workspace_path_obj = Path(workspace_path).resolve()
+                default_workspace_config = workspace_path_obj / "code_index.json"
+                
+                # Skip workspace overrides if explicit config differs from default
+                if explicit_path != default_workspace_config.resolve():
+                    self.logger.debug(
+                        f"Skipping workspace config overrides - using explicit config: {explicit_config_path}"
+                    )
+                    return config
+            
             # Look for workspace-specific config files
             workspace_config_files = [
                 os.path.join(workspace_path, ".code_index.json"),
@@ -307,6 +333,9 @@ class ConfigurationService:
             "exclude_files_path",
             "max_file_size_bytes",
             "batch_segment_threshold",
+            "search_cache_enabled",
+            "search_cache_max_entries",
+            "search_cache_ttl_seconds",
         }
 
         if key not in allowed_keys or not hasattr(config, key):
@@ -315,9 +344,10 @@ class ConfigurationService:
 
         path_keys = {"timeout_log_path", "ignore_config_path", "exclude_files_path"}
         bool_keys = {"use_tree_sitter", "auto_ignore_detection", "tree_sitter_skip_test_files", "use_mmap_file_reading"}
-        int_keys = {"embed_timeout_seconds", "search_max_results", "max_file_size_bytes", "batch_segment_threshold"}
+        int_keys = {"embed_timeout_seconds", "search_max_results", "max_file_size_bytes", "batch_segment_threshold", "search_cache_max_entries"}
         float_keys = {"search_min_score"}
         url_keys = {"ollama_base_url", "qdrant_url"}
+        optional_int_keys = {"search_cache_ttl_seconds"}
 
         try:
             parsed_value = value
@@ -345,6 +375,14 @@ class ConfigurationService:
                 parsed_value = float(parsed_value)
                 if not 0 <= parsed_value <= 1:
                     raise ValueError("search_min_score must be between 0 and 1")
+
+            elif key in optional_int_keys:
+                if parsed_value in (None, "", "null"):
+                    parsed_value = None
+                else:
+                    parsed_value = int(parsed_value)
+                    if parsed_value <= 0:
+                        raise ValueError("search_cache_ttl_seconds must be positive")
 
             elif key in url_keys:
                 if not isinstance(parsed_value, str):

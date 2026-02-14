@@ -388,6 +388,7 @@ def search(workspace: str, config: str, min_score: float, max_results: int, json
 
     if json_output:
         output = []
+        preview_chars = getattr(deps.config, "search_snippet_preview_chars", 500)
         for match in result.matches:
             output.append({
                 "filePath": match.file_path,
@@ -396,14 +397,26 @@ def search(workspace: str, config: str, min_score: float, max_results: int, json
                 "type": match.match_type,
                 "score": match.score,
                 "adjustedScore": match.adjusted_score,
-                "snippet": match.code_chunk[:160].replace("\n", " "),  # Preview first 160 chars
+                "snippet": match.code_chunk[:preview_chars].replace("\n", "\\n") if len(match.code_chunk) > preview_chars else match.code_chunk.replace("\n", "\\n"),
             })
         print(json.dumps(output, indent=2, ensure_ascii=False))
         return
 
     print(f"Found {result.total_found} results:")
+    preview_chars = getattr(deps.config, "search_snippet_preview_chars", 500)
     for i, match in enumerate(result.matches, 1):
         print(f"\n{i}. Score: {match.score:.3f} (adj {match.adjusted_score:.3f})")
         print(f"   File: {match.file_path}:{match.start_line}-{match.end_line}")
-        print(f"   Preview: {match.code_chunk[:160].replace('\n', ' ')}...")
+        # Show more content - first few lines or up to preview_chars
+        code_lines = match.code_chunk.split('\n')
+        if len(code_lines) <= 5:
+            # Show all if 5 lines or fewer
+            preview = match.code_chunk
+        else:
+            # Show first 5 lines with indication of more
+            preview = '\n'.join(code_lines[:5]) + f"\n... ({len(code_lines) - 5} more lines)"
+        # Truncate if still too long
+        if len(preview) > preview_chars:
+            preview = preview[:preview_chars] + "..."
+        print(f"   Preview:\n{preview}")
 

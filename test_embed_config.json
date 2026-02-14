@@ -1,0 +1,8 @@
+{
+  "ollama_base_url": "http://localhost:11434",
+  "ollama_model": "nomic-embed-text:latest",
+  "qdrant_url": "http://localhost:6333",
+  "embedding_length": 768,
+  "chunking_strategy": "treesitter",
+  "use_tree_sitter": true
+}

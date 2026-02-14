@@ -198,6 +198,7 @@ class TreeSitterConfig:
     tree_sitter_min_block_chars_default: int = field(default_factory=lambda: _env_int("TREE_SITTER_MIN_BLOCK_CHARS_DEFAULT", 30))
     tree_sitter_min_block_chars: Optional[int] = None
     tree_sitter_min_block_chars_overrides: Dict[str, int] = field(default_factory=dict)
+    tree_sitter_max_block_chars: int = field(default_factory=lambda: _env_int("TREE_SITTER_MAX_BLOCK_CHARS", 6000))
     tree_sitter_max_blocks_per_file: int = 100
     tree_sitter_max_functions_per_file: int = 50
     tree_sitter_max_classes_per_file: int = 20
@@ -216,7 +217,10 @@ class SearchConfig:
     search_path_boosts: List[Dict[str, Any]] = field(default_factory=_default_search_path_boosts)
     search_language_boosts: Dict[str, float] = field(default_factory=_default_search_language_boosts)
     search_exclude_patterns: List[str] = field(default_factory=list)
-    search_snippet_preview_chars: int = 160
+    search_snippet_preview_chars: int = 500
+    search_cache_enabled: bool = False
+    search_cache_max_entries: int = 128
+    search_cache_ttl_seconds: Optional[int] = None
 
 
 @dataclass
@@ -303,6 +307,7 @@ class Config:
         "tree_sitter_min_block_chars_default": ("tree_sitter", "tree_sitter_min_block_chars_default"),
         "tree_sitter_min_block_chars": ("tree_sitter", "tree_sitter_min_block_chars"),
         "tree_sitter_min_block_chars_overrides": ("tree_sitter", "tree_sitter_min_block_chars_overrides"),
+        "tree_sitter_max_block_chars": ("tree_sitter", "tree_sitter_max_block_chars"),
         "tree_sitter_max_blocks_per_file": ("tree_sitter", "tree_sitter_max_blocks_per_file"),
         "tree_sitter_max_functions_per_file": ("tree_sitter", "tree_sitter_max_functions_per_file"),
         "tree_sitter_max_classes_per_file": ("tree_sitter", "tree_sitter_max_classes_per_file"),
@@ -319,6 +324,9 @@ class Config:
         "search_language_boosts": ("search", "search_language_boosts"),
         "search_exclude_patterns": ("search", "search_exclude_patterns"),
         "search_snippet_preview_chars": ("search", "search_snippet_preview_chars"),
+        "search_cache_enabled": ("search", "search_cache_enabled"),
+        "search_cache_max_entries": ("search", "search_cache_max_entries"),
+        "search_cache_ttl_seconds": ("search", "search_cache_ttl_seconds"),
         # Performance
         "use_mmap_file_reading": ("performance", "use_mmap_file_reading"),
         "mmap_min_file_size_bytes": ("performance", "mmap_min_file_size_bytes"),
@@ -436,6 +444,10 @@ class Config:
         data = self.to_dict()
         with open(config_path, "w", encoding="utf-8") as handle:
             json.dump(data, handle, indent=2)
+
+    def to_json(self, *, nested: bool = False, indent: Optional[int] = 2) -> str:
+        data = self.to_nested_dict() if nested else self.to_dict()
+        return json.dumps(data, indent=indent)
 
     def __str__(self) -> str:
         return (

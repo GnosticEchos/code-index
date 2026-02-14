@@ -149,13 +149,13 @@ enum Operation {
             
             try:
                 # Test file processing eligibility
-                should_process = chunking_strategy._should_process_file_for_treesitter(file_path)
+                should_process = chunking_strategy.coordinator.should_process_file(file_path)
                 print(f"Should process: {should_process}")
                 
                 if should_process:
                     # Test chunking
                     file_hash = "test_hash_" + filename
-                    blocks = chunking_strategy._chunk_text_treesitter(code, file_path, file_hash)
+                    blocks = chunking_strategy.coordinator.chunk_text(code, file_path, file_hash)
                     
                     print(f"Found {len(blocks)} semantic blocks:")
                     for i, block in enumerate(blocks):

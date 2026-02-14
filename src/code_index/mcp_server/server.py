@@ -216,11 +216,29 @@ class CodeIndexMCPServer:
 
     
     def _register_tools(self) -> None:
-        """Register MCP tools with the server."""
-        from .tools.index_tool import index, create_index_tool_description
-        from .tools.search_tool import search, create_search_tool_description
-        from .tools.collections_tool import collections, create_collections_tool_description
+        """Register MCP tools with the server and configure shared settings."""
+        from .tools.index_tool import (
+            index,
+            create_index_tool_description,
+            set_default_config_path as set_index_tool_config_path,
+        )
+        from .tools.search_tool import (
+            search,
+            create_search_tool_description,
+            set_default_config_path as set_search_tool_config_path,
+        )
+        from .tools.collections_tool import (
+            collections,
+            create_collections_tool_description,
+            set_default_config_path as set_collections_tool_config_path,
+        )
         import inspect
+
+        # Share explicit config path with MCP tools so they don't infer per-workspace JSON
+        set_index_tool_config_path(self.config_path_abs)
+        set_search_tool_config_path(self.config_path_abs)
+        set_collections_tool_config_path(self.config_path_abs)
+
         
         # Register tools with proper async handling to avoid coroutine warnings
         # FastMCP expects async functions to be registered directly
@@ -293,9 +311,9 @@ class CodeIndexMCPServer:
             self.logger.warning(f"Failed to register service connections for cleanup: {e}")
 
 
-async def main() -> None:
+async def main(config_path: str = "code_index.json") -> None:
     """Main entry point for the MCP server."""
-    server = CodeIndexMCPServer()
+    server = CodeIndexMCPServer(config_path=config_path)
     try:
         await server.start()
     except KeyboardInterrupt:
@@ -305,9 +323,10 @@ async def main() -> None:
         sys.exit(1)
     finally:
         await server.shutdown()
-def sync_main() -> None:
+
+def sync_main(config_path: str = "code_index.json") -> None:
     """Synchronous entry point for console script."""
-    asyncio.run(main())
+    asyncio.run(main(config_path=config_path))
 
 
 if __name__ == "__main__":

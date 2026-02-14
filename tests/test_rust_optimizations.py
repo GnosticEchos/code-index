@@ -32,20 +32,20 @@ def test_rust_file_processing():
         test_rust_file = "/home/james/kanban_frontend/kanban_api/src/auth/db/queries.rs"
         
         # Check if file should be processed
-        should_process = chunker._should_process_file_for_treesitter(test_rust_file)
+        should_process = chunker.coordinator.should_process_file(test_rust_file)
         print(f"Should process {test_rust_file}: {should_process}")
         
         if should_process:
             # Get language key
-            language_key = chunker._get_language_key_for_path(test_rust_file)
+            language_key = chunker.coordinator.get_language_key(test_rust_file)
             print(f"Language key: {language_key}")
             
             # Test queries
-            queries = chunker._get_queries_for_language(language_key)
+            queries = chunker.coordinator.get_queries_for_language(language_key)
             print(f"Rust queries available: {bool(queries)}")
             
             # Test node types
-            node_types = chunker._get_node_types_for_language(language_key)
+            node_types = chunker.coordinator.get_node_types_for_language(language_key)
             print(f"Rust node types: {node_types}")
             
         # Rust file processing test passed

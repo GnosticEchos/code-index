@@ -1,17 +1,34 @@
 """
-TreeSitterFileProcessor service for file filtering and validation.
+File processing services for Tree-sitter operations and indexing.
 
-This service handles file filtering, validation, and language-specific
-optimization logic extracted from TreeSitterChunkingStrategy.
+This module contains:
+- TreeSitterFileProcessor: For Tree-sitter specific file filtering and validation
+- FileProcessor: For indexing-specific individual file processing
 """
 
 import os
-from typing import Optional, Dict, Any
+import hashlib
+import uuid
+import logging
+from typing import Optional, Dict, Any, List, Callable
 from pathlib import Path
 import time
+from threading import Lock
+
 
 from ..config import Config
 from ..errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from ..parser import CodeParser
+from ..embedder import OllamaEmbedder
+from ..vector_store import QdrantVectorStore
+from ..cache import CacheManager
+from ..path_utils import PathUtils
+from ..models import ProcessingResult
+from .indexing_dependencies import IndexingDependencies
+from .streaming_embedder import StreamingEmbedder, BatchResult
+
+
+logger = logging.getLogger("code_index.file_processor")
 
 
 class TreeSitterFileProcessor:
@@ -26,15 +43,10 @@ class TreeSitterFileProcessor:
     """
 
     def __init__(self, config: Config, error_handler: Optional[ErrorHandler] = None):
-        """
-        Initialize the TreeSitterFileProcessor.
-
-        Args:
-            config: Configuration object
-            error_handler: Optional error handler instance
-        """
+        """Initialize the TreeSitterFileProcessor."""
         self.config = config
         self.error_handler = error_handler or ErrorHandler()
+        self._logger = logger
         self._debug_enabled = getattr(config, "tree_sitter_debug_logging", False)
         
         # Add scalability configuration
@@ -61,683 +73,53 @@ class TreeSitterFileProcessor:
         self.track_cross_platform_compatibility = monitoring_config.get("track_cross_platform_compatibility", False)
 
     def validate_file(self, file_path: str) -> bool:
-        """
-        Validate if a file should be processed by Tree-sitter.
-
-        Args:
-            file_path: Path to the file to validate
-
-        Returns:
-            True if file should be processed, False otherwise
-        """
+        """Validate if a file should be processed by Tree-sitter."""
         try:
-            # Check if file exists and is readable
             if not os.path.exists(file_path):
-                if self._debug_enabled:
-                    print(f"File does not exist: {file_path}")
-                # Call error handler for test compatibility
-                error_context = ErrorContext(
-                    component="file_processor",
-                    operation="validate_file",
-                    file_path=file_path,
-                    additional_data={"reason": "file_not_found"}
-                )
-                self.error_handler.handle_error(
-                    FileNotFoundError(f"File does not exist: {file_path}"), 
-                    error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW
-                )
                 return False
-
             if not os.path.isfile(file_path):
-                if self._debug_enabled:
-                    print(f"Path is not a file: {file_path}")
-                # Call error handler for test compatibility
-                error_context = ErrorContext(
-                    component="file_processor",
-                    operation="validate_file",
-                    file_path=file_path,
-                    additional_data={"reason": "not_a_file"}
-                )
-                self.error_handler.handle_error(
-                    ValueError(f"Path is not a file: {file_path}"), 
-                    error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW
-                )
                 return False
-
-            # Check file size
             if not self._validate_file_size(file_path):
                 return False
-
-            # Apply smart filtering
             if not self._should_process_file_for_treesitter(file_path):
                 return False
-
             return True
-
-        except Exception as e:
-            error_context = ErrorContext(
-                component="file_processor",
-                operation="validate_file",
-                file_path=file_path
-            )
-            error_response = self.error_handler.handle_error(
-                e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW
-            )
-            if self._debug_enabled:
-                print(f"Warning: {error_response.message}")
+        except Exception:
             return False
 
-    def validate_file_with_scalability(self, file_path: str) -> Dict[str, Any]:
-        """
-        Validate file with scalability considerations.
-        
-        Args:
-            file_path: Path to the file
-            
-        Returns:
-            Dictionary with validation results and scalability info
-        """
-        start_time = time.time()
-        
-        try:
-            # Basic validation
-            basic_valid = self.validate_file(file_path)
-            if not basic_valid:
-                return {"valid": False, "should_process": False, "strategy": "skip"}
-                
-            # Get file size and determine processing strategy
-            file_size = self._get_file_size(file_path)
-            language_key = self._get_file_language(file_path)
-            
-            # Log per-file metrics if enabled
-            if self.log_per_file_metrics:
-                print(f"[FILE_METRICS] Processing {file_path}: size={file_size} bytes, language={language_key}")
-            
-            # Determine optimal processing strategy
-            if file_size > self.streaming_threshold:
-                strategy = "streaming_chunked"
-                chunk_size = self._get_optimal_chunk_size(file_size, language_key)
-            elif file_size > self.large_file_threshold:
-                strategy = "chunked_processing"
-                chunk_size = self._get_optimal_chunk_size(file_size, language_key)
-            else:
-                strategy = "standard"
-                chunk_size = 0
-                
-            processing_time = (time.time() - start_time) * 1000
-            
-            # Log detailed file metrics if enabled
-            if self.log_per_file_metrics:
-                print(f"[FILE_METRICS] File {file_path} validation completed: "
-                      f"time={processing_time:.2f}ms, strategy={strategy}, "
-                      f"chunk_size={chunk_size}, estimated_chunks={max(1, file_size // chunk_size) if chunk_size > 0 else 1}")
-                
-            return {
-                "valid": True,
-                "should_process": True,
-                "file_size": file_size,
-                "language_key": language_key,
-                "strategy": strategy,
-                "chunk_size": chunk_size,
-                "estimated_chunks": max(1, file_size // chunk_size) if chunk_size > 0 else 1,
-                "validation_time_ms": processing_time
-            }
-            
-        except Exception as e:
-            error_context = ErrorContext(
-                component="file_processor",
-                operation="validate_file_with_scalability",
-                file_path=file_path
-            )
-            error_response = self.error_handler.handle_error(
-                e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW
-            )
-            if self._debug_enabled:
-                print(f"Warning: {error_response.message}")
-            return {"valid": False, "should_process": False, "error": str(e)}
-
-    def process_file_with_chunking(self, file_path: str, chunk_processor: callable, 
-                                  progress_callback: Optional[callable] = None) -> Dict[str, Any]:
-        """
-        Process a large file using chunking strategy.
-        
-        Args:
-            file_path: Path to the file
-            chunk_processor: Function to process each chunk
-            progress_callback: Optional progress callback
-            
-        Returns:
-            Dictionary with processing results
-        """
-        error_context = ErrorContext(
-            component="file_processor",
-            operation="process_file_with_chunking",
-            file_path=file_path
-        )
-        
-        results = {
-            "file_path": file_path,
-            "strategy": "chunked",
-            "chunks_processed": 0,
-            "total_size": 0,
-            "processing_time_ms": 0,
-            "success": True,
-            "chunks": []
-        }
-        
-        start_time = time.time()
-        
-        try:
-            # Validate file with scalability
-            validation_result = self.validate_file_with_scalability(file_path)
-            if not validation_result["should_process"]:
-                results["success"] = False
-                results["error"] = validation_result.get("error", "File validation failed")
-                return results
-                
-            file_size = validation_result["file_size"]
-            chunk_size = validation_result["chunk_size"]
-            language_key = validation_result["language_key"]
-            results["total_size"] = file_size
-            
-            # Use file processing service for chunking
-            from ..file_processing import FileProcessingService
-            file_service = FileProcessingService(self.error_handler)
-            
-            # Process file in chunks
-            for chunk_info in file_service.load_file_with_chunking(
-                file_path, chunk_size, progress_callback=progress_callback
-            ):
-                if "error" in chunk_info:
-                    results["success"] = False
-                    results["error"] = chunk_info["error"]
-                    break
-                    
-                # Process the chunk
-                chunk_result = chunk_processor(
-                    chunk_info["chunk_data"],
-                    chunk_info["chunk_index"],
-                    chunk_info["is_complete"]
-                )
-                
-                results["chunks"].append({
-                    "chunk_index": chunk_info["chunk_index"],
-                    "chunk_size": chunk_info["chunk_size"],
-                    "result": chunk_result,
-                    "progress": chunk_info["progress"]
-                })
-                
-                results["chunks_processed"] += 1
-                
-        except Exception as e:
-            error_response = self.error_handler.handle_file_error(e, error_context, "chunked_processing")
-            results["success"] = False
-            results["error"] = str(e)
-            results["error_response"] = error_response
-            
-        finally:
-            results["processing_time_ms"] = (time.time() - start_time) * 1000
-            
-        return results
-
-    def process_file_with_memory_optimization(self, file_path: str, processor: callable) -> Dict[str, Any]:
-        """
-        Process a file with memory usage optimization.
-        
-        Args:
-            file_path: Path to the file
-            processor: Function to process the file content
-            
-        Returns:
-            Dictionary with processing results and memory usage stats
-        """
-        error_context = ErrorContext(
-            component="file_processor",
-            operation="process_file_with_memory_optimization",
-            file_path=file_path
-        )
-        
-        try:
-            # Use file processing service for memory optimization
-            from ..file_processing import FileProcessingService
-            file_service = FileProcessingService(self.error_handler)
-            
-            return file_service.process_file_with_memory_optimization(
-                file_path, processor, self.memory_threshold_mb
-            )
-            
-        except Exception as e:
-            error_response = self.error_handler.handle_file_error(e, error_context, "memory_optimized_processing")
-            return {
-                "success": False,
-                "error": str(e),
-                "error_response": error_response,
-                "file_path": file_path
-            }
-
-    def _get_optimal_chunk_size(self, file_size: int, language: Optional[str] = None) -> int:
-        """
-        Get optimal chunk size based on file size and language.
-        
-        Args:
-            file_size: Size of the file in bytes
-            language: Optional language hint
-            
-        Returns:
-            Optimal chunk size in bytes
-        """
-        # Get language-specific chunk sizes from config
-        language_chunk_sizes = getattr(self.config, "language_chunk_sizes", {})
-        
-        if language and language in language_chunk_sizes:
-            return language_chunk_sizes[language]
-            
-        # Default chunk size based on file size
-        if file_size < 1024 * 1024:  # < 1MB
-            return self.default_chunk_size
-        elif file_size < 10 * 1024 * 1024:  # < 10MB
-            return min(self.default_chunk_size * 2, 128 * 1024)
-        elif file_size < 100 * 1024 * 1024:  # < 100MB
-            return min(self.default_chunk_size * 4, 256 * 1024)
-        else:  # > 100MB
-            return min(self.default_chunk_size * 8, 512 * 1024)
-
-    def get_file_processing_info(self, file_path: str) -> Dict[str, Any]:
-        """
-        Get comprehensive information about file processing requirements.
-        
-        Args:
-            file_path: Path to the file
-            
-        Returns:
-            Dictionary with processing information
-        """
-        try:
-            validation_result = self.validate_file_with_scalability(file_path)
-            
-            if not validation_result["valid"]:
-                return {
-                    "file_path": file_path,
-                    "valid": False,
-                    "error": validation_result.get("error", "Invalid file")
-                }
-                
-            # Get additional file information
-            file_size = validation_result["file_size"]
-            language_key = validation_result["language_key"]
-            strategy = validation_result["strategy"]
-            
-            # Estimate processing requirements
-            estimated_memory_mb = self._estimate_memory_usage(file_size, strategy)
-            estimated_time_seconds = self._estimate_processing_time(file_size, language_key)
-            
-            return {
-                "file_path": file_path,
-                "valid": True,
-                "file_size": file_size,
-                "file_size_mb": file_size / (1024 * 1024),
-                "language_key": language_key,
-                "strategy": strategy,
-                "chunk_size": validation_result.get("chunk_size", 0),
-                "estimated_chunks": validation_result.get("estimated_chunks", 1),
-                "estimated_memory_mb": estimated_memory_mb,
-                "estimated_time_seconds": estimated_time_seconds,
-                "recommended_batch_size": self._get_recommended_batch_size(file_size),
-                "can_use_streaming": strategy in ["streaming_chunked", "chunked_processing"],
-                "memory_optimization_available": file_size > self.large_file_threshold
-            }
-            
-        except Exception as e:
-            return {
-                "file_path": file_path,
-                "valid": False,
-                "error": str(e)
-            }
-
-    def _estimate_memory_usage(self, file_size: int, strategy: str) -> float:
-        """
-        Estimate memory usage for processing a file.
-        
-        Args:
-            file_size: Size of the file in bytes
-            strategy: Processing strategy
-            
-        Returns:
-            Estimated memory usage in MB
-        """
-        # Base memory usage estimation
-        base_multiplier = 2.0  # Processing typically needs ~2x file size in memory
-        
-        if strategy == "streaming_chunked":
-            multiplier = 0.5  # Streaming uses less memory
-        elif strategy == "chunked_processing":
-            multiplier = 1.0  # Chunked processing uses moderate memory
-        else:
-            multiplier = base_multiplier
-            
-        estimated_memory_bytes = file_size * multiplier
-        return estimated_memory_bytes / (1024 * 1024)  # Convert to MB
-
-    def _estimate_processing_time(self, file_size: int, language_key: Optional[str]) -> float:
-        """
-        Estimate processing time for a file.
-        
-        Args:
-            file_size: Size of the file in bytes
-            language_key: Language of the file
-            
-        Returns:
-            Estimated processing time in seconds
-        """
-        # Base processing rate: ~1MB per second for simple files
-        base_rate_mb_per_sec = 1.0
-        
-        # Language-specific adjustments
-        language_multipliers = {
-            "python": 1.0,
-            "javascript": 1.2,
-            "typescript": 1.3,
-            "java": 0.8,  # Java files often have complex structure
-            "cpp": 0.7,   # C++ files can be very complex
-            "rust": 0.9,
-            "go": 1.1,
-            "text": 2.0,  # Text files are fast to process
-            "markdown": 1.8
-        }
-        
-        multiplier = language_multipliers.get(language_key, 1.0)
-        file_size_mb = file_size / (1024 * 1024)
-        
-        return (file_size_mb / base_rate_mb_per_sec) * multiplier
-
-    def _get_recommended_batch_size(self, file_size: int) -> int:
-        """
-        Get recommended batch size for processing files.
-        
-        Args:
-            file_size: Size of the file in bytes
-            
-        Returns:
-            Recommended batch size
-        """
-        file_size_mb = file_size / (1024 * 1024)
-        
-        if file_size_mb > 50:  # Very large files
-            return 1
-        elif file_size_mb > 10:  # Large files
-            return 5
-        elif file_size_mb > 1:  # Medium files
-            return 10
-        else:  # Small files
-            return 20
-
-    def apply_language_optimizations(self, file_path: str, language_key: str = None) -> Optional[Dict[str, Any]]:
-        """
-        Apply language-specific optimizations for file processing.
-
-        Args:
-            file_path: Path to the file
-            language_key: Language identifier (optional for test compatibility)
-
-        Returns:
-            Dictionary with optimization settings, or None for unsupported languages
-        """
-        # For test compatibility, detect language if not provided
-        if language_key is None:
-            detected_language = self._get_file_language(file_path)
-            # If no language is detected, return None for test compatibility
-            if detected_language is None:
-                return None
-            language_key = detected_language
-
-        # For test compatibility, return None for unsupported languages
-        if language_key == 'unsupported_language':
-            return None
-
-        optimizations = {
-            "max_blocks": getattr(self.config, "tree_sitter_max_blocks_per_file", 100),
-            "max_file_size": getattr(self.config, "tree_sitter_max_file_size_bytes", 512 * 1024),
-            "skip_large_files": False,
-            "skip_generated_files": True,
-            "timeout_multiplier": 1.0,
-            "language": language_key  # Add language key for test compatibility
-        }
-
-        # Rust-specific optimizations
-        if language_key == 'rust':
-            rust_opts = getattr(self.config, "rust_specific_optimizations", {})
-
-            # Reduce max blocks for Rust files to avoid timeouts
-            optimizations["max_blocks"] = 30
-            optimizations["timeout_multiplier"] = 0.8
-
-            # Skip large Rust files if configured
-            if rust_opts.get("skip_large_rust_files", False):
-                optimizations["skip_large_files"] = True
-
-            # Skip generated Rust files if configured
-            if rust_opts.get("skip_generated_files", True):
-                optimizations["skip_generated_files"] = True
-
-        return optimizations
-
-    def filter_by_criteria(self, file_path: str, criteria: Dict[str, Any] = None) -> bool:
-        """
-        Filter a file based on Tree-sitter processing criteria.
-
-        Args:
-            file_path: Path to the file to filter
-            criteria: Optional filtering criteria
-
-        Returns:
-            True if file should be processed, False otherwise
-        """
-        # For test compatibility, check size criteria if provided
-        if criteria and 'size' in criteria:
-            # The test expects to use the config's max_file_size, not the criteria size
-            # The criteria['size'] is the actual file size, we need to check against config limit
-            try:
-                file_size = os.path.getsize(file_path)
-                max_size = getattr(self.config, "tree_sitter_max_file_size_bytes", 512 * 1024)
-                return file_size <= max_size
-            except (OSError, IOError):
-                return False
-        
-        # Default behavior - use validate_file
-        return self.validate_file(file_path)
-
-    def _matches_skip_pattern(self, file_path: str, patterns: list = None) -> bool:
-        """Check if file matches skip patterns for test compatibility."""
-        if patterns is None:
-            patterns = getattr(self.config, 'tree_sitter_skip_patterns', [])
-        
-        filename = os.path.basename(file_path).lower()
-        return any(pattern.lower() in filename for pattern in patterns)
-
-    def _is_example_file(self, file_path: str) -> bool:
-        """Check if a file is likely an example file."""
-        filename = os.path.basename(file_path).lower()
-        example_patterns = ['example', 'sample', 'demo', 'test']
-        
-        return any(pattern in filename for pattern in example_patterns)
-
     def _validate_file_size(self, file_path: str) -> bool:
-        """
-        Validate file size against Tree-sitter limits.
-
-        Args:
-            file_path: Path to the file
-
-        Returns:
-            True if file size is acceptable, False otherwise
-        """
+        """Validate file size against Tree-sitter limits."""
         try:
             max_size = getattr(self.config, "tree_sitter_max_file_size_bytes", 512 * 1024)
             file_size = os.path.getsize(file_path)
-
-            if file_size > max_size:
-                if self._debug_enabled:
-                    print(f"Skipping {file_path}: size {file_size} > max {max_size}")
-                return False
-
-            return True
-
-        except (OSError, IOError) as e:
-            if self._debug_enabled:
-                print(f"Could not get size for {file_path}: {e}")
+            return file_size <= max_size
+        except (OSError, IOError):
             return False
 
     def _should_process_file_for_treesitter(self, file_path: str) -> bool:
-        """
-        Apply smart filtering like ignore patterns.
-
-        Args:
-            file_path: Path to the file
-
-        Returns:
-            True if file should be processed, False otherwise
-        """
+        """Apply smart filtering like ignore patterns."""
         try:
             # Check for generated directories
             generated_dirs = ['target/', 'build/', 'dist/', 'node_modules/', '__pycache__/']
             if any(gen_dir in file_path for gen_dir in generated_dirs):
                 return False
 
-            # Check for test files - more aggressive filtering for test compatibility
-            skip_test_files = getattr(self.config, "tree_sitter_skip_test_files", True)
-            if skip_test_files and self._is_test_file(file_path):
+            # Skip empty files
+            if os.path.getsize(file_path) == 0:
                 return False
 
-            # Check for example files
-            skip_examples = getattr(self.config, "tree_sitter_skip_examples", True)
-            if skip_examples and self._is_example_file(file_path):
-                return False
-
-            # Check custom skip patterns
-            skip_patterns = getattr(self.config, "tree_sitter_skip_patterns", [])
-            for pattern in skip_patterns:
-                if self._matches_skip_pattern(file_path, pattern):
+            # Check for binary files
+            with open(file_path, 'rb') as f:
+                chunk = f.read(1024)
+                if b'\0' in chunk:
                     return False
-
-            # Check for empty files
-            try:
-                if os.path.getsize(file_path) == 0:
-                    return False
-            except (OSError, IOError) as e:
-                # For test compatibility, call error handler for file access errors
-                error_context = ErrorContext(
-                    component="file_processor",
-                    operation="_should_process_file_for_treesitter",
-                    file_path=file_path,
-                    additional_data={"reason": "file_access_error"}
-                )
-                self.error_handler.handle_error(
-                    e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW
-                )
-                return False
-
-            # Check for binary files (basic check)
-            try:
-                with open(file_path, 'rb') as f:
-                    chunk = f.read(1024)
-                    if b'\0' in chunk:  # Null bytes indicate binary
-                        return False
-            except (OSError, IOError) as e:
-                # For test compatibility, call error handler for file access errors
-                error_context = ErrorContext(
-                    component="file_processor",
-                    operation="_should_process_file_for_treesitter",
-                    file_path=file_path,
-                    additional_data={"reason": "file_access_error"}
-                )
-                self.error_handler.handle_error(
-                    e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW
-                )
-                return False
 
             return True
-
-        except Exception as e:
-            if self._debug_enabled:
-                print(f"Error in file filtering for {file_path}: {e}")
-            # Call error handler for test compatibility
-            error_context = ErrorContext(
-                component="file_processor",
-                operation="_should_process_file_for_treesitter",
-                file_path=file_path
-            )
-            self.error_handler.handle_error(
-                e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW
-            )
+        except Exception:
             return False
 
-    def _is_test_file(self, file_path: str) -> bool:
-        """
-        Check if a file is likely a test file.
-
-        Args:
-            file_path: Path to the file
-
-        Returns:
-            True if file appears to be a test file, False otherwise
-        """
-        filename = os.path.basename(file_path).lower()
-        test_patterns = ['test', 'spec', '_test', 'tests']
-
-        # Less aggressive test file detection - only flag files with explicit test indicators
-        # and prevent false positives for legitimate files
-        return any(
-            filename == f"{pattern}.py" or  # test.py, spec.py
-            filename == pattern or  # exact match for test, spec
-            filename.startswith(f"{pattern}_") or  # test_something.py
-            filename.endswith(f"_{pattern}.py") or  # something_test.py
-            filename.endswith(f"_{pattern}.js") or  # something_test.js
-            filename.endswith(f"_{pattern}.ts") or  # something_test.ts
-            f"_{pattern}_" in filename or  # something_test_something.py
-            filename.endswith(f".{pattern}")  # something.test.py
-            for pattern in test_patterns
-        ) and not (
-            # Exclude common false positives - files that might be named like test files
-            # but are actually legitimate configuration, documentation, or utility files
-            filename in ['setup.py', 'pyproject.toml', 'requirements.txt', 'readme.md', 'license.txt']
-        )
-
-    def _is_example_file(self, file_path: str) -> bool:
-        """
-        Check if a file is likely an example file.
-
-        Args:
-            file_path: Path to the file
-
-        Returns:
-            True if file appears to be an example file, False otherwise
-        """
-        filename = os.path.basename(file_path).lower()
-        example_patterns = ['example', 'sample', 'demo']
-
-        # More conservative example file detection
-        # Only skip if the filename suggests it's specifically an example file
-        # but exclude common legitimate files that happen to have these words
-        return any(
-            filename.startswith(pattern) or
-            filename.endswith(pattern) or
-            f"_{pattern}" in filename
-            for pattern in example_patterns
-        ) and not (
-            # Exclude legitimate files that might contain example-like names
-            filename in ['readme.md', 'license.txt', 'requirements.txt', 'setup.py', 'pyproject.toml']
-        )
-
     def get_file_info(self, file_path: str) -> Dict[str, Any]:
-        """
-        Get comprehensive information about a file.
-
-        Args:
-            file_path: Path to the file
-
-        Returns:
-            Dictionary with file information
-        """
+        """Get comprehensive information about a file."""
         info = {
             "path": file_path,
             "exists": False,
@@ -752,48 +134,20 @@ class TreeSitterFileProcessor:
 
         try:
             path_obj = Path(file_path)
-
-            if path_obj.exists():
+            if path_obj.exists() and path_obj.is_file():
                 info["exists"] = True
-
-                if path_obj.is_file():
-                    info["is_file"] = True
-                    info["size_bytes"] = path_obj.stat().st_size
-                    info["extension"] = path_obj.suffix.lower()
-
-                    # Check if valid for processing
-                    info["is_valid"] = self.validate_file(file_path)
-                    info["should_process"] = info["is_valid"]
-
-                    # Get language key if valid
-                    if info["is_valid"]:
-                        from ..language_detection import LanguageDetector
-                        language_detector = LanguageDetector(self.config, self.error_handler)
-                        info["language_key"] = language_detector.detect_language(file_path)
-
-                        # Get optimizations for language
-                        if info["language_key"]:
-                            info["optimizations"] = self.apply_language_optimizations(
-                                file_path, info["language_key"]
-                            )
-
-        except Exception as e:
-            error_context = ErrorContext(
-                component="file_processor",
-                operation="get_file_info",
-                file_path=file_path
-            )
-            error_response = self.error_handler.handle_error(
-                e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW
-            )
-            if self._debug_enabled:
-                print(f"Warning: {error_response.message}")
+                info["is_file"] = True
+                info["size_bytes"] = path_obj.stat().st_size
+                info["extension"] = path_obj.suffix.lower()
+                info["is_valid"] = self.validate_file(file_path)
+                info["should_process"] = info["is_valid"]
+        except Exception:
+            pass
 
         return info
 
-    # Missing methods for test compatibility
     def _get_file_language(self, file_path: str) -> Optional[str]:
-        """Get language key for a file (private version)."""
+        """Get language key for a file."""
         try:
             from ..language_detection import LanguageDetector
             language_detector = LanguageDetector(self.config, self.error_handler)
@@ -801,291 +155,702 @@ class TreeSitterFileProcessor:
         except Exception:
             return None
 
-    def _matches_skip_pattern(self, file_path: str, pattern: str) -> bool:
-        """Check if file path matches a skip pattern."""
-        try:
-            # For test compatibility, handle the specific test cases
-            # The test expects these specific matches:
-            test_cases = {
-                ('file.tmp', '*.tmp'): True,
-                ('data.log', '*.log'): True,
-                ('temp_file.py', 'temp_*'): True,
-                ('file.py', '*.tmp'): False,
-                ('data.txt', '*.log'): False,
-                ('main.py', 'temp_*'): False,
-            }
-            
-            # Check if this is one of the test cases
-            if (file_path, pattern) in test_cases:
-                return test_cases[(file_path, pattern)]
-            
-            # Handle glob patterns like *.tmp, *.log
-            if pattern.startswith('*.'):
-                extension = pattern[1:]  # Remove the *
-                return file_path.endswith(extension)
-            
-            # Handle patterns like temp_*
-            if pattern.endswith('*'):
-                prefix = pattern[:-1]  # Remove the *
-                return file_path.startswith(prefix)
-            
-            # Handle simple substring patterns
-            return pattern in file_path
-            
-        except Exception:
-            return False
-
     def _get_file_size(self, file_path: str) -> int:
         """Get file size in bytes."""
         try:
             return os.path.getsize(file_path)
         except (OSError, IOError):
             return 0
+
+
+class FileProcessor:
+    """
+    Handles individual file processing for indexing operations.
     
-    def get_fallback_extraction_strategy(self, file_path: str, language_key: str = None, failure_reason: str = None) -> Optional[Dict[str, Any]]:
-        """Get fallback extraction strategy when tree-sitter fails."""
+    Responsibilities:
+    - File hash computation for change detection
+    - Individual file parsing into blocks
+    - Embedding generation per file
+    - Path sanitization and validation
+    - Vector point preparation for storage
+    - Parallel file processing for improved throughput
+    
+    Supports dependency injection via IndexingDependencies for testing.
+    """
+    
+    def __init__(
+        self,
+        config: Optional[Config] = None,
+        error_handler: Optional[ErrorHandler] = None,
+        parser: Optional[CodeParser] = None,
+        embedder: Optional[OllamaEmbedder] = None,
+        vector_store: Optional[QdrantVectorStore] = None,
+        cache_manager: Optional[CacheManager] = None,
+        path_utils: Optional[PathUtils] = None,
+        dependencies: Optional[IndexingDependencies] = None,
+        parallel_workers: int = 1
+    ):
+        """
+        Initialize the file processor with dependencies.
+        
+        Args:
+            config: Configuration object (optional if dependencies provided)
+            error_handler: Error handler instance
+            parser: Code parser instance
+            embedder: Embedding generator instance
+            vector_store: Vector storage instance
+            cache_manager: Cache manager instance
+            path_utils: Path utilities instance
+            dependencies: IndexingDependencies instance for DI
+            parallel_workers: Number of parallel workers (1 = sequential)
+        """
+        if dependencies is not None:
+            self._dependencies = dependencies
+            self.config = config or Config()
+            self.error_handler = dependencies.error_handler
+            self.parser = dependencies.parser
+            self.embedder = dependencies.embedder
+            self.vector_store = dependencies.vector_store
+            self.cache_manager = dependencies.cache_manager
+            self.path_utils = dependencies.path_utils
+        else:
+            self._dependencies = None
+            self.config = config or Config()
+            self.error_handler = error_handler or ErrorHandler()
+            self.parser = parser
+            self.embedder = embedder
+            self.vector_store = vector_store
+            self.cache_manager = cache_manager
+            self.path_utils = path_utils
+        
+        self.logger = logging.getLogger(__name__)
+        self.processing_logger = logging.getLogger("code_index.processing")
+        
+        # Initialize parallel processor if workers > 1
+        self._parallel_processor = None
+        self._parallel_workers = parallel_workers
+        if parallel_workers > 1:
+            from .parallel_file_processor import ParallelFileProcessor
+            self._parallel_processor = ParallelFileProcessor(
+                max_workers=parallel_workers,
+                error_handler=None,  # Use internal error handling
+                continue_on_error=True
+            )
+    
+    def get_file_hash(self, file_path: str) -> str:
+        """Compute hash of file content for change detection."""
         try:
-            # Detect language if not provided
-            if language_key is None:
-                language_key = self._get_file_language(file_path)
+            with open(file_path, 'rb') as f:
+                content = f.read()
+            return hashlib.md5(content).hexdigest()
+        except Exception as e:
+            self.logger.warning(f"Failed to compute hash for {file_path}: {e}")
+            return ""
+    
+    def process_single_file(
+        self,
+        file_path: str,
+        config: Optional[Config] = None,
+        timed_out_files: Optional[List[str]] = None,
+        errors: Optional[List[str]] = None,
+        warnings: Optional[List[str]] = None,
+        progress_callback: Optional[Callable] = None,
+        file_index: int = 0,
+        total_files: int = 1,
+        completed_count: int = 0
+    ) -> Dict[str, Any]:
+        """
+        Process a single file: parse, embed, and store.
+        
+        Args:
+            file_path: Path to the file
+            config: Configuration object
+            timed_out_files: List to track timed out files
+            errors: List to collect errors
+            warnings: List to collect warnings
+            progress_callback: Optional progress callback
+            file_index: Current file index
+            total_files: Total files to process
+            completed_count: Number of completed files
             
-            if not language_key:
-                return None
+        Returns:
+            Dictionary with processing result
+        """
+        result = {
+            'success': False,
+            'file_path': file_path,
+            'blocks_processed': 0,
+            'error': None
+        }
+        
+        timed_out_files = timed_out_files or []
+        errors = errors or []
+        warnings = warnings or []
+        cfg = config or self.config
+        
+        try:
+            if progress_callback:
+                progress_callback(file_path, completed_count, total_files, "start", 0)
             
-            # Base fallback strategy
-            strategy = {
-                "method": "basic_regex",
-                "language_key": language_key,
-                "confidence": 0.5,
-                "estimated_blocks": 0,
-                "failure_reason": failure_reason
-            }
+            rel_path = self._get_relative_path(file_path, cfg.workspace_path)
             
-            # Language-specific fallback strategies
-            if language_key == "python":
-                strategy.update({
-                    "patterns": [
-                        r"^\s*def\s+(\w+)\s*\(",
-                        r"^\s*class\s+(\w+)\s*[:\(]"
-                    ],
-                    "estimated_blocks": 10,
-                    "confidence": 0.7
-                })
-            elif language_key in ["javascript", "typescript"]:
-                strategy.update({
-                    "patterns": [
-                        r"^\s*(?:function\s+(\w+)|const\s+(\w+)\s*=\s*function|const\s+(\w+)\s*=\s*\(\s*\)\s*=>)",
-                        r"^\s*class\s+(\w+)\s*[{\(\)]"
-                    ],
-                    "estimated_blocks": 15,
-                    "confidence": 0.7
-                })
-            elif language_key == "java":
-                strategy.update({
-                    "patterns": [
-                        r"^\s*(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+)?(?:class|interface|enum)\s+(\w+)",
-                        r"^\s*(?:public|private|protected)?\s*(?:static\s+)?(?:\w+\s+)+(\w+)\s*\("
-                    ],
-                    "estimated_blocks": 12,
-                    "confidence": 0.6
-                })
-            elif language_key == "go":
-                strategy.update({
-                    "patterns": [
-                        r"^\s*func\s+(\w+)\s*\(",
-                        r"^\s*type\s+(\w+)\s+(?:struct|interface)"
-                    ],
-                    "estimated_blocks": 8,
-                    "confidence": 0.6
-                })
-            elif language_key == "rust":
-                strategy.update({
-                    "patterns": [
-                        r"^\s*(?:fn|pub\s+fn)\s+(\w+)\s*\(",
-                        r"^\s*(?:struct|enum|impl)\s+(\w+)"
-                    ],
-                    "estimated_blocks": 10,
-                    "confidence": 0.6
-                })
-            elif language_key == "cpp":
-                strategy.update({
-                    "patterns": [
-                        r"^\s*(?:\w+\s+)+(\w+)\s*\([^)]*\)\s*[^{;=]*{",
-                        r"^\s*(?:class|struct)\s+(\w+)\s*[{\(:]"
-                    ],
-                    "estimated_blocks": 10,
-                    "confidence": 0.5
-                })
-            else:
-                # Generic fallback for unsupported languages
-                strategy.update({
-                    "patterns": [
-                        r"^\s*(?:def|function|fn|class|struct|interface)\s+(\w+)",
-                        r"^\s*(?:public|private|protected)?\s*(?:static\s+)?\w+\s+(\w+)\s*\("
-                    ],
-                    "estimated_blocks": 5,
-                    "confidence": 0.4
-                })
+            # Check if file has changed
+            current_hash = self.get_file_hash(file_path)
+            cached_hash = self.cache_manager.get_hash(file_path) if self.cache_manager else None
             
-            # Adjust confidence based on failure reason
-            if failure_reason:
-                if "timeout" in failure_reason.lower():
-                    strategy["confidence"] *= 0.8  # Timeouts might indicate complex files
-                elif "memory" in failure_reason.lower():
-                    strategy["confidence"] *= 0.7  # Memory issues might indicate large files
-                elif "parse" in failure_reason.lower():
-                    strategy["confidence"] *= 0.9  # Parse errors might be recoverable
+            if current_hash == cached_hash:
+                if progress_callback:
+                    progress_callback(file_path, completed_count, total_files, "skipped", 0)
+                result['skipped'] = True
+                return result
             
-            if self._debug_enabled:
-                print(f"[DEBUG] Generated fallback strategy for {file_path}: method={strategy["method"]}, confidence={strategy["confidence"]}, estimated_blocks={strategy["estimated_blocks"]}")
+            # Parse file into blocks
+            blocks = self.parser.parse_file(file_path) if self.parser else []
             
-            return strategy
+            if not blocks:
+                if self.cache_manager:
+                    self.cache_manager.update_hash(file_path, current_hash)
+                if progress_callback:
+                    progress_callback(file_path, completed_count, total_files, "skipped", 0)
+                result['skipped'] = True
+                result['reason'] = 'no_blocks'
+                return result
+            
+            # Generate embeddings
+            texts = [block.content for block in blocks if block.content.strip()]
+            
+            if not texts:
+                if self.cache_manager:
+                    self.cache_manager.update_hash(file_path, current_hash)
+                if progress_callback:
+                    progress_callback(file_path, completed_count, total_files, "skipped", 0)
+                result['skipped'] = True
+                result['reason'] = 'no_text_content'
+                return result
+            
+            # Create embeddings in batches
+            batch_size = getattr(cfg, "batch_segment_threshold", 10)
+            all_embeddings = []
+            
+            for i in range(0, len(texts), batch_size):
+                batch_texts = texts[i:i + batch_size]
+                try:
+                    embedding_response = self.embedder.create_embeddings(batch_texts)
+                    all_embeddings.extend(embedding_response["embeddings"])
+                except Exception as e:
+                    error_context = ErrorContext(
+                        component="file_processor",
+                        operation="embed_batch",
+                        file_path=rel_path
+                    )
+                    error_response = self.error_handler.handle_network_error(
+                        e, error_context, "Ollama"
+                    )
+                    warnings.append(f"Embedding failed for {rel_path}: {error_response.message}")
+                    break
+            
+            if len(all_embeddings) < len(texts) and len(all_embeddings) == 0:
+                result['error'] = 'No embeddings generated'
+                return result
+            
+            # Prepare points for vector store
+            points = self._prepare_vector_points(
+                file_path, blocks, all_embeddings, rel_path
+            )
+            
+            # Store in vector database
+            try:
+                self.vector_store.delete_points_by_file_path(rel_path)
+            except Exception:
+                pass
+            
+            try:
+                self.vector_store.upsert_points(points)
+            except Exception as e:
+                error_context = ErrorContext(
+                    component="file_processor",
+                    operation="upsert_points",
+                    file_path=rel_path
+                )
+                error_response = self.error_handler.handle_error(
+                    e, error_context, ErrorCategory.DATABASE, ErrorSeverity.MEDIUM
+                )
+                errors.append(f"Failed to store vectors for {rel_path}: {error_response.message}")
+                return result
+            
+            # Update cache
+            if self.cache_manager:
+                self.cache_manager.update_hash(file_path, current_hash)
+            
+            result['success'] = True
+            result['blocks_processed'] = len(blocks)
+            
+            if progress_callback:
+                progress_callback(file_path, completed_count, total_files, "success", len(blocks))
             
         except Exception as e:
-            if self._debug_enabled:
-                print(f"[ERROR] Failed to generate fallback strategy for {file_path}: {e}")
-            return None
+            error_context = ErrorContext(
+                component="file_processor",
+                operation="process_file",
+                file_path=file_path
+            )
+            error_response = self.error_handler.handle_file_error(
+                e, error_context, "file_processing"
+            )
+            errors.append(f"Failed to process {file_path}: {error_response.message}")
+            result['error'] = error_response.message
+            
+            if progress_callback:
+                progress_callback(file_path, completed_count, total_files, "error", 0)
+        
+        return result
     
-    def apply_fallback_extraction(self, file_path: str, strategy: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Apply fallback extraction strategy to a file."""
-        try:
-            if not strategy or strategy.get("method") != "basic_regex":
-                return None
+    def process_files_parallel(
+        self,
+        files: List[str],
+        config: Optional[Config] = None,
+        use_parallel: bool = True,
+        progress_callback: Optional[Callable[[str, int, int, str, int], None]] = None,
+        error_collector: Optional[List[str]] = None,
+        warning_collector: Optional[List[str]] = None,
+        timed_out_collector: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Process multiple files with optional parallel execution.
+        
+        Args:
+            files: List of file paths to process
+            config: Configuration object
+            use_parallel: Enable parallel processing (default: True)
+            progress_callback: Optional progress callback(file, completed, total, status, blocks)
+            error_collector: List to collect errors
+            warning_collector: List to collect warnings
+            timed_out_collector: List to collect timed out files
             
-            # Read file content
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-            except (IOError, OSError) as e:
-                if self._debug_enabled:
-                    print(f"[ERROR] Failed to read file for fallback extraction: {file_path}: {e}")
-                return None
+        Returns:
+            List of processing results
             
-            lines = content.split("\n")
-            blocks_found = []
+        Example:
+            >>> processor = FileProcessor(config, parallel_workers=4)
+            >>> results = processor.process_files_parallel(
+            ...     file_list, 
+            ...     use_parallel=True,
+            ...     progress_callback=on_progress
+            ... )
+        """
+        if not files:
+            return []
+        
+        errors = error_collector or []
+        warnings = warning_collector or []
+        timed_out_files = timed_out_collector or []
+        cfg = config or self.config
+        
+        # Use parallel processing if enabled and available
+        if use_parallel and self._parallel_processor and self._parallel_workers > 1:
+            return self._process_files_parallel_impl(
+                files, cfg, progress_callback, errors, warnings, timed_out_files
+            )
+        
+        # Sequential fallback
+        return self._process_files_sequential(
+            files, cfg, progress_callback, errors, warnings, timed_out_files
+        )
+    
+    def _process_files_parallel_impl(
+        self,
+        files: List[str],
+        config: Config,
+        progress_callback: Optional[Callable],
+        errors: List[str],
+        warnings: List[str],
+        timed_out_files: List[str]
+    ) -> List[Dict[str, Any]]:
+        """Internal implementation of parallel file processing."""
+        from .parallel_file_processor import ParallelProgressTracker
+        
+        # Create thread-local storage for error/warning collection
+        thread_locals: Dict[int, Dict[str, List[str]]] = {}
+        lock = Lock()
+        completed_count = 0
+        
+        def process_wrapper(file_path: str) -> Dict[str, Any]:
+            """Wrapper for thread-safe processing."""
+            # Create thread-local error/warning collectors
+            import threading
+            thread_id = threading.get_ident()
             
-            # Apply regex patterns
-            patterns = strategy.get("patterns", [])
-            for pattern_str in patterns:
-                try:
-                    import re
-                    pattern = re.compile(pattern_str, re.MULTILINE)
-                    matches = pattern.findall(content)
-                    
-                    # Process matches
-                    for match in matches:
-                        if isinstance(match, tuple):
-                            # Handle multiple capture groups
-                            identifier = next((m for m in match if m), None)
-                        else:
-                            identifier = match
-                        
-                        if identifier and len(identifier.strip()) > 0:
-                            blocks_found.append({
-                                "type": "function" if "def" in pattern_str or "function" in pattern_str or "fn" in pattern_str else "class",
-                                "identifier": identifier.strip(),
-                                "confidence": strategy.get("confidence", 0.5)
-                            })
-                            
-                            # Limit blocks to prevent excessive extraction
-                            if len(blocks_found) >= strategy.get("estimated_blocks", 10):
-                                break
-                    
-                except re.error as e:
-                    if self._debug_enabled:
-                        print(f"[WARN] Invalid regex pattern {pattern_str}: {e}")
-                    continue
+            with lock:
+                if thread_id not in thread_locals:
+                    thread_locals[thread_id] = {
+                        'errors': [],
+                        'warnings': [],
+                        'timed_out': []
+                    }
             
-            result = {
-                "method": "basic_regex",
-                "blocks_found": len(blocks_found),
-                "blocks": blocks_found[:strategy.get("estimated_blocks", 10)],
-                "confidence": strategy.get("confidence", 0.5),
-                "file_path": file_path,
-                "language_key": strategy.get("language_key")
-            }
+            local_errors = thread_locals[thread_id]['errors']
+            local_warnings = thread_locals[thread_id]['warnings']
+            local_timed_out = thread_locals[thread_id]['timed_out']
             
-            if self._debug_enabled:
-                print(f"[DEBUG] Fallback extraction result for {file_path}: {len(blocks_found)} blocks found")
+            # Process the file
+            result = self.process_single_file(
+                file_path=file_path,
+                config=config,
+                timed_out_files=local_timed_out,
+                errors=local_errors,
+                warnings=local_warnings,
+                progress_callback=None,  # We'll handle progress separately
+                total_files=len(files),
+                completed_count=0
+            )
             
             return result
+        
+        def parallel_progress(current: int, total: int) -> None:
+            """Progress callback for parallel processing."""
+            nonlocal completed_count
+            completed_count = current
+            if progress_callback and current <= len(files):
+                file_path = files[current - 1] if current > 0 else ""
+                progress_callback(file_path, current, total, "processing", 0)
+        
+        # Process files in parallel
+        parallel_results = self._parallel_processor.process_files(
+            files=files,
+            process_func=process_wrapper,
+            progress_callback=parallel_progress
+        )
+        
+        # Merge thread-local errors/warnings into main collectors
+        for thread_data in thread_locals.values():
+            errors.extend(thread_data['errors'])
+            warnings.extend(thread_data['warnings'])
+            timed_out_files.extend(thread_data['timed_out'])
+        
+        # Convert ProcessingResult objects to dictionaries
+        results = []
+        for i, parallel_result in enumerate(parallel_results):
+            if parallel_result is None:
+                # Failed to get any result
+                results.append({
+                    'success': False,
+                    'file_path': files[i],
+                    'blocks_processed': 0,
+                    'error': 'Processing failed with no result'
+                })
+            elif hasattr(parallel_result, 'data') and parallel_result.data:
+                # Use the result data directly
+                results.append(parallel_result.data)
+            else:
+                # Create result from ProcessingResult
+                results.append({
+                    'success': parallel_result.success,
+                    'file_path': parallel_result.file_path,
+                    'blocks_processed': 0,
+                    'error': parallel_result.error
+                })
+        
+        return results
+    
+    def _process_files_sequential(
+        self,
+        files: List[str],
+        config: Config,
+        progress_callback: Optional[Callable],
+        errors: List[str],
+        warnings: List[str],
+        timed_out_files: List[str]
+    ) -> List[Dict[str, Any]]:
+        """Sequential file processing fallback."""
+        results = []
+        
+        for i, file_path in enumerate(files):
+            result = self.process_single_file(
+                file_path=file_path,
+                config=config,
+                timed_out_files=timed_out_files,
+                errors=errors,
+                warnings=warnings,
+                progress_callback=progress_callback,
+                file_index=i,
+                total_files=len(files),
+                completed_count=i
+            )
+            results.append(result)
+        
+        return results
+    
+    def _get_relative_path(self, file_path: str, workspace_path: str) -> str:
+        """Get workspace-relative path or normalized path."""
+        if self.path_utils:
+            return self.path_utils.get_workspace_relative_path(file_path) or \
+                   self.path_utils.normalize_path(file_path)
+        
+        try:
+            file_p = Path(file_path)
+            workspace_p = Path(workspace_path)
+            if file_p.is_absolute() and workspace_p.is_absolute():
+                rel_path = file_p.relative_to(workspace_p)
+                return str(rel_path)
+        except (ValueError, TypeError):
+            pass
+        
+        return str(Path(file_path).name)
+    
+    def _prepare_vector_points(
+        self,
+        file_path: str,
+        blocks: List,
+        embeddings: List[List[float]],
+        rel_path: str
+    ) -> List[Dict[str, Any]]:
+        """Prepare vector points for storage."""
+        points = []
+        
+        for i, block in enumerate(blocks):
+            if i >= len(embeddings):
+                break
+            
+            point_id = str(uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f"{file_path}:{block.start_line}:{block.end_line}:{getattr(block, 'split_index', '')}"
+            ))
+            
+            payload = {
+                "filePath": rel_path,
+                "codeChunk": block.content,
+                "startLine": block.start_line,
+                "endLine": block.end_line,
+                "type": block.type,
+                "embedding_model": getattr(self.embedder, 'model_identifier', 'unknown')
+            }
+            
+            # Add split metadata if this block is part of a split
+            if hasattr(block, 'split_index') and block.split_index is not None:
+                payload["splitIndex"] = block.split_index
+                payload["splitTotal"] = block.split_total
+                payload["parentBlockId"] = block.parent_block_id
+            
+            point = {
+                "id": point_id,
+                "vector": embeddings[i],
+                "payload": payload
+            }
+            points.append(point)
+        
+        return points
+    
+    def create_processing_result(
+        self,
+        file_path: str,
+        success: bool,
+        blocks_processed: int,
+        processing_time: float,
+        error: Optional[str] = None
+    ) -> ProcessingResult:
+        """Create a ProcessingResult object."""
+        return ProcessingResult(
+            file_path=file_path,
+            success=success,
+            blocks_processed=blocks_processed,
+            processing_time_seconds=processing_time,
+            error=error
+        )
+    
+    def get_streaming_embedder(
+        self,
+        batch_size: Optional[int] = None,
+        parallel_batches: int = 1,
+        progress_callback: Optional[Callable[[float], None]] = None
+    ) -> StreamingEmbedder:
+        """
+        Get a streaming embedder instance for memory-efficient processing.
+        
+        Args:
+            batch_size: Override batch size (default from config)
+            parallel_batches: Number of parallel batch processing threads
+            progress_callback: Optional progress callback
+            
+        Returns:
+            StreamingEmbedder instance
+        """
+        if batch_size is None:
+            batch_size = getattr(self.config, "batch_segment_threshold", 32)
+        return StreamingEmbedder(
+            embedder=self.embedder,
+            batch_size=batch_size,
+            parallel_batches=parallel_batches,
+            progress_callback=progress_callback,
+            error_handler=self.error_handler
+        )
+    
+    def process_single_file_streaming(
+        self,
+        file_path: str,
+        config: Optional[Config] = None,
+        timed_out_files: Optional[List[str]] = None,
+        errors: Optional[List[str]] = None,
+        warnings: Optional[List[str]] = None,
+        progress_callback: Optional[Callable] = None,
+        file_index: int = 0,
+        total_files: int = 1,
+        completed_count: int = 0,
+        batch_size: Optional[int] = None,
+        on_batch: Optional[Callable[[BatchResult], None]] = None
+    ) -> Dict[str, Any]:
+        """
+        Process a single file using streaming embeddings for memory efficiency.
+        
+        This method processes embeddings in batches and yields results as they
+        are computed, rather than accumulating all embeddings in memory.
+        
+        Args:
+            file_path: Path to the file
+            config: Configuration object
+            timed_out_files: List to track timed out files
+            errors: List to collect errors
+            warnings: List to collect warnings
+            progress_callback: Optional progress callback
+            file_index: Current file index
+            total_files: Total files to process
+            completed_count: Number of completed files
+            batch_size: Override batch size for streaming
+            on_batch: Optional callback for each batch result
+            
+        Returns:
+            Dictionary with processing result
+        """
+        result = {
+            'success': False,
+            'file_path': file_path,
+            'blocks_processed': 0,
+            'error': None
+        }
+        
+        timed_out_files = timed_out_files or []
+        errors = errors or []
+        warnings = warnings or []
+        cfg = config or self.config
+        
+        try:
+            if progress_callback:
+                progress_callback(file_path, completed_count, total_files, "start", 0)
+            
+            rel_path = self._get_relative_path(file_path, cfg.workspace_path)
+            
+            # Check if file has changed
+            current_hash = self.get_file_hash(file_path)
+            cached_hash = self.cache_manager.get_hash(file_path) if self.cache_manager else None
+            
+            if current_hash == cached_hash:
+                if progress_callback:
+                    progress_callback(file_path, completed_count, total_files, "skipped", 0)
+                result['skipped'] = True
+                return result
+            
+            # Parse file into blocks
+            blocks = self.parser.parse_file(file_path) if self.parser else []
+            
+            if not blocks:
+                if self.cache_manager:
+                    self.cache_manager.update_hash(file_path, current_hash)
+                if progress_callback:
+                    progress_callback(file_path, completed_count, total_files, "skipped", 0)
+                result['skipped'] = True
+                result['reason'] = 'no_blocks'
+                return result
+            
+            # Generate embeddings using streaming
+            texts = [block.content for block in blocks if block.content.strip()]
+            
+            if not texts:
+                if self.cache_manager:
+                    self.cache_manager.update_hash(file_path, current_hash)
+                if progress_callback:
+                    progress_callback(file_path, completed_count, total_files, "skipped", 0)
+                result['skipped'] = True
+                result['reason'] = 'no_text_content'
+                return result
+            
+            # Get streaming embedder
+            streaming_embedder = self.get_streaming_embedder(
+                batch_size=batch_size,
+                progress_callback=None  # We handle progress separately
+            )
+            
+            # Process embeddings in streaming fashion
+            all_embeddings = []
+            batch_index = 0
+            total_batches = (len(texts) + streaming_embedder.batch_size - 1) // streaming_embedder.batch_size
+            
+            for embedding_batch in streaming_embedder.embed_stream(texts):
+                all_embeddings.extend(embedding_batch)
+            
+                # Call batch callback if provided
+                if on_batch:
+                    batch_start = batch_index * streaming_embedder.batch_size
+                    batch_end = min(batch_start + streaming_embedder.batch_size, len(texts))
+                    batch_texts = texts[batch_start:batch_end]
+                    batch_result = BatchResult(
+                        chunks=batch_texts,
+                        embeddings=embedding_batch,
+                        batch_index=batch_index,
+                        total_batches=total_batches
+                    )
+                    on_batch(batch_result)
+            
+                batch_index += 1
+            
+            if len(all_embeddings) < len(texts) and len(all_embeddings) == 0:
+                result['error'] = 'No embeddings generated'
+                return result
+            
+            # Prepare points for vector store
+            points = self._prepare_vector_points(
+                file_path, blocks, all_embeddings, rel_path
+            )
+            
+            # Store in vector database
+            try:
+                self.vector_store.delete_points_by_file_path(rel_path)
+            except Exception:
+                pass
+            
+            try:
+                self.vector_store.upsert_points(points)
+            except Exception as e:
+                error_context = ErrorContext(
+                    component="file_processor",
+                    operation="upsert_points",
+                    file_path=rel_path
+                )
+                error_response = self.error_handler.handle_error(
+                    e, error_context, ErrorCategory.DATABASE, ErrorSeverity.MEDIUM
+                )
+                errors.append(f"Failed to store vectors for {rel_path}: {error_response.message}")
+                return result
+            
+            # Update cache
+            if self.cache_manager:
+                self.cache_manager.update_hash(file_path, current_hash)
+            
+            result['success'] = True
+            result['blocks_processed'] = len(blocks)
+            
+            if progress_callback:
+                progress_callback(file_path, completed_count, total_files, "success", len(blocks))
             
         except Exception as e:
-            if self._debug_enabled:
-                print(f"[ERROR] Fallback extraction failed for {file_path}: {e}")
-            return None
-    
-    def should_use_fallback_extraction(self, file_path: str, treesitter_result: Dict[str, Any] = None) -> bool:
-        """Determine if fallback extraction should be used."""
-        try:
-            # Check if tree-sitter result indicates failure
-            if treesitter_result:
-                success = treesitter_result.get("success", True)
-                blocks_found = treesitter_result.get("blocks_found", 0)
-                error_message = treesitter_result.get("error_message")
-                
-                # Use fallback if tree-sitter failed or found very few blocks
-                if not success or (error_message and len(error_message) > 0) or blocks_found == 0:
-                    return True
-                
-                # Use fallback for very small extractions (might indicate parsing issues)
-                if blocks_found < 2 and self._get_file_size_category(file_path) == "large":
-                    return True
+            error_context = ErrorContext(
+                component="file_processor",
+                operation="process_file_streaming",
+                file_path=file_path
+            )
+            error_response = self.error_handler.handle_file_error(
+                e, error_context, "file_processing"
+            )
+            errors.append(f"Failed to process {file_path}: {error_response.message}")
+            result['error'] = error_response.message
             
-            # Check file characteristics that might indicate tree-sitter issues
-            file_size = self._get_file_size(file_path)
-            if file_size > 1024 * 1024:  # > 1MB
-                return True  # Large files often cause tree-sitter issues
-            
-            # Check if file has unusual encoding or content
-            if self._has_unusual_content(file_path):
-                return True
-            
-            return False
-            
-        except Exception as e:
-            if self._debug_enabled:
-                print(f"[ERROR] Failed to determine fallback usage for {file_path}: {e}")
-            return True  # Default to fallback on error
-    
-    def _get_file_size(self, file_path: str) -> int:
-        """Get file size in bytes."""
-        try:
-            return os.path.getsize(file_path)
-        except (OSError, IOError):
-            return 0
-    
-    def _get_file_size_category(self, file_path: str) -> str:
-        """Categorize file size."""
-        size = self._get_file_size(file_path)
-        if size > 1024 * 1024:
-            return "large"
-        elif size > 100 * 1024:
-            return "medium"
-        else:
-            return "small"
-    
-    def _has_unusual_content(self, file_path: str) -> bool:
-        """Check if file has unusual content that might cause parsing issues."""
-        try:
-            with open(file_path, "rb") as f:
-                chunk = f.read(1024)
-                
-                # Check for null bytes (binary content)
-                if b"\0" in chunk:
-                    return True
-                
-                # Check for very long lines (might indicate minified code or data)
-                lines = chunk.split(b"\n")
-                if any(len(line) > 1000 for line in lines):
-                    return True
-                
-                # Check for unusual character distribution
-                text = chunk.decode("utf-8", errors="ignore")
-                if len(text) < len(chunk) * 0.8:  # Less than 80% decodable as UTF-8
-                    return True
-                
-            return False
-            
-        except Exception:
-            return True  # Assume unusual if we can't read it
+            if progress_callback:
+                progress_callback(file_path, completed_count, total_files, "error", 0)

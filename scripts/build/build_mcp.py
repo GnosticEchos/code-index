@@ -9,9 +9,13 @@ import os
 
 def build_mcp_binary():
     """Build the MCP server binary using Nuitka."""
+    # Get absolute path to venv python to avoid symlink issues
+    venv_python = os.path.abspath(".venv/bin/python")
+    
     cmd = [
-        "python", "-m", "nuitka",
+        venv_python, "-m", "nuitka",
         "--onefile",  # Create a single executable file
+        f"--python-for-scons={venv_python}",  # Use absolute path
         "--assume-yes-for-downloads",  # Auto-download dependencies
         "--output-filename=code-index-mcp",
         "--output-dir=dist",
@@ -23,9 +27,6 @@ def build_mcp_binary():
         "--include-package=pygments",
         "--include-package=qdrant_client",
         "--include-package=fastmcp",
-        "--include-data-dir=.venv/lib/python3.13/site-packages/tree_sitter_yaml/queries=code_index/tree_sitter_queries",
-        "--include-data-dir=.venv/lib/python3.13/site-packages/tree_sitter_c-sharp/queries=code_index/tree_sitter_queries",
-        "--include-data-dir=.venv/lib/python3.13/site-packages/tree_sitter_embedded_template/queries=code_index/tree_sitter_queries",
         # Exclude test files and unwanted modules
         "--nofollow-import-to=pytest",
         "--nofollow-import-to=setuptools",
@@ -36,6 +37,7 @@ def build_mcp_binary():
         "--nofollow-import-to=*.tests",
         # Performance optimizations
         "--clang",  # Use Clang for better performance
+        "--lto=no",  # Disable LTO to avoid _Py_TriggerGC linker errors with Python 3.14
         "src/bin/mcp_entry.py"
     ]
 
@@ -50,5 +52,4 @@ def build_mcp_binary():
         sys.exit(1)
 
 if __name__ == "__main__":
-    build_mcp_binary()# Temporary change for stashing
-# Temporary change for stashing
+    build_mcp_binary()

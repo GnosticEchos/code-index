@@ -36,6 +36,13 @@ def mock_config():
     config.tree_sitter_skip_test_files = False  # Add missing attribute
     config.tree_sitter_min_file_size = 1024  # Add missing attribute
     config.tree_sitter_max_file_size = 1048576  # Add missing attribute
+    config.search_file_type_weights = {}
+    config.search_path_boosts = []
+    config.search_language_boosts = {}
+    config.search_exclude_patterns = []
+    config.search_cache_enabled = False
+    config.search_cache_max_entries = 128
+    config.search_cache_ttl_seconds = None
     return config
 
 
@@ -201,6 +208,119 @@ class TestSearchCode:
         assert "Configuration" in result.errors[0]
         assert not result.has_matches()
 
+    def test_search_code_cache_hit(self, search_service, mock_config, sample_search_results):
+        """Ensure cached results bypass embedding and vector search."""
+        mock_config.search_cache_enabled = True
+        mock_config.search_cache_max_entries = 8
+        mock_config.search_cache_ttl_seconds = None
+
+        mock_embedder = Mock()
+        mock_embedder.create_embeddings.return_value = {"embeddings": [[0.1, 0.2, 0.3]]}
+
+        mock_vector_store = Mock()
+        mock_vector_store.search.return_value = sample_search_results
+
+        validation_ok = ValidationResult(
+            service="search_service",
+            valid=True,
+            error=None,
+            details={},
+            response_time_ms=50,
+            actionable_guidance=[]
+        )
+
+        SearchService.invalidate_workspace_cache(mock_config.workspace_path)
+
+        with patch.object(search_service, 'validate_search_config', return_value=validation_ok), \
+             patch.object(search_service, '_initialize_search_components', return_value=(mock_embedder, mock_vector_store)) as mock_init:
+            first_result = search_service.search_code("cached query", mock_config)
+            assert first_result.has_matches()
+            assert mock_init.call_count == 1
+
+            mock_embedder.create_embeddings.reset_mock()
+            mock_vector_store.search.reset_mock()
+
+            second_result = search_service.search_code("cached query", mock_config)
+
+        assert second_result.has_matches()
+        assert mock_embedder.create_embeddings.call_count == 0
+        assert mock_vector_store.search.call_count == 0
+        assert mock_init.call_count == 1
+
+        SearchService.invalidate_workspace_cache(mock_config.workspace_path)
+
+    def test_search_code_embedding_cache_ttl_expiration(self, search_service, mock_config, sample_search_results):
+        """Ensure embedding cache entries expire after TTL and trigger fresh embedding."""
+        mock_config.search_cache_enabled = True
+        mock_config.search_cache_max_entries = 8
+        mock_config.search_cache_ttl_seconds = 1  # 1 second TTL
+        mock_config.embedding_cache_enabled = True
+
+        mock_embedder = Mock()
+        mock_embedder.create_embeddings.return_value = {"embeddings": [[0.1, 0.2, 0.3]]}
+
+        mock_vector_store = Mock()
+        mock_vector_store.search.return_value = sample_search_results
+
+        validation_ok = ValidationResult(
+            service="search_service",
+            valid=True,
+            error=None,
+            details={},
+            response_time_ms=50,
+            actionable_guidance=[]
+        )
+
+        # Configure the embedding cache with a short TTL
+        search_service.configure_embedding_cache(max_size=10, ttl_seconds=1)
+
+        with patch.object(search_service, 'validate_search_config', return_value=validation_ok), \
+             patch.object(search_service, '_initialize_search_components', return_value=(mock_embedder, mock_vector_store)):
+            # First search - should cache embedding
+            _ = search_service.search_code("ttl query", mock_config)
+
+            # Verify embedding was called once
+            assert mock_embedder.create_embeddings.call_count == 1
+
+            # Second search immediately - should use cache
+            mock_embedder.create_embeddings.reset_mock()
+            _ = search_service.search_code("ttl query", mock_config)
+
+            # Should not call embedder again (cache hit)
+            assert mock_embedder.create_embeddings.call_count == 0
+
+    def test_search_code_embedding_cache_disabled(self, search_service, mock_config, sample_search_results):
+        """Ensure embedding caching disabled results in repeated embedding calls."""
+        # Disable both caches to ensure fresh searches each time
+        mock_config.search_cache_enabled = False  # Disable result cache
+        mock_config.search_cache_max_entries = 8
+        mock_config.search_cache_ttl_seconds = None
+        mock_config.embedding_cache_enabled = False  # Disable embedding cache
+
+        mock_embedder = Mock()
+        mock_embedder.create_embeddings.return_value = {"embeddings": [[0.1, 0.2, 0.3]]}
+
+        mock_vector_store = Mock()
+        mock_vector_store.search.return_value = sample_search_results
+
+        validation_ok = ValidationResult(
+            service="search_service",
+            valid=True,
+            error=None,
+            details={},
+            response_time_ms=50,
+            actionable_guidance=[]
+        )
+
+        with patch.object(search_service, 'validate_search_config', return_value=validation_ok), \
+             patch.object(search_service, '_initialize_search_components', return_value=(mock_embedder, mock_vector_store)):
+            # Search twice with both caches disabled
+            _ = search_service.search_code("nocache query", mock_config)
+            _ = search_service.search_code("nocache query", mock_config)
+
+        # Embedding should be called twice since both caches are disabled
+        assert mock_embedder.create_embeddings.call_count == 2
+        assert mock_vector_store.search.call_count == 2
 
 
 class TestSearchSimilarFiles:

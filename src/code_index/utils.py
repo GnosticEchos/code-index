@@ -16,6 +16,58 @@ def get_file_hash(file_path: str) -> str:
     return hash_sha256.hexdigest()
 
 
+def split_content(content: str, max_chars: int = 6000) -> List[str]:
+    """Split content into chunks of max_chars, preserving all data.
+    
+    This function splits content at line boundaries when possible to avoid
+    breaking in the middle of lines. All content is preserved - no data is lost.
+    
+    Args:
+        content: The content string to split into chunks
+        max_chars: Maximum number of characters per chunk (default 6000)
+    
+    Returns:
+        List of content chunks, each within max_chars limit.
+        If content is under max_chars, returns a single-element list.
+    """
+    if len(content) <= max_chars:
+        return [content]
+    
+    chunks = []
+    lines = content.split('\n')
+    current_chunk_lines = []
+    current_length = 0
+    
+    for line in lines:
+        line_len = len(line) + 1  # +1 for newline
+        
+        # If adding this line would exceed max_chars and we have content, start new chunk
+        if current_length + line_len > max_chars and current_chunk_lines:
+            chunks.append('\n'.join(current_chunk_lines))
+            current_chunk_lines = []
+            current_length = 0
+        
+        # Handle single lines longer than max_chars - need to split them
+        if line_len > max_chars:
+            # If we have accumulated content, flush it first
+            if current_chunk_lines:
+                chunks.append('\n'.join(current_chunk_lines))
+                current_chunk_lines = []
+                current_length = 0
+            
+            # Split the long line into chunks
+            for i in range(0, len(line), max_chars):
+                chunks.append(line[i:i + max_chars])
+        else:
+            current_chunk_lines.append(line)
+            current_length += line_len
+    
+    # Don't forget the last chunk
+    if current_chunk_lines:
+        chunks.append('\n'.join(current_chunk_lines))
+    
+    return chunks
+
 
 def load_gitignore_patterns(directory: str) -> Set[str]:
     """Load .gitignore patterns from a directory."""
@@ -81,6 +133,8 @@ def is_supported_file(file_path: str) -> bool:
 def normalize_path(path: str) -> str:
     """Normalize a path to use forward slashes."""
     return str(Path(path).as_posix())
+
+
 def augment_extensions_with_pygments(base_extensions: List[str]) -> List[str]:
     """Augment a list of extensions using Pygments lexers' filename patterns.
 

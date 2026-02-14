@@ -25,10 +25,14 @@ def build_cli_binary(extra_args=None):
     if extra_args is None:
         extra_args = []
 
+    # Get absolute path to venv python to avoid symlink issues
+    venv_python = os.path.abspath(".venv/bin/python")
+
     cmd = [
-        "python", "-m", "nuitka",
+        venv_python, "-m", "nuitka",
         "--onefile",
         "--onefile-cache-mode=cached",  # Cache unpacked files for better performance
+        f"--python-for-scons={venv_python}",  # Use absolute path
         "--assume-yes-for-downloads",
         "--output-dir=dist",
         "--output-filename=code-index",
@@ -40,9 +44,6 @@ def build_cli_binary(extra_args=None):
         "--include-package=pygments",
         "--include-package=qdrant_client",
         "--include-package=fastmcp",
-        "--include-data-dir=.venv/lib/python3.13/site-packages/tree_sitter_yaml/queries=code_index/tree_sitter_queries",
-        "--include-data-dir=.venv/lib/python3.13/site-packages/tree_sitter_c-sharp/queries=code_index/tree_sitter_queries",
-        "--include-data-dir=.venv/lib/python3.13/site-packages/tree_sitter_embedded_template/queries=code_index/tree_sitter_queries",
         # Exclude test files and unwanted modules
         "--nofollow-import-to=pytest",
         "--nofollow-import-to=setuptools",
@@ -53,6 +54,7 @@ def build_cli_binary(extra_args=None):
         "--nofollow-import-to=*.tests",
         # Performance optimizations
         "--clang",  # Use Clang for better performance
+        "--lto=no",  # Disable LTO to avoid _Py_TriggerGC linker errors with Python 3.14
         "src/bin/cli_entry.py"
     ]
 
@@ -67,10 +69,14 @@ def build_mcp_binary(extra_args=None):
     if extra_args is None:
         extra_args = []
 
+    # Get absolute path to venv python to avoid symlink issues
+    venv_python = os.path.abspath(".venv/bin/python")
+
     cmd = [
-        "python", "-m", "nuitka",
+        venv_python, "-m", "nuitka",
         "--onefile",
         "--onefile-cache-mode=cached",  # Cache unpacked files for better performance
+        f"--python-for-scons={venv_python}",  # Use absolute path
         "--assume-yes-for-downloads",
         "--output-dir=dist",
         "--output-filename=code-index-mcp",
@@ -82,9 +88,6 @@ def build_mcp_binary(extra_args=None):
         "--include-package=pygments",
         "--include-package=qdrant_client",
         "--include-package=fastmcp",
-        "--include-data-dir=.venv/lib/python3.13/site-packages/tree_sitter_yaml/queries=code_index/tree_sitter_queries",
-        "--include-data-dir=.venv/lib/python3.13/site-packages/tree_sitter_c-sharp/queries=code_index/tree_sitter_queries",
-        "--include-data-dir=.venv/lib/python3.13/site-packages/tree_sitter_embedded_template/queries=code_index/tree_sitter_queries",
         # Exclude test files and unwanted modules
         "--nofollow-import-to=pytest",
         "--nofollow-import-to=setuptools",
@@ -95,6 +98,7 @@ def build_mcp_binary(extra_args=None):
         "--nofollow-import-to=*.tests",
         # Performance optimizations
         "--clang",  # Use Clang for better performance
+        "--lto=no",  # Disable LTO to avoid _Py_TriggerGC linker errors with Python 3.14
         "src/bin/mcp_entry.py"
     ]
 
@@ -136,5 +140,4 @@ def main():
     print(f"MCP binary: {dist_dir / 'code-index-mcp'}")
 
 if __name__ == "__main__":
-    main()# Temporary change for stashing
-# Temporary change for stashing
+    main()

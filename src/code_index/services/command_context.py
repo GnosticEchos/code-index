@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import copy
+import os
 from dataclasses import dataclass
 from typing import Dict, Optional, Callable, Any
 
@@ -97,6 +98,7 @@ class CommandContext:
         self._apply_logging_configuration(config, logging_overrides)
 
         config = self._apply_operation_overrides(config, overrides)
+        config.workspace_path = os.path.abspath(workspace_path)
         search_service = self._search_service_factory(self.error_handler)
         collection_manager = self._collection_manager_factory(config)
         self._initialize_vector_store(config)

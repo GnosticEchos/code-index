@@ -53,6 +53,7 @@ except Exception:
     pass
 
 _command_context_factory: Optional[Callable[[], CommandContext]] = None
+_default_config_path: Optional[str] = None
 
 
 def set_command_context_factory(factory: Optional[Callable[[], CommandContext]]) -> None:
@@ -61,9 +62,21 @@ def set_command_context_factory(factory: Optional[Callable[[], CommandContext]])
     _command_context_factory = factory
 
 
+def set_default_config_path(config_path: Optional[str]) -> None:
+    """Set default config path for MCP server usage."""
+    global _default_config_path
+    _default_config_path = config_path
+
+
 def _get_command_context() -> CommandContext:
     factory = _command_context_factory or CommandContext
     return factory()
+
+
+def _resolve_config_path() -> str:
+    if _default_config_path:
+        return _default_config_path
+    return os.path.abspath("code_index.json")
 
 
 logger = logging.getLogger(__name__)

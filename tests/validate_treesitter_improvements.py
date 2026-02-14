@@ -294,7 +294,8 @@ fn main() {
             
             for file_name, file_path, expected_result in test_cases:
                 try:
-                    should_process = chunker._should_process_file_for_treesitter(file_path)
+                    blocks = chunker.coordinator.chunk_text(code, file_path, file_hash)
+                    should_process = chunker.coordinator.should_process_file(file_path)
                     status = 'success' if should_process == expected_result else 'failed'
                     
                     result = {

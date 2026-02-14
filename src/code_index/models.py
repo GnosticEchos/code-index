@@ -3,14 +3,16 @@ Data models for the code index tool.
 """
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 class CodeBlock:
     """Represents a code block extracted from a file."""
 
     def __init__(self, file_path: str, identifier: str, type: str, start_line: int,
-                  end_line: int, content: str, file_hash: str, segment_hash: str):
+                  end_line: int, content: str, file_hash: str, segment_hash: str,
+                  split_index: Optional[int] = None, split_total: Optional[int] = None,
+                  parent_block_id: Optional[str] = None):
         self.file_path = file_path
         self.identifier = identifier
         self.type = type
@@ -19,6 +21,38 @@ class CodeBlock:
         self.content = content
         self.file_hash = file_hash
         self.segment_hash = segment_hash
+        # Split metadata for tracking chunked blocks
+        self.split_index = split_index  # 1-based index of this part (None if not split)
+        self.split_total = split_total  # Total number of parts (None if not split)
+        self.parent_block_id = parent_block_id  # Original block identifier before splitting
+
+    def is_split_part(self) -> bool:
+        """Check if this block is part of a split block."""
+        return self.split_index is not None and self.split_total is not None
+
+    def get_split_info(self) -> Optional[str]:
+        """Get human-readable split info (e.g., 'part 1 of 3')."""
+        if self.is_split_part():
+            return f"part {self.split_index} of {self.split_total}"
+        return None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert CodeBlock to dictionary for serialization."""
+        result = {
+            "file_path": self.file_path,
+            "identifier": self.identifier,
+            "type": self.type,
+            "start_line": self.start_line,
+            "end_line": self.end_line,
+            "content": self.content,
+            "file_hash": self.file_hash,
+            "segment_hash": self.segment_hash,
+        }
+        if self.is_split_part():
+            result["split_index"] = self.split_index
+            result["split_total"] = self.split_total
+            result["parent_block_id"] = self.parent_block_id
+        return result
 
 
 @dataclass
@@ -34,6 +68,7 @@ class IndexingResult:
     timestamp: datetime
     workspace_path: str
     config_summary: Dict[str, Any]
+    performance_metrics: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         """Initialize timestamp if not provided."""
@@ -58,7 +93,8 @@ class IndexingResult:
             "timed_out_files": len(self.timed_out_files),
             "processing_time_seconds": self.processing_time_seconds,
             "successful": self.is_successful(),
-            "timestamp": self.timestamp.isoformat()
+            "timestamp": self.timestamp.isoformat(),
+            "performance_metrics": self.performance_metrics,
         }
 
 

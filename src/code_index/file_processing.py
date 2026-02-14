@@ -1005,15 +1005,13 @@ class FileProcessingService:
                     workspaces.append(os.path.normpath(line))
                 else:
                     error_msg = f"Warning: Invalid directory path in workspace list: {line}"
-                    error_response = self.error_handler.handle_file_error(
+                    self.error_handler.handle_file_error(
                         FileNotFoundError(error_msg),
                         error_context,
                         operation
                     )
-                    print(error_msg)
         except Exception as e:
-            error_response = self.error_handler.handle_file_error(e, error_context, operation)
-            print(f"Error reading workspace list file {workspace_list_file}: {e}")
+            self.error_handler.handle_file_error(e, error_context, operation)
 
         return workspaces
 
@@ -1070,8 +1068,7 @@ class FileProcessingService:
         try:
             from pygments.lexers import get_all_lexers  # type: ignore
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.DEPENDENCY, ErrorSeverity.LOW)
-            print("Auto-extensions requested but 'pygments' is not installed; proceeding with configured extensions only.")
+            self.error_handler.handle_error(e, error_context, ErrorCategory.DEPENDENCY, ErrorSeverity.LOW)
             return base_extensions
 
         discovered: Set[str] = set()

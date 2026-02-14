@@ -5,9 +5,11 @@ This service handles code search operations, separating business logic
 from CLI concerns and providing a clean interface for search operations.
 """
 
+import copy
 import time
-import uuid
-from typing import List, Dict, Any, Optional
+import threading
+from collections import OrderedDict
+from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 from datetime import datetime
 
@@ -18,6 +20,7 @@ from ..embedder import OllamaEmbedder
 from ..vector_store import QdrantVectorStore
 from ..errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from ..models import SearchResult, SearchMatch
+from .query_embedding_cache import QueryEmbeddingCache
 
 
 class SearchService:
@@ -28,11 +31,21 @@ class SearchService:
     separating command operations from query operations and CLI concerns.
     """
 
-    def __init__(self, error_handler: Optional[ErrorHandler] = None):
-        """Initialize the SearchService with required dependencies."""
+    _cache_registry: Dict[str, "SearchService._LRUCache"] = {}
+    _cache_registry_lock = threading.Lock()
+
+    def __init__(self, error_handler: Optional[ErrorHandler] = None, embedding_cache: Optional[QueryEmbeddingCache] = None):
+        """Initialize the SearchService with required dependencies.
+        
+        Args:
+            error_handler: Optional error handler instance.
+            embedding_cache: Optional QueryEmbeddingCache instance for caching query embeddings.
+        """
         self.error_handler = error_handler or ErrorHandler()
         self.config_service = ConfigurationService(self.error_handler)
         self.service_validator = ServiceValidator(self.error_handler)
+        self._cache: Optional[SearchService._LRUCache] = None
+        self._embedding_cache = embedding_cache or QueryEmbeddingCache()
 
     def search_code(self, query: str, config: Config) -> SearchResult:
         """
@@ -48,6 +61,10 @@ class SearchService:
         start_time = time.time()
         errors: List[str] = []
         warnings: List[str] = []
+
+        cache_enabled = getattr(config, "search_cache_enabled", False)
+        cache_key: Optional[Tuple[Any, ...]] = None
+        cache: Optional[SearchService._LRUCache] = None
 
         try:
             # Validate search configuration
@@ -66,25 +83,52 @@ class SearchService:
                     warnings=warnings
                 )
 
+            if cache_enabled:
+                cache = self._get_or_create_cache(config)
+                cache_key = self._build_cache_key(query, config)
+                cached_result = cache.get(cache_key)
+                if cached_result is not None:
+                    cached_result.execution_time_seconds = time.time() - start_time
+                    return cached_result
+
             # Initialize components
             embedder, vector_store = self._initialize_search_components(config)
 
-            # Convert query to embedding
-            embedding_response = embedder.create_embeddings([query])
-            if not embedding_response["embeddings"]:
-                errors.append("Failed to generate embedding for search query")
-                return SearchResult(
-                    query=query,
-                    matches=[],
-                    total_found=0,
-                    execution_time_seconds=time.time() - start_time,
-                    search_method="text",
-                    config_summary=self.config_service.get_config_summary(config),
-                    errors=errors,
-                    warnings=warnings
-                )
-
-            query_embedding = embedding_response["embeddings"][0]
+            # Convert query to embedding (with caching)
+            embedding_cache_enabled = getattr(config, "embedding_cache_enabled", True)
+            if embedding_cache_enabled:
+                query_embedding = self._embedding_cache.get_embedding(query)
+                if query_embedding is None:
+                    embedding_response = embedder.create_embeddings([query])
+                    if not embedding_response["embeddings"]:
+                        errors.append("Failed to generate embedding for search query")
+                        return SearchResult(
+                            query=query,
+                            matches=[],
+                            total_found=0,
+                            execution_time_seconds=time.time() - start_time,
+                            search_method="text",
+                            config_summary=self.config_service.get_config_summary(config),
+                            errors=errors,
+                            warnings=warnings
+                        )
+                    query_embedding = embedding_response["embeddings"][0]
+                    self._embedding_cache.set_embedding(query, query_embedding)
+            else:
+                embedding_response = embedder.create_embeddings([query])
+                if not embedding_response["embeddings"]:
+                    errors.append("Failed to generate embedding for search query")
+                    return SearchResult(
+                        query=query,
+                        matches=[],
+                        total_found=0,
+                        execution_time_seconds=time.time() - start_time,
+                        search_method="text",
+                        config_summary=self.config_service.get_config_summary(config),
+                        errors=errors,
+                        warnings=warnings
+                    )
+                query_embedding = embedding_response["embeddings"][0]
 
             # Perform vector search
             search_results = vector_store.search(
@@ -94,8 +138,25 @@ class SearchService:
             )
 
             # Convert search results to SearchMatch objects
-            matches = []
+            # First, group split parts by parentBlockId for reassembly
+            split_groups: Dict[str, List[Dict[str, Any]]] = {}
+            non_split_results: List[Dict[str, Any]] = []
+            
             for result in search_results:
+                payload = result["payload"]
+                if "splitIndex" in payload and "parentBlockId" in payload:
+                    parent_id = payload["parentBlockId"]
+                    if parent_id not in split_groups:
+                        split_groups[parent_id] = []
+                    split_groups[parent_id].append(result)
+                else:
+                    non_split_results.append(result)
+            
+            # Reassemble split parts and convert to SearchMatch objects
+            matches = []
+            
+            # Process non-split results
+            for result in non_split_results:
                 try:
                     match = SearchMatch(
                         file_path=result["payload"]["filePath"],
@@ -114,8 +175,70 @@ class SearchService:
                 except Exception as e:
                     warnings.append(f"Failed to process search result: {str(e)}")
                     continue
+            
+            # Process and reassemble split parts
+            for parent_id, parts in split_groups.items():
+                try:
+                    # Sort parts by splitIndex
+                    sorted_parts = sorted(parts, key=lambda p: p["payload"]["splitIndex"])
+                    
+                    # Verify we have all parts
+                    total_expected = sorted_parts[0]["payload"]["splitTotal"]
+                    if len(sorted_parts) != total_expected:
+                        # Missing parts - add individual parts with warning
+                        warnings.append(f"Incomplete split block {parent_id}: have {len(sorted_parts)} of {total_expected} parts")
+                        for part in sorted_parts:
+                            match = SearchMatch(
+                                file_path=part["payload"]["filePath"],
+                                start_line=part["payload"]["startLine"],
+                                end_line=part["payload"]["endLine"],
+                                code_chunk=part["payload"]["codeChunk"],
+                                match_type=part["payload"].get("type", "text"),
+                                score=part["score"],
+                                adjusted_score=part.get("adjustedScore", part["score"]),
+                                metadata={
+                                    "embedding_model": part["payload"].get("embedding_model", ""),
+                                    "search_query": query,
+                                    "split_part": f"{part['payload']['splitIndex']} of {total_expected}"
+                                }
+                            )
+                            matches.append(match)
+                        continue
+                    
+                    # Reassemble the complete block
+                    first_part = sorted_parts[0]
+                    last_part = sorted_parts[-1]
+                    
+                    # Concatenate all code chunks
+                    reassembled_code = "".join(
+                        p["payload"]["codeChunk"] for p in sorted_parts
+                    )
+                    
+                    # Use the best score from all parts
+                    best_score = max(p["score"] for p in sorted_parts)
+                    best_adjusted = max(p.get("adjustedScore", p["score"]) for p in sorted_parts)
+                    
+                    match = SearchMatch(
+                        file_path=first_part["payload"]["filePath"],
+                        start_line=first_part["payload"]["startLine"],
+                        end_line=last_part["payload"]["endLine"],
+                        code_chunk=reassembled_code,
+                        match_type=first_part["payload"].get("type", "text"),
+                        score=best_score,
+                        adjusted_score=best_adjusted,
+                        metadata={
+                            "embedding_model": first_part["payload"].get("embedding_model", ""),
+                            "search_query": query,
+                            "reassembled_from": total_expected,
+                            "parent_block_id": parent_id
+                        }
+                    )
+                    matches.append(match)
+                except Exception as e:
+                    warnings.append(f"Failed to reassemble split block {parent_id}: {str(e)}")
+                    continue
 
-            return SearchResult(
+            result = SearchResult(
                 query=query,
                 matches=matches,
                 total_found=len(matches),
@@ -125,6 +248,11 @@ class SearchService:
                 errors=errors,
                 warnings=warnings
             )
+
+            if cache_enabled and cache is not None and cache_key is not None and result.is_successful():
+                cache.set(cache_key, result)
+
+            return result
 
         except Exception as e:
             error_context = ErrorContext(
@@ -496,3 +624,110 @@ class SearchService:
         embedder = OllamaEmbedder(config)
         vector_store = QdrantVectorStore(config)
         return embedder, vector_store
+
+    def get_embedding_cache_stats(self) -> Dict[str, Any]:
+        """Get statistics for the query embedding cache.
+
+        Returns:
+            Dictionary with cache statistics including hits, misses, size, and hit rate.
+        """
+        return self._embedding_cache.get_stats()
+
+    def clear_embedding_cache(self) -> None:
+        """Clear all entries from the query embedding cache."""
+        self._embedding_cache.clear()
+
+    def configure_embedding_cache(self, max_size: Optional[int] = None, ttl_seconds: Optional[float] = None) -> None:
+        """Configure the embedding cache settings.
+
+        Args:
+            max_size: Maximum number of entries (uses current if not provided).
+            ttl_seconds: TTL in seconds for cache entries (uses current if not provided).
+        """
+        self._embedding_cache.reconfigure(max_size=max_size, ttl_seconds=ttl_seconds)
+
+    def _get_or_create_cache(self, config: Config) -> "SearchService._LRUCache":
+        workspace = getattr(config, "workspace_path", "") or ""
+        max_entries = max(1, int(getattr(config, "search_cache_max_entries", 128) or 128))
+        ttl_seconds = getattr(config, "search_cache_ttl_seconds", None)
+
+        with SearchService._cache_registry_lock:
+            cache = SearchService._cache_registry.get(workspace)
+            if cache is None:
+                cache = SearchService._LRUCache(max_entries=max_entries, ttl_seconds=ttl_seconds)
+                SearchService._cache_registry[workspace] = cache
+            else:
+                cache.configure(max_entries=max_entries, ttl_seconds=ttl_seconds)
+
+        self._cache = cache
+        return cache
+
+    def _build_cache_key(self, query: str, config: Config) -> Tuple[Any, ...]:
+        weights = tuple(sorted((config.search_file_type_weights or {}).items())) if getattr(config, "search_file_type_weights", None) else tuple()
+        path_boosts = tuple(
+            (entry.get("pattern"), entry.get("weight"))
+            for entry in (getattr(config, "search_path_boosts", []) or [])
+        )
+        lang_boosts = tuple(sorted((config.search_language_boosts or {}).items())) if getattr(config, "search_language_boosts", None) else tuple()
+        exclude_patterns = tuple(sorted(getattr(config, "search_exclude_patterns", []) or []))
+
+        return (
+            query,
+            getattr(config, "workspace_path", ""),
+            getattr(config, "search_min_score", 0.4),
+            getattr(config, "search_max_results", 50),
+            weights,
+            path_boosts,
+            lang_boosts,
+            exclude_patterns,
+            getattr(config, "ollama_model", ""),
+            getattr(config, "qdrant_url", ""),
+        )
+
+    @staticmethod
+    def invalidate_workspace_cache(workspace_path: str) -> None:
+        workspace = workspace_path or ""
+        with SearchService._cache_registry_lock:
+            cache = SearchService._cache_registry.pop(workspace, None)
+            if cache is not None:
+                cache.clear()
+
+    class _LRUCache:
+        def __init__(self, *, max_entries: int, ttl_seconds: Optional[int]) -> None:
+            self._store: "OrderedDict[Tuple[Any, ...], Tuple[SearchResult, float]]" = OrderedDict()
+            self._lock = threading.Lock()
+            self._max_entries = max(1, max_entries)
+            self._ttl_seconds = ttl_seconds if ttl_seconds and ttl_seconds > 0 else None
+
+        def configure(self, *, max_entries: int, ttl_seconds: Optional[int]) -> None:
+            with self._lock:
+                self._max_entries = max(1, max_entries)
+                self._ttl_seconds = ttl_seconds if ttl_seconds and ttl_seconds > 0 else None
+                self._prune_if_needed()
+
+        def get(self, key: Tuple[Any, ...]) -> Optional[SearchResult]:
+            with self._lock:
+                if key not in self._store:
+                    return None
+
+                result, timestamp = self._store[key]
+                if self._ttl_seconds is not None and (time.time() - timestamp) > self._ttl_seconds:
+                    self._store.pop(key, None)
+                    return None
+
+                self._store.move_to_end(key, last=True)
+                return copy.deepcopy(result)
+
+        def set(self, key: Tuple[Any, ...], value: SearchResult) -> None:
+            with self._lock:
+                self._store[key] = (copy.deepcopy(value), time.time())
+                self._store.move_to_end(key, last=True)
+                self._prune_if_needed()
+
+        def clear(self) -> None:
+            with self._lock:
+                self._store.clear()
+
+        def _prune_if_needed(self) -> None:
+            while len(self._store) > self._max_entries:
+                self._store.popitem(last=False)

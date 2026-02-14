@@ -46,15 +46,25 @@ class CodeParser:
         try:
             # Read file content using configured method
             content = self._read_file_content(file_path)
-            
+
             # Calculate file hash
             file_processor = FileProcessingService(ErrorHandler("parser"))
             file_hash = file_processor.get_file_hash(file_path)
-            
+
             # Choose chunking strategy
             return self.chunking_strategy.chunk(text=content, file_path=file_path, file_hash=file_hash)
         except Exception as e:
-            print(f"Warning: Failed to parse file {file_path}: {e}")
+            error_context = ErrorContext(
+                component="parser",
+                operation="parse_file",
+                file_path=file_path,
+            )
+            self.error_handler.handle_error(
+                e,
+                error_context,
+                ErrorCategory.PARSING,
+                ErrorSeverity.MEDIUM,
+            )
             return []
     
     def _read_file_content(self, file_path: str) -> str:
@@ -79,11 +89,21 @@ class CodeParser:
             if file_size < mmap_min_size:
                 # For small files, traditional reading is more efficient
                 return self._read_file_traditional(file_path)
-            
+
             return self._read_file_with_mmap(file_path)
         except (OSError, ValueError) as e:
             # Fall back to traditional reading if file operations fail
-            print(f"Warning: File size check failed for {file_path}, falling back to traditional reading: {e}")
+            error_context = ErrorContext(
+                component="parser",
+                operation="size_check",
+                file_path=file_path,
+            )
+            self.error_handler.handle_error(
+                e,
+                error_context,
+                ErrorCategory.FILE_SYSTEM,
+                ErrorSeverity.LOW,
+            )
             return self._read_file_traditional(file_path)
     
     def _read_file_traditional(self, file_path: str) -> str:
@@ -92,7 +112,17 @@ class CodeParser:
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 return f.read()
         except (OSError, UnicodeDecodeError) as e:
-            print(f"Warning: Traditional reading failed for {file_path}: {e}")
+            error_context = ErrorContext(
+                component="parser",
+                operation="traditional_read",
+                file_path=file_path,
+            )
+            self.error_handler.handle_error(
+                e,
+                error_context,
+                ErrorCategory.FILE_SYSTEM,
+                ErrorSeverity.LOW,
+            )
             return ""
     
     def _read_file_with_mmap(self, file_path: str) -> str:

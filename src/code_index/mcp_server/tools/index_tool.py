@@ -20,6 +20,7 @@ from ...services.command_context import CommandContext
 from ...services.config_overrides import build_index_overrides
 
 _command_context_factory: Optional[Callable[[], CommandContext]] = None
+_default_config_path: Optional[str] = None
 
 
 def set_command_context_factory(factory: Optional[Callable[[], CommandContext]]) -> None:
@@ -28,9 +29,23 @@ def set_command_context_factory(factory: Optional[Callable[[], CommandContext]])
     _command_context_factory = factory
 
 
+def set_default_config_path(config_path: Optional[str]) -> None:
+    """Set default config path for MCP server usage."""
+    global _default_config_path
+    _default_config_path = config_path
+
+
 def _get_command_context() -> CommandContext:
     factory = _command_context_factory or CommandContext
     return factory()
+
+
+def _resolve_config_path(config_argument: Optional[str], workspace_path: str) -> str:
+    if config_argument:
+        return os.path.abspath(config_argument)
+    if _default_config_path:
+        return _default_config_path
+    return os.path.join(workspace_path, "code_index.json")
 
 
 class IndexToolValidator:
@@ -444,7 +459,7 @@ async def index(
         logger.warning(f"Index tool warnings: {validation_result['warnings']}")
     
     # Build overrides using shared helper
-    config_path = config or "code_index.json"
+    config_path = _resolve_config_path(config, workspace)
     operation_overrides = build_index_overrides(
         embed_timeout=embed_timeout,
         timeout_log=None,
