@@ -10,7 +10,6 @@ import logging
 import time
 import importlib
 from typing import Dict, Any, Optional, List, Set, Callable
-from unittest.mock import Mock
 from pathlib import Path
 
 from fastmcp import Context
@@ -780,6 +779,7 @@ async def _execute_indexing(
                 vector_store = vector_store_module.QdrantVectorStore(operation_config)
                 cache_manager = cache_module.CacheManager(workspace_path, operation_config)
             except ImportError:
+                from unittest.mock import Mock
                 scanner = getattr(importlib, "scanner_mock", Mock())
                 parser = getattr(importlib, "parser_mock", Mock())
                 embedder_instance = getattr(importlib, "embedder_mock", Mock())
