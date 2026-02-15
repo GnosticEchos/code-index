@@ -16,6 +16,11 @@ from typing import Dict, Any, List, Optional, Set, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 
+from ...constants import (
+    MEMORY_THRESHOLD_MCP, CLEANUP_INTERVAL_MCP, OLD_RESOURCE_THRESHOLD,
+    MEMORY_POOL_MAX_SIZE, SHUTDOWN_WAIT_TIMEOUT
+)
+
 
 @dataclass
 class ResourceInfo:
@@ -60,8 +65,8 @@ class ResourceManager:
         self._shutdown_handlers: List[Callable[[], None]] = []
         self._active_operations: Set[str] = set()
         self._operation_lock = threading.Lock()
-        self._memory_threshold_mb = 1024  # 1GB default memory threshold
-        self._cleanup_interval = 300  # 5 minutes cleanup interval
+        self._memory_threshold_mb = MEMORY_THRESHOLD_MCP  # 1GB default memory threshold
+        self._cleanup_interval = CLEANUP_INTERVAL_MCP  # 5 minutes cleanup interval
         self._cleanup_task: Optional[asyncio.Task] = None
         self._initialized = False
         
@@ -110,7 +115,7 @@ class ResourceManager:
                 pass
         
         # Wait for active operations to complete (with timeout)
-        await self._wait_for_operations_completion(timeout=30.0)
+        await self._wait_for_operations_completion(timeout=SHUTDOWN_WAIT_TIMEOUT)
         
         # Run shutdown handlers
         for handler in self._shutdown_handlers:
@@ -408,7 +413,7 @@ class ResourceManager:
     def _cleanup_old_resources(self) -> None:
         """Cleanup resources that are older than a certain threshold."""
         current_time = time.time()
-        old_threshold = 3600  # 1 hour
+        old_threshold = OLD_RESOURCE_THRESHOLD  # 1 hour
         
         resources_to_cleanup = []
         for resource_id, resource_info in self._resources.items():
@@ -559,7 +564,7 @@ class MemoryManager:
         self.logger = logging.getLogger(__name__)
         self._memory_pools: Dict[str, List[Any]] = {}
     
-    def create_memory_pool(self, pool_name: str, max_size: int = 100) -> None:
+    def create_memory_pool(self, pool_name: str, max_size: int = MEMORY_POOL_MAX_SIZE) -> None:
         """
         Create a memory pool for reusing objects.
         
@@ -602,7 +607,7 @@ class MemoryManager:
         else:
             return factory_func()
     
-    def return_to_pool(self, pool_name: str, obj: Any, max_size: int = 100) -> None:
+    def return_to_pool(self, pool_name: str, obj: Any, max_size: int = MEMORY_POOL_MAX_SIZE) -> None:
         """
         Return an object to the memory pool.
         

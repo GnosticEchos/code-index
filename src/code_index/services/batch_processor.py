@@ -3,6 +3,10 @@ TreeSitterBatchProcessor service for batch processing operations.
 
 This service handles batch processing logic extracted from
 TreeSitterChunkingStrategy, including language grouping and optimization.
+
+Uses extracted modules:
+- batch_scheduler: Scheduling and grouping logic
+- batch_status_tracker: Status and metrics tracking
 """
 
 import time
@@ -16,6 +20,14 @@ from dataclasses import dataclass
 from ..config import Config
 from ..models import CodeBlock
 from ..errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from ..constants import (
+    MAX_WORKERS_DEFAULT, MAX_WORKERS_MULTIPLIER, CHUNK_SIZE_DEFAULT,
+    MEMORY_LIMIT_DEFAULT, BATCH_TIMEOUT
+)
+
+# Import from extracted modules
+from .batch_scheduler import BatchScheduler
+from .batch_status_tracker import BatchStatusTracker
 
 # Set up logging for batch processing
 batch_logger = logging.getLogger('code_index.batch_processor')
@@ -73,9 +85,9 @@ class TreeSitterBatchProcessor:
 
         # Performance optimization settings
         self.parallel_processing_enabled = getattr(config, "parallel_processing", True)
-        self.max_workers = getattr(config, "max_parallel_workers", min(4, (os.cpu_count() or 1) * 2))
-        self.chunk_size = getattr(config, "chunk_size", 65536)
-        self.memory_limit_mb = getattr(config, "memory_limit_mb", 500)
+        self.max_workers = getattr(config, "max_parallel_workers", min(MAX_WORKERS_DEFAULT, (os.cpu_count() or 1) * MAX_WORKERS_MULTIPLIER))
+        self.chunk_size = getattr(config, "chunk_size", CHUNK_SIZE_DEFAULT)
+        self.memory_limit_mb = getattr(config, "memory_limit_mb", MEMORY_LIMIT_DEFAULT)
         
         # Read monitoring configuration settings
         monitoring_config = getattr(config, "monitoring", {})
@@ -110,6 +122,18 @@ class TreeSitterBatchProcessor:
         self.file_processor = file_processor or TreeSitterFileProcessor(config, error_handler=error_handler)
         self.resource_manager = resource_manager or TreeSitterResourceManager(config, error_handler)
         self.block_extractor = block_extractor or TreeSitterBlockExtractor(config, error_handler)
+        
+        # Use extracted modules
+        self.scheduler = BatchScheduler(
+            config=config,
+            parallel_processing_enabled=self.parallel_processing_enabled,
+            max_workers=self.max_workers,
+            chunk_size=self.chunk_size
+        )
+        self.status_tracker = BatchStatusTracker(
+            config=config,
+            log_memory_usage=self.log_memory_usage
+        )
 
     def process_batch(self, files: List[Dict[str, Any]]) -> BatchProcessingResult:
         """
@@ -130,7 +154,10 @@ class TreeSitterBatchProcessor:
             failed_files = 0
 
             # Group files by language for efficient processing
-            language_groups = self.group_by_language(files)
+            language_groups = self.scheduler.group_by_language(
+                files,
+                self._get_language_key_for_path
+            )
             
             batch_logger.info(f"Processing batch with {len(files)} files in {len(language_groups)} language groups")
 
@@ -140,7 +167,7 @@ class TreeSitterBatchProcessor:
                 batch_logger.info(f"Initial memory usage: {current_memory:.2f} MB")
 
             # Process each language group with parallel processing if enabled
-            if self.parallel_processing_enabled and len(files) > 5:
+            if self.scheduler.should_use_parallel(len(files)):
                 group_results = self._process_language_groups_parallel(language_groups)
             else:
                 group_results = self._process_language_groups_sequential(language_groups)
@@ -153,13 +180,15 @@ class TreeSitterBatchProcessor:
 
             # Update performance metrics
             processing_time = (time.time() - start_time) * 1000
-            self._update_performance_metrics(len(files), processing_time, len(language_groups))
+            self.status_tracker.update_performance_metrics(
+                len(files), processing_time, len(language_groups),
+                self.scheduler.should_use_parallel(len(files))
+            )
 
             # Log final memory usage if enabled
             if self.log_memory_usage:
-                end_memory = self._get_memory_usage_mb()
-                memory_delta = end_memory - start_memory
-                batch_logger.info(f"Memory usage - Start: {start_memory:.2f} MB, End: {end_memory:.2f} MB, Delta: {memory_delta:.2f} MB")
+                end_memory = self.status_tracker.get_memory_usage_mb()
+                self.status_tracker.log_memory_stats(start_memory, end_memory)
 
             batch_logger.info(
                 f"Batch processing completed: {processed_files} files processed, "
@@ -181,7 +210,7 @@ class TreeSitterBatchProcessor:
                     "memory_usage_mb": end_memory if self.log_memory_usage else None,
                     "memory_delta_mb": memory_delta if self.log_memory_usage else None
                 },
-                performance_metrics=self._get_current_performance_metrics()
+                performance_metrics=self.status_tracker.get_current_metrics()
             )
 
         except Exception as e:
@@ -230,7 +259,7 @@ class TreeSitterBatchProcessor:
             for future in as_completed(future_to_language):
                 language_key = future_to_language[future]
                 try:
-                    result = future.result(timeout=300)  # 5 minute timeout per group
+                    result = future.result(timeout=BATCH_TIMEOUT)  # 5 minute timeout per group
                     results.append(result)
                     batch_logger.info(f"Parallel processing completed for {language_key}: {result.processed_files} files")
                 except Exception as e:
@@ -342,78 +371,8 @@ class TreeSitterBatchProcessor:
             return {f"file_{i}": [file_info] for i, file_info in enumerate(files)}
 
     def optimize_batch_config(self, language_key: str, file_count: int) -> Dict[str, Any]:
-        """
-        Optimize configuration for batch processing with memory and performance considerations.
-
-        Args:
-            language_key: Language identifier
-            file_count: Number of files in batch
-
-        Returns:
-            Dictionary with optimized configuration
-        """
-        try:
-            base_config = {
-                "max_blocks_per_file": getattr(self.config, "tree_sitter_max_blocks_per_file", 100),
-                "timeout_multiplier": 1.0,
-                "resource_sharing": True,
-                "parallel_processing": self.parallel_processing_enabled,
-                "memory_optimization": True,
-                "chunk_size": self.chunk_size
-            }
-
-            # Language-specific optimizations
-            if language_key == 'rust':
-                # More conservative settings for Rust
-                base_config.update({
-                    "max_blocks_per_file": 30,
-                    "timeout_multiplier": 0.8,
-                    "resource_sharing": True,
-                    "memory_optimization": True
-                })
-            elif language_key in ['javascript', 'typescript']:
-                # Optimized settings for JS/TS
-                base_config.update({
-                    "max_blocks_per_file": 50,
-                    "timeout_multiplier": 1.1,
-                    "memory_optimization": True
-                })
-            elif language_key == 'python':
-                # Balanced settings for Python
-                base_config.update({
-                    "max_blocks_per_file": 40,
-                    "timeout_multiplier": 1.0,
-                    "memory_optimization": True
-                })
-
-            # Batch size optimizations
-            if file_count > 10:
-                base_config.update({
-                    "parallel_processing": True,
-                    "timeout_multiplier": 1.2,  # Allow more time for large batches
-                    "memory_optimization": True
-                })
-            
-            if file_count > 50:
-                base_config.update({
-                    "max_blocks_per_file": min(base_config["max_blocks_per_file"], 25),
-                    "chunk_size": min(self.chunk_size, 32768)  # Smaller chunks for memory efficiency
-                })
-
-            batch_logger.debug(f"Optimized config for {language_key} ({file_count} files): {base_config}")
-            return base_config
-
-        except Exception as e:
-            if self.debug_enabled:
-                batch_logger.debug("Error optimizing batch config: %s", e)
-            return {
-                "max_blocks_per_file": getattr(self.config, "tree_sitter_max_blocks_per_file", 100),
-                "timeout_multiplier": 1.0,
-                "resource_sharing": True,
-                "parallel_processing": self.parallel_processing_enabled,
-                "memory_optimization": True,
-                "chunk_size": self.chunk_size
-            }
+        """Optimize configuration for batch processing (delegated to scheduler)."""
+        return self.scheduler.optimize_batch_config(language_key, file_count)
 
     def _process_language_group(
         self,
@@ -522,52 +481,14 @@ class TreeSitterBatchProcessor:
             raise
 
     def _should_optimize_memory(self) -> bool:
-        """
-        Determine if memory optimization is needed based on current usage.
-        
-        Returns:
-            True if memory optimization should be performed
-        """
-        try:
-            import psutil
-            process = psutil.Process()
-            memory_percent = process.memory_percent()
-            return memory_percent > 80.0  # Optimize if memory usage > 80%
-        except Exception:
-            return False
+        """Determine if memory optimization is needed (delegated to status tracker)."""
+        return self.status_tracker.should_optimize_memory()
 
     def _update_performance_metrics(self, file_count: int, processing_time: float, language_groups: int):
-        """
-        Update performance metrics after batch processing.
-        
-        Args:
-            file_count: Number of files processed
-            processing_time: Total processing time in milliseconds
-            language_groups: Number of language groups
-        """
-        self.performance_metrics['total_batches_processed'] += 1
-        
-        # Avoid division by zero
-        if file_count > 0:
-            self.performance_metrics['total_files_processed'] += file_count
-            self.performance_metrics['total_processing_time_ms'] += processing_time
-            
-            # Calculate average processing time per file
-            self.performance_metrics['average_processing_time_per_file_ms'] = (
-                self.performance_metrics['total_processing_time_ms'] / self.performance_metrics['total_files_processed']
-            )
-        
-        # Calculate parallel processing efficiency
-        if self.parallel_processing_enabled and file_count > 5:
-            # Estimate sequential processing time (rough approximation)
-            estimated_sequential_time = processing_time * 1.5  # Assume 50% overhead for parallel processing
-            if estimated_sequential_time > 0:
-                efficiency = (estimated_sequential_time - processing_time) / estimated_sequential_time * 100
-                self.performance_metrics['parallel_processing_efficiency'] = max(0, efficiency)
-        
-        batch_logger.info(
-            f"Performance metrics updated: avg {self.performance_metrics['average_processing_time_per_file_ms']:.2f}ms/file, "
-            f"parallel efficiency: {self.performance_metrics['parallel_processing_efficiency']:.1f}%"
+        """Update performance metrics (delegated to status tracker)."""
+        self.status_tracker.update_performance_metrics(
+            file_count, processing_time, language_groups,
+            self.parallel_processing_enabled
         )
 
     def _get_current_performance_metrics(self) -> Dict[str, Any]:
@@ -688,13 +609,8 @@ class TreeSitterBatchProcessor:
             return None
 
     def _get_memory_usage_mb(self) -> float:
-        """Get current memory usage in MB."""
-        try:
-            import psutil
-            process = psutil.Process()
-            return process.memory_info().rss / 1024 / 1024  # Convert bytes to MB
-        except Exception:
-            return 0.0
+        """Get current memory usage (delegated to status tracker)."""
+        return self.status_tracker.get_memory_usage_mb()
 
     # Missing methods for test compatibility
     def _group_by(self, items: list, key_func) -> dict:

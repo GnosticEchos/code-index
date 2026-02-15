@@ -12,6 +12,7 @@ from pathlib import Path
 from ..config import Config
 from ..errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from ..models import ValidationResult
+from ..constants import HTTP_TIMEOUT_DEFAULT
 
 
 class DimensionValidator:
@@ -157,7 +158,7 @@ class DimensionValidator:
             response = requests.post(
                 f"{base_url}/api/show",
                 json={"model": model_name},
-                timeout=10
+                timeout=HTTP_TIMEOUT_DEFAULT
             )
             
             if response.status_code == 200:

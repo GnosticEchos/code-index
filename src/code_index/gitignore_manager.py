@@ -100,7 +100,7 @@ class GitignoreTemplateManager:
                 with open(cache_file, 'r', encoding='utf-8') as f:
                     content = f.read()
                 return self._parse_gitignore_content(content)
-            except:
+            except (IOError, OSError):
                 pass
         return None
     
@@ -110,7 +110,7 @@ class GitignoreTemplateManager:
         try:
             with open(cache_file, 'w', encoding='utf-8') as f:
                 f.write(content)
-        except:
+        except (IOError, OSError):
             pass  # Silently fail on cache write errors
     
     def _download_template(self, template_path: str) -> Optional[str]:

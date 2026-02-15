@@ -14,6 +14,13 @@ from pathlib import Path
 
 from ...config import Config
 from ...scanner import DirectoryScanner
+from ...constants import (
+    EMBEDDING_TIME_PER_CHUNK, LARGE_FILE_OPERATION_THRESHOLD,
+    MANY_FILES_THRESHOLD, CRITICAL_FILES_THRESHOLD,
+    BASE_FILE_PROCESSING_TIME, TREE_SITTER_OVERHEAD,
+    WARNING_LEVEL_CRITICAL, WARNING_LEVEL_WARNING, WARNING_LEVEL_CAUTION,
+    VERY_LARGE_FILE_THRESHOLD
+)
 
 
 @dataclass
@@ -65,12 +72,12 @@ class OperationEstimator:
         self.logger = logging.getLogger(__name__)
         
         # Estimation constants based on empirical testing
-        self.BASE_FILE_PROCESSING_TIME = 0.05  # seconds per file (baseline)
-        self.TREE_SITTER_OVERHEAD = 2.0  # multiplier for tree-sitter processing
-        self.EMBEDDING_TIME_PER_CHUNK = 0.1  # seconds per chunk for embedding
-        self.LARGE_FILE_THRESHOLD = 100 * 1024  # 100KB
-        self.MANY_FILES_THRESHOLD = 1000
-        self.CRITICAL_FILES_THRESHOLD = 5000
+        self.BASE_FILE_PROCESSING_TIME = BASE_FILE_PROCESSING_TIME  # seconds per file (baseline)
+        self.TREE_SITTER_OVERHEAD = TREE_SITTER_OVERHEAD  # multiplier for tree-sitter processing
+        self.EMBEDDING_TIME_PER_CHUNK = EMBEDDING_TIME_PER_CHUNK  # seconds per chunk for embedding
+        self.LARGE_FILE_THRESHOLD = LARGE_FILE_OPERATION_THRESHOLD  # 100KB
+        self.MANY_FILES_THRESHOLD = MANY_FILES_THRESHOLD
+        self.CRITICAL_FILES_THRESHOLD = CRITICAL_FILES_THRESHOLD
         
         # File type complexity multipliers
         self.FILE_TYPE_COMPLEXITY = {
@@ -160,7 +167,7 @@ class OperationEstimator:
         if total_files > self.CRITICAL_FILES_THRESHOLD:
             complexity_factors.append(f"Very large repository ({total_files:,} files)")
         
-        if total_size > 100 * 1024 * 1024:  # 100MB
+        if total_size > VERY_LARGE_FILE_THRESHOLD:  # 100MB
             complexity_factors.append(f"Large total size ({total_size / (1024*1024):.1f}MB)")
         
         if max_depth > 10:
@@ -375,11 +382,11 @@ class OperationEstimator:
     
     def _determine_warning_level(self, estimated_seconds: int, analysis: WorkspaceAnalysis) -> str:
         """Determine appropriate warning level based on estimation."""
-        if estimated_seconds > 300:  # 5 minutes
+        if estimated_seconds > WARNING_LEVEL_CRITICAL:  # 5 minutes
             return "critical"
-        elif estimated_seconds > 120:  # 2 minutes
+        elif estimated_seconds > WARNING_LEVEL_WARNING:  # 2 minutes
             return "warning"
-        elif estimated_seconds > 30:  # 30 seconds
+        elif estimated_seconds > WARNING_LEVEL_CAUTION:  # 30 seconds
             return "caution"
         else:
             return "none"

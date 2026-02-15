@@ -3,6 +3,10 @@ SearchService for CQRS pattern implementation.
 
 This service handles code search operations, separating business logic
 from CLI concerns and providing a clean interface for search operations.
+
+Uses extracted modules:
+- search_strategy_selector: Strategy selection logic
+- result_ranker: Result ranking and processing
 """
 
 import copy
@@ -22,6 +26,10 @@ from ..errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from ..models import SearchResult, SearchMatch
 from .query_embedding_cache import QueryEmbeddingCache
 
+# Import from extracted modules
+from .search_strategy_selector import SearchStrategySelector
+from .result_ranker import ResultRanker
+
 
 class SearchService:
     """
@@ -35,17 +43,21 @@ class SearchService:
     _cache_registry_lock = threading.Lock()
 
     def __init__(self, error_handler: Optional[ErrorHandler] = None, embedding_cache: Optional[QueryEmbeddingCache] = None):
-        """Initialize the SearchService with required dependencies.
-        
-        Args:
-            error_handler: Optional error handler instance.
-            embedding_cache: Optional QueryEmbeddingCache instance for caching query embeddings.
-        """
+        """Initialize the SearchService with required dependencies."""
         self.error_handler = error_handler or ErrorHandler()
         self.config_service = ConfigurationService(self.error_handler)
         self.service_validator = ServiceValidator(self.error_handler)
         self._cache: Optional[SearchService._LRUCache] = None
         self._embedding_cache = embedding_cache or QueryEmbeddingCache()
+        self._config: Optional[Config] = None
+    
+    def _init_strategy_selector(self, config: Config) -> SearchStrategySelector:
+        """Initialize strategy selector with config."""
+        return SearchStrategySelector(config)
+    
+    def _init_result_ranker(self, config: Config) -> ResultRanker:
+        """Initialize result ranker with config."""
+        return ResultRanker(config)
 
     def search_code(self, query: str, config: Config) -> SearchResult:
         """
@@ -620,10 +632,9 @@ class SearchService:
             )
 
     def _initialize_search_components(self, config: Config):
-        """Initialize search components (embedder and vector store)."""
-        embedder = OllamaEmbedder(config)
-        vector_store = QdrantVectorStore(config)
-        return embedder, vector_store
+        """Initialize search components (delegated to strategy selector)."""
+        selector = self._init_strategy_selector(config)
+        return selector.initialize_components(config)
 
     def get_embedding_cache_stats(self) -> Dict[str, Any]:
         """Get statistics for the query embedding cache.

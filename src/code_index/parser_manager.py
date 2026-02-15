@@ -7,6 +7,7 @@ managing parsers across different programming languages with proper resource
 monitoring and timeout mechanisms.
 """
 
+import logging
 import time
 import weakref
 from typing import Dict, Any, Optional, Set
@@ -14,6 +15,8 @@ from dataclasses import dataclass
 
 from .config import Config
 from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity, error_handler
+
+logger = logging.getLogger(__name__)
 
 
 class ParserCreationError(Exception):
@@ -139,7 +142,7 @@ class TreeSitterParserManager:
                 e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM
             )
             if self._debug_enabled:
-                print(f"Warning: {error_response.message}")
+                logger.debug(f"Warning: {error_response.message}")
             return None
 
     def validate_parser(self, language: str) -> bool:
@@ -168,7 +171,7 @@ class TreeSitterParserManager:
                     return True
             except Exception as e:
                 if self._debug_enabled:
-                    print(f"Parser validation failed for {language}: {e}")
+                    logger.debug(f"Parser validation failed for {language}: {e}")
                 return False
 
         except Exception as e:
@@ -181,7 +184,7 @@ class TreeSitterParserManager:
                 e, error_context, ErrorCategory.VALIDATION, ErrorSeverity.LOW
             )
             if self._debug_enabled:
-                print(f"Warning: {error_response.message}")
+                logger.debug(f"Warning: {error_response.message}")
             return False
 
     def cleanup_resources(self) -> int:
@@ -207,7 +210,7 @@ class TreeSitterParserManager:
             self._resource_monitor.reset()
 
             if self._debug_enabled:
-                print(f"Cleaned up {cleaned_count} parsers from cache")
+                logger.debug(f"Cleaned up {cleaned_count} parsers from cache")
 
             return cleaned_count
 
@@ -220,7 +223,7 @@ class TreeSitterParserManager:
                 e, error_context, ErrorCategory.PARSING, ErrorSeverity.LOW
             )
             if self._debug_enabled:
-                print(f"Warning: {error_response.message}")
+                logger.debug(f"Warning: {error_response.message}")
             return 0
 
     def cleanup_old_parsers(self) -> int:
@@ -244,7 +247,7 @@ class TreeSitterParserManager:
             removed_count += 1
 
         if self._debug_enabled and removed_count > 0:
-            print(f"Cleaned up {removed_count} expired parsers from cache")
+            logger.debug(f"Cleaned up {removed_count} expired parsers from cache")
 
         return removed_count
 
@@ -323,7 +326,7 @@ class TreeSitterParserManager:
                 continue
 
         if self._debug_enabled:
-            print(f"Preloaded {preloaded_count} parsers for common languages")
+            logger.debug(f"Preloaded {preloaded_count} parsers for common languages")
 
         return preloaded_count
 
@@ -350,7 +353,7 @@ class TreeSitterParserManager:
             parser.language = language_obj
 
             if self._debug_enabled:
-                print(f"Created parser for {language}")
+                logger.debug(f"Created parser for {language}")
 
             return parser, language_obj
 
@@ -364,7 +367,7 @@ class TreeSitterParserManager:
                 e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM
             )
             if self._debug_enabled:
-                print(f"Warning: {error_response.message}")
+                logger.debug(f"Warning: {error_response.message}")
             return None, None
 
     def _get_tree_sitter_language(self, language: str):
@@ -393,7 +396,7 @@ class TreeSitterParserManager:
 
         except Exception as e:
             if self._debug_enabled:
-                print(f"Failed to load Tree-sitter language for {language}: {e}")
+                logger.debug(f"Failed to load Tree-sitter language for {language}: {e}")
             return None
 
     def _cleanup_parser(self, language: str) -> None:
@@ -415,7 +418,7 @@ class TreeSitterParserManager:
 
         except Exception as e:
             if self._debug_enabled:
-                print(f"Warning: Failed to cleanup parser for {language}: {e}")
+                logger.debug(f"Warning: Failed to cleanup parser for {language}: {e}")
 
     def _is_cache_valid(self, parser_info: ParserInfo) -> bool:
         """

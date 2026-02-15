@@ -1,17 +1,14 @@
-"""
-MCP Configuration Manager
-
-Enhanced configuration management for the MCP server with validation,
-documentation, and override support.
-"""
-
+"""MCP Configuration Manager - Uses extracted modules for validation and persistence."""
 import os
 import json
 import logging
 from typing import Dict, Any, Optional, List, Union
 from dataclasses import dataclass, asdict
-
 from ...config import Config
+from .config_validator import ConfigurationOverride, ConfigValidator
+from .config_persistence import ConfigPersistence
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass

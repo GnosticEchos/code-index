@@ -7,12 +7,15 @@ and integrates with ConfigurationService for language-specific settings.
 """
 
 import os
+import logging
 from typing import Dict, List, Optional, Set, Any
 from pathlib import Path
 
 from .config import Config
 from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity, error_handler
 from .config_service import ConfigurationService as ConfigService
+
+logger = logging.getLogger(__name__)
 
 
 class LanguageDetectionError(Exception):
@@ -96,7 +99,7 @@ class LanguageDetector:
             error_response = self.error_handler.handle_error(
                 e, error_context, ErrorCategory.PARSING, ErrorSeverity.LOW
             )
-            print(f"Warning: {error_response.message}")
+            logger.warning(f"Warning: {error_response.message}")
             return None
 
     def is_language_supported(self, language: str) -> bool:
@@ -139,7 +142,7 @@ class LanguageDetector:
                 error_response = self.error_handler.handle_error(
                     e, error_context, ErrorCategory.CONFIGURATION, ErrorSeverity.LOW
                 )
-                print(f"Warning: {error_response.message}")
+                logger.warning(f"Warning: {error_response.message}")
                 return False
 
         except Exception as e:
@@ -151,7 +154,7 @@ class LanguageDetector:
             error_response = self.error_handler.handle_error(
                 e, error_context, ErrorCategory.VALIDATION, ErrorSeverity.LOW
             )
-            print(f"Warning: {error_response.message}")
+            logger.warning(f"Warning: {error_response.message}")
             return False
 
     def get_supported_languages(self) -> Set[str]:
@@ -423,7 +426,7 @@ class LanguageDetector:
             error_response = self.error_handler.handle_error(
                 e, error_context, ErrorCategory.CONFIGURATION, ErrorSeverity.LOW
             )
-            print(f"Warning: {error_response.message}")
+            logger.warning(f"Warning: {error_response.message}")
             return {
                 'language': language,
                 'supported': False,

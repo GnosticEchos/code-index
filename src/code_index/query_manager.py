@@ -7,12 +7,15 @@ managing queries across different programming languages.
 """
 
 import time
+import logging
 from typing import Dict, Any, Optional, Set
 from dataclasses import dataclass
 
 from .config import Config
 from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity, error_handler
 from .treesitter_queries import get_queries_for_language
+
+logger = logging.getLogger(__name__)
 
 
 class QueryCompilationError(Exception):
@@ -111,7 +114,7 @@ class TreeSitterQueryManager:
                 e, error_context, ErrorCategory.PARSING, ErrorSeverity.LOW
             )
             if self._debug_enabled:
-                print(f"Warning: {error_response.message}")
+                logger.debug(f"Warning: {error_response.message}")
             return None
 
     def compile_query(self, language: str, query_text: str) -> Optional[Any]:
@@ -174,7 +177,7 @@ class TreeSitterQueryManager:
                 e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM
             )
             if self._debug_enabled:
-                print(f"Warning: {error_response.message}")
+                logger.debug(f"Warning: {error_response.message}")
             return None
 
     def validate_query(self, language: str, query_text: str) -> bool:
@@ -201,7 +204,7 @@ class TreeSitterQueryManager:
                 capture_names = getattr(compiled_query, 'capture_names', [])
                 if not capture_names:
                     if self._debug_enabled:
-                        print(f"Warning: Query for {language} has no captures")
+                        logger.debug(f"Warning: Query for {language} has no captures")
                     return False
             except Exception:
                 # If we can't check captures, assume it's valid if compilation succeeded
@@ -219,7 +222,7 @@ class TreeSitterQueryManager:
                 e, error_context, ErrorCategory.VALIDATION, ErrorSeverity.LOW
             )
             if self._debug_enabled:
-                print(f"Warning: {error_response.message}")
+                logger.debug(f"Warning: {error_response.message}")
             return False
 
     def get_compiled_query(self, language: str) -> Optional[Any]:
@@ -251,7 +254,7 @@ class TreeSitterQueryManager:
                 e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM
             )
             if self._debug_enabled:
-                print(f"Warning: {error_response.message}")
+                logger.debug(f"Warning: {error_response.message}")
             return None
 
     def clear_cache(self) -> None:
@@ -282,7 +285,7 @@ class TreeSitterQueryManager:
             removed_count += 1
 
         if self._debug_enabled and removed_count > 0:
-            print(f"Cleaned up {removed_count} expired queries from cache")
+            logger.debug(f"Cleaned up {removed_count} expired queries from cache")
 
         return removed_count
 
@@ -366,7 +369,7 @@ class TreeSitterQueryManager:
             try:
                 query = Query(language_obj, query_text)
                 if self._debug_enabled:
-                    print(f"Compiled query using Query(language, text) for {language}")
+                    logger.debug(f"Compiled query using Query(language, text) for {language}")
                 return query
             except Exception as e_primary:
                 # Fallback to language.query if available (suppress deprecation warning)
@@ -377,7 +380,7 @@ class TreeSitterQueryManager:
                             warnings.simplefilter("ignore", DeprecationWarning)
                             query = language_obj.query(query_text)  # type: ignore[attr-defined]
                         if self._debug_enabled:
-                            print(f"Compiled query using language.query(text) for {language}")
+                            logger.debug(f"Compiled query using language.query(text) for {language}")
                         return query
                     else:
                         raise e_primary
@@ -394,7 +397,7 @@ class TreeSitterQueryManager:
                 e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM
             )
             if self._debug_enabled:
-                print(f"Warning: {error_response.message}")
+                logger.debug(f"Warning: {error_response.message}")
             return None
 
     def _get_tree_sitter_language(self, language: str):
@@ -412,7 +415,7 @@ class TreeSitterQueryManager:
             return tsl.get_language(language)
         except Exception as e:
             if self._debug_enabled:
-                print(f"Failed to load Tree-sitter language for {language}: {e}")
+                logger.debug(f"Failed to load Tree-sitter language for {language}: {e}")
             return None
 
     def _is_cache_valid(self, query_info: QueryInfo) -> bool:
@@ -449,6 +452,6 @@ class TreeSitterQueryManager:
                 continue
 
         if self._debug_enabled:
-            print(f"Preloaded {preloaded_count} queries for common languages")
+            logger.debug(f"Preloaded {preloaded_count} queries for common languages")
 
         return preloaded_count

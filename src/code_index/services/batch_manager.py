@@ -18,6 +18,11 @@ from ..chunking import (
     TreeSitterChunkingStrategy,
 )
 from ..errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from ..constants import (
+    BATCH_SIZE_SMALL, BATCH_SIZE_DEFAULT, BATCH_SIZE_MEDIUM, BATCH_SIZE_LARGE,
+    BATCH_SEGMENT_THRESHOLD, MEMORY_TARGET_BATCH, MEMORY_TARGET_EMBEDDING,
+    EMBEDDING_DIMENSION_DEFAULT
+)
 from .indexing_dependencies import IndexingDependencies
 from .streaming_embedder import StreamingEmbedder, BatchResult
 
@@ -84,7 +89,7 @@ class BatchManager:
             from .parallel_file_processor import ParallelFileProcessor
             self._parallel_processor = ParallelFileProcessor(
                 max_workers=self._parallel_workers,
-                batch_size=getattr(self.config, 'batch_size', 10),
+                batch_size=getattr(self.config, 'batch_size', BATCH_SIZE_SMALL),
                 error_handler=None,
                 continue_on_error=True
             )
@@ -141,7 +146,7 @@ class BatchManager:
         if not file_paths:
             return []
         
-        batch_size = batch_size or getattr(self.config, "batch_size", 10)
+        batch_size = batch_size or getattr(self.config, "batch_size", BATCH_SIZE_SMALL)
         batches = []
         
         for i in range(0, len(file_paths), batch_size):
@@ -323,12 +328,12 @@ class BatchManager:
             total_size = sum(Path(f).stat().st_size for f in file_paths if Path(f).exists())
             avg_size = total_size / len(file_paths)
             
-            # Target batch memory usage (e.g., 10MB per batch)
-            target_batch_mb = 10
+            # Target batch memory usage
+            target_batch_mb = MEMORY_TARGET_BATCH
             target_batch_bytes = target_batch_mb * 1024 * 1024
             
-            optimal_size = max(1, int(target_batch_bytes / avg_size)) if avg_size > 0 else 10
-            max_size = getattr(self.config, "max_batch_size", 50)
+            optimal_size = max(1, int(target_batch_bytes / avg_size)) if avg_size > 0 else BATCH_SIZE_SMALL
+            max_size = getattr(self.config, "max_batch_size", BATCH_SIZE_MEDIUM)
             
             return min(optimal_size, max_size)
             
@@ -462,7 +467,7 @@ class BatchManager:
             StreamingEmbedder instance
         """
         if batch_size is None:
-            batch_size = getattr(self.config, "batch_segment_threshold", 32)
+            batch_size = getattr(self.config, "batch_segment_threshold", BATCH_SEGMENT_THRESHOLD)
         return StreamingEmbedder(
             embedder=embedder,
             batch_size=batch_size,
@@ -564,7 +569,7 @@ class BatchManager:
     def estimate_embedding_memory(
         self,
         num_texts: int,
-        embedding_dim: int = 768
+        embedding_dim: int = EMBEDDING_DIMENSION_DEFAULT
     ) -> Dict[str, Any]:
         """
         Estimate memory usage for embedding operations.
@@ -598,8 +603,8 @@ class BatchManager:
     def get_optimal_streaming_batch_size(
         self,
         num_texts: int,
-        embedding_dim: int = 768,
-        target_memory_mb: int = 50
+        embedding_dim: int = EMBEDDING_DIMENSION_DEFAULT,
+        target_memory_mb: int = MEMORY_TARGET_EMBEDDING
     ) -> int:
         """
         Calculate optimal batch size for streaming based on memory constraints.
@@ -613,7 +618,7 @@ class BatchManager:
             Optimal batch size
         """
         if num_texts == 0:
-            return getattr(self.config, "batch_segment_threshold", 32)
+            return getattr(self.config, "batch_segment_threshold", BATCH_SEGMENT_THRESHOLD)
         memory_estimate = self.estimate_embedding_memory(1, embedding_dim)
         target_bytes = target_memory_mb * 1024 * 1024
         
@@ -621,5 +626,5 @@ class BatchManager:
         optimal_size = max(1, int(target_bytes / memory_estimate['total_with_overhead_bytes']))
         
         # Respect configured batch size as upper bound
-        max_batch_size = getattr(self.config, "batch_segment_threshold", 32)
+        max_batch_size = getattr(self.config, "batch_segment_threshold", BATCH_SEGMENT_THRESHOLD)
         return min(optimal_size, max_batch_size)

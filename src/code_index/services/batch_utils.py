@@ -1,6 +1,12 @@
 from typing import Callable, Dict, Any, List, Iterator, Optional
 import logging
 
+from ..constants import (
+    BATCH_SIZE_SMALL, BATCH_SIZE_DEFAULT, BATCH_SIZE_LARGE, BATCH_SIZE_XLARGE,
+    MEMORY_TARGET_EMBEDDING, MAX_BATCH_SIZE, MIN_BATCH_SIZE,
+    EMBEDDING_DIMENSION_DEFAULT
+)
+
 
 logger = logging.getLogger("code_index.batch_utils")
 
@@ -89,9 +95,9 @@ class BatchProgressTracker:
 def calculate_optimal_batch_size(
     total_items: int,
     item_size_bytes: int,
-    target_memory_mb: int = 50,
-    max_batch_size: int = 100,
-    min_batch_size: int = 1
+    target_memory_mb: int = MEMORY_TARGET_EMBEDDING,
+    max_batch_size: int = BATCH_SIZE_LARGE,
+    min_batch_size: int = MIN_BATCH_SIZE
 ) -> int:
     """Calculate optimal batch size based on memory constraints."""
     if total_items == 0:
@@ -105,7 +111,7 @@ def calculate_optimal_batch_size(
 
 def estimate_text_memory_usage(
     texts: List[str],
-    embedding_dim: int = 768
+    embedding_dim: int = EMBEDDING_DIMENSION_DEFAULT
 ) -> Dict[str, Any]:
     """Estimate memory usage for embedding a list of texts."""
     text_bytes = sum(len(text.encode('utf-8')) for text in texts)
@@ -136,8 +142,8 @@ def create_batches_from_texts(
 def validate_batch_size(
     batch_size: int,
     total_items: int,
-    max_batch_size: int = 1000,
-    min_batch_size: int = 1
+    max_batch_size: int = BATCH_SIZE_XLARGE,
+    min_batch_size: int = MIN_BATCH_SIZE
 ) -> int:
     """Validate and adjust batch size to acceptable limits."""
     if batch_size <= 0:
@@ -152,8 +158,8 @@ def validate_batch_size(
 def get_memory_efficient_batch_size(
     num_texts: int,
     avg_text_length: int,
-    embedding_dim: int = 768,
-    target_memory_mb: int = 50,
+    embedding_dim: int = EMBEDDING_DIMENSION_DEFAULT,
+    target_memory_mb: int = MEMORY_TARGET_EMBEDDING,
     safety_factor: float = 0.8
 ) -> int:
     """Calculate memory-efficient batch size with safety margin."""

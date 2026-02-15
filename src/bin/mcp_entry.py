@@ -9,8 +9,11 @@ from code_index.mcp_server.server import sync_main
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the Code Index MCP server")
     parser.add_argument(
+        "-c",
         "--config",
+        "--configuration",
         default="code_index.json",
+        dest="config",
         help="Path to configuration file (defaults to code_index.json in working directory)",
     )
     return parser.parse_args()

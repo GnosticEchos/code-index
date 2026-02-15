@@ -3,15 +3,38 @@ Tree-sitter Block Extractor Service
 
 This module provides semantic code block extraction using Tree-sitter parsers
 for 50+ programming languages with fallback strategies.
+
+Uses extracted modules:
+- block_parser: Tree-sitter parsing logic
+- block_filter: Block filtering based on thresholds
 """
 
 import time
 import logging
-import re
 from typing import List, Optional, Dict, Any, TYPE_CHECKING
 from dataclasses import dataclass
 from ..models import CodeBlock
-from ..utils import split_content
+
+# Import from extracted modules
+from .block_parser import (
+    basic_line_chunking,
+    extract_blocks_with_treesitter,
+)
+from .block_filter import BlockFilter
+
+
+@dataclass
+class ExtractionResult:
+    """Result of code block extraction operation."""
+    blocks: List[CodeBlock]
+    success: bool = True
+    error_message: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+    processing_time_ms: float = 0.0
+
+
+if TYPE_CHECKING:  # pragma: no cover - imported for type checking only
+    from ..parser_manager import TreeSitterParserManager
 
 
 @dataclass
@@ -52,41 +75,6 @@ class TreeSitterBlockExtractor:
         self._min_block_chars_default = default_min_chars
         self.max_block_chars = getattr(config, "tree_sitter_max_block_chars", 6000)
         self._capture_minimums: Dict[str, int] = {}
-        self._structural_captures = {
-            "module",
-            "component",
-            "function",
-            "function_definition",
-            "function_declaration",
-            "method_definition",
-            "method_declaration",
-            "class",
-            "class_definition",
-            "class_declaration",
-            "impl",
-            "impl_item",
-            "struct",
-            "struct_item",
-            "enum",
-            "enum_item",
-            "trait",
-            "trait_item",
-            "template",
-            "template_element",
-        }
-        # Captures that are just identifiers (names) and should be skipped
-        # These are captured for metadata but don't contain useful code content
-        self._identifier_captures = {
-            "name",
-            "identifier",
-            "function_name",
-            "class_name",
-            "method_name",
-            "variable_name",
-            "property_identifier",
-            "type_identifier",
-            "field_identifier",
-        }
         self._cache = {}
         self._total_extractions = 0
         self._successful_extractions = 0
@@ -96,6 +84,9 @@ class TreeSitterBlockExtractor:
         self._cache_misses = 0
         self._memory_usage_bytes = 0
         self._treesitter_failures = []
+        
+        # Use block filter for filtering logic
+        self._block_filter = BlockFilter(config, self.min_block_chars)
 
     def extract_blocks_with_fallback(
         self,
@@ -370,275 +361,37 @@ class TreeSitterBlockExtractor:
             )
 
     def _extract_blocks_with_treesitter(self, root_node, text: str, file_path: str, file_hash: str, language_key: str) -> List[CodeBlock]:
-        """
-        Extract semantic blocks using actual Tree-sitter parsing.
-        
-        Args:
-            root_node: Tree-sitter root node
-            text: Source code text
-            file_path: Path to the source file
-            file_hash: Hash of the file
-            language_key: Language identifier
-            
-        Returns:
-            List of extracted code blocks
-        """
-        blocks = []
-        
-        try:
-            # Get Tree-sitter queries for the language
-            from ..treesitter_queries import get_queries_for_language
-            query_text = get_queries_for_language(language_key)
-            
-            if not query_text:
-                if self.debug_enabled:
-                    self._logger.debug("No Tree-sitter queries found for language: %s", language_key)
-                return self._basic_line_chunking(text, file_path, file_hash)
-            
-            # Process the query to extract blocks
-            try:
-                # Compile and execute the query
-                # Get the parser for the language to access the language object
-                parser_manager = self._ensure_parser_manager()
-                if not parser_manager:
-                    if self.debug_enabled:
-                        self._logger.debug("Parser manager unavailable during query compile for %s", file_path)
-                    return self._basic_line_chunking(text, file_path, file_hash)
-                parser = parser_manager.get_parser(language_key)
-                query = self._compile_query(parser.language, query_text)
-                if not query:
-                    return []
-                    
-                # Prepare minimum thresholds and execute query
-                self._prepare_minimums(language_key)
-                captures = self._execute_query(query, root_node)
-
-                # Process captures into blocks
-                for capture in captures:
-                    node = capture["node"]
-                    block_type = capture["capture_name"]
-                    parent_capture = capture.get("parent_capture")
-                    # Extract block content and metadata
-                    start_line, start_col = node.start_point
-                    end_line, end_col = node.end_point
-                    
-                    # Convert to 1-based indexing for lines
-                    start_line += 1
-                    end_line += 1
-                    
-                    # Extract the text content for this node
-                    block_content = text[node.start_byte:node.end_byte]
-                    
-                    content_length = len(block_content.strip())
-                    if not self._should_keep_capture(block_type, content_length, parent_capture):
-                        if self.debug_enabled:
-                            threshold = self._capture_minimums.get(block_type, self.min_block_chars)
-                            self._logger.debug(
-                                "Skipping block %s at lines %s-%s: content too short (%s < %s)",
-                                block_type,
-                                start_line,
-                                end_line,
-                                content_length,
-                                threshold,
-                            )
-                        continue
-                    
-                    # Split oversized blocks into multiple chunks to preserve all data
-                    if len(block_content) > self.max_block_chars:
-                        if self.debug_enabled:
-                            self._logger.debug(
-                                "Splitting large block %s at lines %s-%s: %s chars > %s max",
-                                block_type,
-                                start_line,
-                                end_line,
-                                len(block_content),
-                                self.max_block_chars,
-                            )
-                        
-                        # Split the content into multiple chunks
-                        content_chunks = split_content(block_content, self.max_block_chars)
-                        
-                        # Calculate lines per chunk for approximate line tracking
-                        total_lines = end_line - start_line + 1
-                        lines_per_chunk = max(1, total_lines // len(content_chunks))
-                        
-                        # Generate parent block ID for linking split parts
-                        parent_id = f"{block_type}_{start_line}_{end_line}"
-                        
-                        for chunk_idx, chunk_content in enumerate(content_chunks):
-                            chunk_start_line = start_line + (chunk_idx * lines_per_chunk)
-                            chunk_end_line = min(chunk_start_line + lines_per_chunk - 1, end_line)
-                            
-                            # Create identifier with chunk index
-                            identifier = f"{block_type}_{chunk_start_line}_{chunk_end_line}_part{chunk_idx + 1}"
-                            
-                            block = CodeBlock(
-                                file_path=file_path,
-                                identifier=identifier,
-                                type=block_type,
-                                start_line=chunk_start_line,
-                                end_line=chunk_end_line,
-                                content=chunk_content,
-                                file_hash=file_hash,
-                                segment_hash=f"{file_hash}:{chunk_start_line}:{chunk_end_line}:part{chunk_idx + 1}",
-                                split_index=chunk_idx + 1,  # 1-based
-                                split_total=len(content_chunks),
-                                parent_block_id=parent_id,
-                            )
-                            blocks.append(block)
-                            if self.debug_enabled:
-                                self._logger.debug(
-                                    "Added split block %s part %s/%s at lines %s-%s",
-                                    block_type,
-                                    chunk_idx + 1,
-                                    len(content_chunks),
-                                    chunk_start_line,
-                                    chunk_end_line,
-                                )
-                    else:
-                        # Create identifier from node type and position
-                        identifier = f"{block_type}_{start_line}_{end_line}"
-                        
-                        # Create code block (no split metadata needed)
-                        block = CodeBlock(
-                            file_path=file_path,
-                            identifier=identifier,
-                            type=block_type,
-                            start_line=start_line,
-                            end_line=end_line,
-                            content=block_content,
-                            file_hash=file_hash,
-                            segment_hash=f"{file_hash}:{start_line}:{end_line}"
-                        )
-                        blocks.append(block)
-                        if self.debug_enabled:
-                            self._logger.debug("Added block %s at lines %s-%s", block_type, start_line, end_line)
-                    
-            except Exception as e:
-                if self.debug_enabled:
-                    self._logger.debug("Query processing failed for %s: %s", file_path, e)
-                return self._basic_line_chunking(text, file_path, file_hash)
-
-        except Exception as exc:
-            if self.debug_enabled:
-                self._logger.debug("Tree-sitter extraction failed for %s: %s", file_path, exc)
-            return self._basic_line_chunking(text, file_path, file_hash)
-
-        return blocks
+        """Extract blocks using Tree-sitter (delegated to block_parser module)."""
+        parser_manager = self._ensure_parser_manager()
+        return extract_blocks_with_treesitter(
+            root_node, text, file_path, file_hash, language_key,
+            parser_manager, self.config, self.debug_enabled
+        )
 
     def _basic_line_chunking(self, content: str, file_path: str, file_hash: str) -> List[CodeBlock]:
         """Fallback strategy: split plain text into fixed-size line chunks."""
-        if not content:
-            return []
-
-        lines = content.splitlines()
-        chunk_size = getattr(self.config, "fallback_chunk_size", 5)
-        chunk_size = max(1, int(chunk_size))
-
-        blocks: List[CodeBlock] = []
-        for start in range(0, len(lines), chunk_size):
-            chunk_lines = lines[start:start + chunk_size]
-            if not chunk_lines:
-                continue
-
-            start_line = start + 1
-            end_line = start + len(chunk_lines)
-            chunk_text = "\n".join(chunk_lines)
-            
-            # Split oversized chunks to preserve all data
-            if len(chunk_text) > self.max_block_chars:
-                content_chunks = split_content(chunk_text, self.max_block_chars)
-                
-                # Generate parent block ID for linking split parts
-                parent_id = f"text_chunk_{start_line}_{end_line}"
-                
-                for chunk_idx, chunk_content in enumerate(content_chunks):
-                    # Approximate line tracking for split chunks
-                    chunk_identifier = f"text_chunk_{start_line}_{end_line}_part{chunk_idx + 1}"
-                    
-                    blocks.append(CodeBlock(
-                        file_path=file_path,
-                        identifier=chunk_identifier,
-                        type="text_chunk",
-                        start_line=start_line,
-                        end_line=end_line,
-                        content=chunk_content,
-                        file_hash=file_hash,
-                        segment_hash=f"{file_hash}:{start_line}:{end_line}:part{chunk_idx + 1}",
-                        split_index=chunk_idx + 1,  # 1-based
-                        split_total=len(content_chunks),
-                        parent_block_id=parent_id,
-                    ))
-            else:
-                identifier = f"text_chunk_{start_line}_{end_line}"
-
-                blocks.append(CodeBlock(
-                    file_path=file_path,
-                    identifier=identifier,
-                    type="text_chunk",
-                    start_line=start_line,
-                    end_line=end_line,
-                    content=chunk_text,
-                    file_hash=file_hash,
-                    segment_hash=f"{file_hash}:{start_line}:{end_line}"
-                ))
-
-        return blocks
+        fallback_chunk_size = getattr(self.config, "fallback_chunk_size", 5)
+        return basic_line_chunking(
+            content, file_path, file_hash,
+            self.max_block_chars, fallback_chunk_size
+        )
 
     def _compile_query(self, language, query_text: str):
         """Compile a Tree-sitter query."""
-        try:
-            from tree_sitter import Query
-            return Query(language, query_text)
-        except Exception as e:
-            if self.debug_enabled:
-                self._logger.debug("Failed to compile query: %s", e)
-            return None
+        from .block_parser import compile_treesitter_query
+        return compile_treesitter_query(language, query_text)
 
     def _execute_query(self, query, root_node):
         """Execute a Tree-sitter query and return captures with metadata."""
-        captures: List[Dict[str, Any]] = []
-        try:
-            from tree_sitter import QueryCursor
-            cursor = QueryCursor(query)
-
-            # Use the correct API for this tree-sitter version
-            for match in cursor.matches(root_node):
-                pattern_index, captures_dict = match
-
-                if self.debug_enabled:
-                    self._logger.debug(
-                        "Query match pattern_index=%s captures=%s",
-                        pattern_index,
-                        list(captures_dict.keys()),
-                    )
-
-                for capture_name, nodes in captures_dict.items():
-                    parent_capture = self._infer_parent_capture(capture_name, captures_dict)
-                    for node in nodes:
-                        if self.debug_enabled:
-                            self._logger.debug(
-                                "Processing capture %s node type %s",
-                                capture_name,
-                                node.type,
-                            )
-                        captures.append({
-                            "node": node,
-                            "capture_name": capture_name,
-                            "parent_capture": parent_capture,
-                        })
-
-        except Exception as e:
-            if self.debug_enabled:
-                self._logger.debug("Query execution failed: %s", e)
-
-        return captures
+        from .block_parser import execute_treesitter_query
+        return execute_treesitter_query(query, root_node)
 
     def _infer_parent_capture(self, capture_name: str, captures_dict: Dict[str, Any]) -> Optional[str]:
         """Infer a structural parent capture when available in the same pattern."""
-        if capture_name in self._structural_captures:
+        from .block_filter import STRUCTURAL_CAPTURES
+        if capture_name in STRUCTURAL_CAPTURES:
             return None
-        for structural in self._structural_captures:
+        for structural in STRUCTURAL_CAPTURES:
             if structural in captures_dict:
                 return structural
         return None
@@ -658,57 +411,18 @@ class TreeSitterBlockExtractor:
 
     def _prepare_minimums(self, language_key: str) -> None:
         """Load default and capture-specific minimum thresholds for a language."""
-        self._capture_minimums = {}
-        self.min_block_chars = self._min_block_chars_default
-        config_manager = self._ensure_config_manager()
-        if not config_manager:
-            return
-
-        language_config = config_manager.get_language_config(language_key)
-        if not language_config:
-            return
-
-        if isinstance(language_config, dict):
-            optimizations = language_config.get("optimizations", {})
-        else:
-            optimizations = getattr(language_config, "optimizations", {})
-
-        minimum_data = optimizations.get("minimum_block_chars") if isinstance(optimizations, dict) else None
-        if not isinstance(minimum_data, dict):
-            return
-
-        default_value = minimum_data.get("default")
-        if isinstance(default_value, int):
-            self.min_block_chars = default_value
-
-        captures = minimum_data.get("captures")
-        if isinstance(captures, dict):
-            for name, value in captures.items():
-                if isinstance(value, int):
-                    self._capture_minimums[name] = value
+        self._block_filter.prepare_minimums(
+            language_key,
+            self._ensure_config_manager()
+        )
 
     def _threshold_for_capture(self, capture_name: str) -> int:
         """Return the configured threshold for a capture name, defaulting to language minimum."""
-        return self._capture_minimums.get(capture_name, self.min_block_chars)
+        return self._block_filter.threshold_for_capture(capture_name)
 
     def _should_keep_capture(self, capture_name: str, content_length: int, parent_capture: Optional[str]) -> bool:
-        """Decide whether to retain a capture based on configured thresholds and parent context.
-        
-        Identifier captures (like @name) are always skipped since they only contain
-        the function/class name text, not the actual code body.
-        """
-        # Skip identifier captures - they only contain names, not useful code content
-        if capture_name in self._identifier_captures:
-            return False
-        
-        threshold = self._threshold_for_capture(capture_name)
-        if capture_name in self._structural_captures:
-            return content_length >= threshold
-        if content_length >= threshold:
-            return True
-        if parent_capture and parent_capture in self._structural_captures:
-            return True
-        return False
+        """Decide whether to retain a capture based on configured thresholds."""
+        return self._block_filter.should_keep_capture(capture_name, content_length, parent_capture)
 
     def extract_blocks_from_root_node_with_fallback(self, root_node, text: str, file_path: str, file_hash: str, language_key: str = None) -> ExtractionResult:
         """Extract blocks with fallback strategy."""

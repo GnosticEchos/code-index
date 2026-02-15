@@ -126,7 +126,7 @@ class SmartIgnoreManager:
                             line = line.strip()
                             if line and not line.startswith('#'):
                                 patterns.append(line)
-                except:
+                except (IOError, OSError):
                     pass
         else:
             # Original behavior: recursively walk through workspace
@@ -140,7 +140,7 @@ class SmartIgnoreManager:
                                 line = line.strip()
                                 if line and not line.startswith('#'):
                                     patterns.append(line)
-                    except:
+                    except (IOError, OSError):
                         continue
         
         return patterns
@@ -195,7 +195,7 @@ class SmartIgnoreManager:
         if '*' in pattern or '?' in pattern:
             try:
                 return fnmatch.fnmatch(file_path, pattern)
-            except:
+            except (ValueError, TypeError):
                 pass
         
         # Handle exact matches

@@ -279,7 +279,7 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
         """Destructor to ensure resources are cleaned up."""
         try:
             self.cleanup_resources()
-        except:
+        except Exception:
             pass  # Ignore errors during destruction
 
     def _line_fallback(self, text: str, file_path: str, file_hash: str) -> List[CodeBlock]:

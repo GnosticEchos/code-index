@@ -20,6 +20,28 @@
 - **CQRS Principles**: Maintain clear separation between state-changing commands and data-retrieval queries.
 - **MCP Integration**: The MCP server MUST share logic with the CLI via `CommandContext` to ensure behavioral parity. Use `MCPErrorHandlerAdapter` to bridge MCP-specific error reporting with the core `ErrorHandler`.
 
+### Service Size Guidelines
+Services should generally stay under 200 lines, but more nuanced limits apply based on service complexity:
+
+**Recommended Service Line Limits:**
+- **Core services** (parsers, executors, complex logic): 400-500 lines
+- **Simple services** (helpers, caches): 200 lines  
+- **Facade/Orchestrator services**: 300 lines
+
+**Conditions to EXCEED the limit:**
+1. Multiple API strategies/fallback patterns
+2. Complex state management (resource pooling, multi-layer caching)
+3. Well-documented with clear docstrings
+4. Low cyclomatic complexity (methods are short and focused)
+5. Has existing test coverage
+6. Single Responsibility Principle is followed (< 20 methods per class)
+
+**Conditions to NOT exceed:**
+1. More than 20 methods in a single class
+2. Duplicate code exists
+3. Mixed responsibilities in one file
+4. Difficult to test in isolation
+
 ### 3. Coding Standards & Quality
 - **Error Handling**: **NEVER** use raw `print()` for errors in service layers. Use the centralized `ErrorHandler` located in `src/code_index/errors.py`.
 - **UI & Feedback**: Use the Rich-based TUI components (`ProgressManager`, `FileScroller`, `StatusPanel`) in `src/code_index/ui/` for long-running operations.

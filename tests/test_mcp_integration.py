@@ -774,7 +774,7 @@ class TestConfigurationExampleValidation:
                 config = config_service.load_with_fallback(config_path=str(config_file))
 
                 # Verify key properties
-                assert config.embedding_length == 1024  # Default for nomic-embed-text model
+                assert config.embedding_length == 768  # From config fixture
                 assert config.chunking_strategy in ["lines", "tokens", "treesitter"]
                 assert isinstance(config.use_tree_sitter, bool)
                 assert config.search_min_score >= 0.0

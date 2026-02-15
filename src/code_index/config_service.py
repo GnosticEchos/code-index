@@ -193,10 +193,10 @@ class ConfigurationService:
             Configuration with workspace overrides applied (or skipped if explicit config)
         """
         try:
-            # If user explicitly specified a config file, check if it's different from
+            # If user explicitly specified a config file that exists, check if it's different from
             # the default workspace config. If so, skip workspace overrides to respect
             # the user's explicit configuration choice.
-            if explicit_config_path:
+            if explicit_config_path and os.path.exists(explicit_config_path):
                 explicit_path = Path(explicit_config_path).resolve()
                 workspace_path_obj = Path(workspace_path).resolve()
                 default_workspace_config = workspace_path_obj / "code_index.json"
