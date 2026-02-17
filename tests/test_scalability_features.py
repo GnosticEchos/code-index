@@ -7,9 +7,9 @@ import tempfile
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from code_index.file_processing import FileProcessingService
-from code_index.services.file_processor import TreeSitterFileProcessor, FileProcessor
+from code_index.services import TreeSitterFileProcessor, FileProcessor
 from code_index.hybrid_parsers import HybridParserManager, PlainTextParser, ConfigFileParser
-from code_index.services.block_extractor import TreeSitterBlockExtractor, ExtractionResult
+from code_index.services import TreeSitterBlockExtractor, ExtractionResult
 from code_index.config import Config
 from code_index.errors import ErrorHandler
 from code_index.models import CodeBlock

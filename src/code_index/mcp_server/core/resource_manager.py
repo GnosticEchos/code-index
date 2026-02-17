@@ -3,6 +3,10 @@ Resource Management and Cleanup System for MCP Server
 
 This module provides comprehensive resource management including memory management,
 connection cleanup, and graceful shutdown handling for the MCP server.
+
+Uses extracted modules:
+- mcp_resource_models: ResourceInfo dataclass
+- mcp_memory_manager: MemoryManager class
 """
 
 import asyncio
@@ -14,22 +18,21 @@ import time
 import weakref
 from typing import Dict, Any, List, Optional, Set, Callable
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
 
 from ...constants import (
     MEMORY_THRESHOLD_MCP, CLEANUP_INTERVAL_MCP, OLD_RESOURCE_THRESHOLD,
     MEMORY_POOL_MAX_SIZE, SHUTDOWN_WAIT_TIMEOUT
 )
 
-
-@dataclass
-class ResourceInfo:
-    """Information about a managed resource."""
-    resource_id: str
-    resource_type: str
-    created_at: float
-    cleanup_func: Callable[[], None]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+# Import from extracted modules
+from .mcp_resource_models import ResourceInfo
+from .mcp_memory_manager import MemoryManager, create_memory_manager
+from .mcp_resource_utils import (
+    cleanup_old_resources_by_type,
+    check_memory_and_collect,
+    cleanup_service_connections,
+    setup_signal_handlers
+)
 
 
 class ResourceManager:
@@ -412,49 +415,17 @@ class ResourceManager:
     
     def _cleanup_old_resources(self) -> None:
         """Cleanup resources that are older than a certain threshold."""
-        current_time = time.time()
-        old_threshold = OLD_RESOURCE_THRESHOLD  # 1 hour
-        
-        resources_to_cleanup = []
-        for resource_id, resource_info in self._resources.items():
-            if current_time - resource_info.created_at > old_threshold:
-                # Only cleanup certain types of resources automatically
-                if resource_info.resource_type in ["temp_file", "cache", "connection_pool"]:
-                    resources_to_cleanup.append(resource_id)
-        
+        resources_to_cleanup = cleanup_old_resources_by_type(self._resources)
         for resource_id in resources_to_cleanup:
             self.cleanup_resource(resource_id)
     
     def _check_memory_usage(self) -> None:
         """Check memory usage and trigger cleanup if threshold is exceeded."""
-        try:
-            import psutil
-            process = psutil.Process()
-            memory_mb = process.memory_info().rss / 1024 / 1024
-            
-            if memory_mb > self._memory_threshold_mb:
-                self.logger.warning(f"Memory usage ({memory_mb:.1f}MB) exceeds threshold ({self._memory_threshold_mb}MB)")
-                
-                # Trigger garbage collection
-                import gc
-                gc.collect()
-                
-                # Cleanup cache-type resources
-                cache_resources = [
-                    resource_id for resource_id, resource_info in self._resources.items()
-                    if resource_info.resource_type in ["cache", "temp_file"]
-                ]
-                
-                for resource_id in cache_resources:
-                    self.cleanup_resource(resource_id)
-                
-                self.logger.info(f"Cleaned up {len(cache_resources)} cache resources due to memory pressure")
-        
-        except ImportError:
-            # psutil not available, skip memory monitoring
-            pass
-        except Exception as e:
-            self.logger.error(f"Error checking memory usage: {e}")
+        check_memory_and_collect(
+            self._memory_threshold_mb,
+            self._resources,
+            self.cleanup_resource
+        )
     
     async def _wait_for_operations_completion(self, timeout: float = 30.0) -> None:
         """
@@ -486,32 +457,10 @@ class ResourceManager:
     
     def _cleanup_service_connections(self) -> None:
         """Cleanup service connections and Tree-sitter resources."""
-        # Cleanup Ollama connections
-        for connection in list(self._ollama_connections):
-            try:
-                # Most HTTP clients don't need explicit cleanup, but we'll try
-                if hasattr(connection, 'close'):
-                    connection.close()
-                elif hasattr(connection, 'session') and hasattr(connection.session, 'close'):
-                    connection.session.close()
-            except Exception as e:
-                self.logger.debug(f"Error cleaning up Ollama connection: {e}")
+        cleanup_service_connections(self._ollama_connections, "Ollama", ['close', 'session'])
+        cleanup_service_connections(self._qdrant_connections, "Qdrant", ['close', 'client'])
         
-        self._ollama_connections.clear()
-        
-        # Cleanup Qdrant connections
-        for connection in list(self._qdrant_connections):
-            try:
-                if hasattr(connection, 'close'):
-                    connection.close()
-                elif hasattr(connection, 'client') and hasattr(connection.client, 'close'):
-                    connection.client.close()
-            except Exception as e:
-                self.logger.debug(f"Error cleaning up Qdrant connection: {e}")
-        
-        self._qdrant_connections.clear()
-        
-        # Cleanup Tree-sitter strategies (complements existing cleanup_resources method)
+        # Cleanup Tree-sitter strategies
         for strategy in list(self._tree_sitter_strategies):
             try:
                 if hasattr(strategy, 'cleanup_resources'):
@@ -520,7 +469,6 @@ class ResourceManager:
                 self.logger.debug(f"Error cleaning up Tree-sitter strategy: {e}")
         
         self._tree_sitter_strategies.clear()
-        
         self.logger.debug("Service connections and Tree-sitter resources cleaned up")
     
     def _setup_signal_handlers(self) -> None:
@@ -541,125 +489,9 @@ class ResourceManager:
             else:
                 loop.run_until_complete(self.shutdown())
         
-        # Register signal handlers
-        if hasattr(signal, 'SIGTERM'):
-            signal.signal(signal.SIGTERM, signal_handler)
-        if hasattr(signal, 'SIGINT'):
-            signal.signal(signal.SIGINT, signal_handler)
-
-
-class MemoryManager:
-    """
-    Memory management utilities for large indexing operations.
-    """
-    
-    def __init__(self, resource_manager: ResourceManager):
-        """
-        Initialize memory manager.
-        
-        Args:
-            resource_manager: Resource manager instance
-        """
-        self.resource_manager = resource_manager
-        self.logger = logging.getLogger(__name__)
-        self._memory_pools: Dict[str, List[Any]] = {}
-    
-    def create_memory_pool(self, pool_name: str, max_size: int = MEMORY_POOL_MAX_SIZE) -> None:
-        """
-        Create a memory pool for reusing objects.
-        
-        Args:
-            pool_name: Name of the memory pool
-            max_size: Maximum number of objects in the pool
-        """
-        self._memory_pools[pool_name] = []
-        
-        def cleanup_pool():
-            if pool_name in self._memory_pools:
-                del self._memory_pools[pool_name]
-                self.logger.debug(f"Cleaned up memory pool: {pool_name}")
-        
-        self.resource_manager.register_resource(
-            resource_id=f"memory_pool_{pool_name}",
-            resource_type="memory_pool",
-            cleanup_func=cleanup_pool,
-            metadata={"pool_name": pool_name, "max_size": max_size}
-        )
-    
-    def get_from_pool(self, pool_name: str, factory_func: Callable[[], Any]) -> Any:
-        """
-        Get an object from the memory pool or create a new one.
-        
-        Args:
-            pool_name: Name of the memory pool
-            factory_func: Function to create new objects
-            
-        Returns:
-            Object from pool or newly created object
-        """
-        if pool_name not in self._memory_pools:
-            self.create_memory_pool(pool_name)
-        
-        pool = self._memory_pools[pool_name]
-        
-        if pool:
-            return pool.pop()
-        else:
-            return factory_func()
-    
-    def return_to_pool(self, pool_name: str, obj: Any, max_size: int = MEMORY_POOL_MAX_SIZE) -> None:
-        """
-        Return an object to the memory pool.
-        
-        Args:
-            pool_name: Name of the memory pool
-            obj: Object to return to pool
-            max_size: Maximum pool size
-        """
-        if pool_name not in self._memory_pools:
-            return
-        
-        pool = self._memory_pools[pool_name]
-        
-        if len(pool) < max_size:
-            # Reset object state if possible
-            if hasattr(obj, 'clear'):
-                obj.clear()
-            elif hasattr(obj, 'reset'):
-                obj.reset()
-            
-            pool.append(obj)
-    
-    def get_memory_stats(self) -> Dict[str, Any]:
-        """
-        Get memory usage statistics.
-        
-        Returns:
-            Dictionary with memory statistics
-        """
-        stats = {
-            "memory_pools": {
-                name: len(pool) for name, pool in self._memory_pools.items()
-            }
-        }
-        
-        try:
-            import psutil
-            process = psutil.Process()
-            memory_info = process.memory_info()
-            stats.update({
-                "rss_mb": memory_info.rss / 1024 / 1024,
-                "vms_mb": memory_info.vms / 1024 / 1024,
-                "percent": process.memory_percent()
-            })
-        except ImportError:
-            pass
-        except Exception as e:
-            self.logger.debug(f"Error getting memory stats: {e}")
-        
-        return stats
+        setup_signal_handlers(signal_handler)
 
 
 # Global resource manager instance
 resource_manager = ResourceManager()
-memory_manager = MemoryManager(resource_manager)
+memory_manager = create_memory_manager(resource_manager)

@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
 from src.code_index.config import Config
-from src.code_index.services.configuration_service import ConfigurationService, QueryCache
+from src.code_index.services import ConfigurationService, QueryCache
 from src.code_index.models import FileStatus, ProcessingStats, WorkspaceStatus, ServiceHealth, SystemStatus
 from src.code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 

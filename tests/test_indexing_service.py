@@ -13,9 +13,9 @@ from datetime import datetime
 from pathlib import Path
 
 from code_index.config import Config
-from code_index.services.indexing_service import IndexingService
-from code_index.services.search_service import SearchService
-from code_index.services.indexing_dependencies import IndexingDependencies, _create_test_dependencies
+from code_index.services import IndexingService
+from code_index.services import SearchService
+from code_index.services import IndexingDependencies, _create_test_dependencies
 from code_index.models import IndexingResult, ProcessingResult, ValidationResult
 from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 

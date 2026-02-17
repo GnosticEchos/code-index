@@ -18,6 +18,7 @@ class ValidationResult:
     suggestions: List[str]
 
 
+@dataclass
 class ConfigurationOverride:
     """
     Represents configuration parameters that can be overridden per operation.

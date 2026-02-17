@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
 from code_index.config import Config
-from code_index.services.search_service import SearchService
+from code_index.services import SearchService
 from code_index.models import SearchResult, SearchMatch
 from code_index.service_validation import ValidationResult
 from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity

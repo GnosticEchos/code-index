@@ -18,7 +18,7 @@ except Exception:  # Fallback stub to avoid import-time failures in tests
             raise RuntimeError("fastmcp.Context is unavailable in this environment")
 from ...config import Config
 from ...collections import CollectionManager
-from ...services.command_context import CommandContext
+from ...services.shared.command_context import CommandContext
 
 # Compatibility shim to ensure fastmcp exposes elicitation classes during tests/runtime.
 # This augments the installed fastmcp (if present) or provides a minimal stub.

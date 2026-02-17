@@ -27,19 +27,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from tests.utilities.test_data_generator import TestDataGenerator
 from tests.utilities.service_mocks import ServiceMocks
 
-from src.code_index.services.command_context import (
-    CommandContext,
-    IndexDependencies,
-    SearchDependencies,
-    CollectionDependencies,
-)
+from src.code_index.services import CommandContext, IndexingService, SearchService, IndexDependencies, SearchDependencies, CollectionDependencies
 from src.code_index.config import Config
 from src.code_index.mcp_server.tools import index_tool, search_tool, collections_tool
 from src.code_index.embedder import OllamaEmbedder
 from src.code_index.vector_store import QdrantVectorStore
 from src.code_index.collections import CollectionManager
-from src.code_index.services.indexing_service import IndexingService
-from src.code_index.services.search_service import SearchService
+from src.code_index.services.core.indexing_service import IndexingService
+from src.code_index.services.core.search_service import SearchService
 from src.code_index.models import SearchMatch
 
 

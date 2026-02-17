@@ -238,7 +238,7 @@ class TreeSitterChunkingStrategy(ChunkingStrategy):
         self.error_handler = error_handler or ErrorHandler()
         self.min_block_chars = getattr(config, "tree_sitter_min_block_chars", 50)
 
-        from .services.tree_sitter_coordinator import TreeSitterChunkCoordinator
+        from .services.treesitter.tree_sitter_coordinator import TreeSitterChunkCoordinator
 
         self._coordinator = TreeSitterChunkCoordinator(
             config,

@@ -28,8 +28,8 @@ from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSe
 from code_index.file_processing import FileProcessingService
 from code_index.path_utils import PathUtils
 from code_index.service_validation import ServiceValidator
-from code_index.services.command_context import CommandContext
-from code_index.services.config_overrides import build_index_overrides, build_search_overrides
+from code_index.services.shared.command_context import CommandContext
+from code_index.services.command.config_overrides import build_index_overrides, build_search_overrides
 from code_index.logging_utils import LoggingConfigurator
 
 # Global error handler instance

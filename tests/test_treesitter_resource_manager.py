@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from code_index.config import Config
 from code_index import TreeSitterError
-from code_index.services.resource_manager import TreeSitterResourceManager
+from code_index.services import TreeSitterResourceManager
 from code_index.chunking import TreeSitterError
 from code_index.errors import ErrorHandler
 

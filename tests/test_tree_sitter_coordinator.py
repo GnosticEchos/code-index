@@ -6,7 +6,7 @@ import pytest
 from code_index.chunking import TreeSitterError
 from code_index.config import Config
 from code_index.models import CodeBlock
-from code_index.services.tree_sitter_coordinator import TreeSitterChunkCoordinator
+from code_index.services import TreeSitterChunkCoordinator
 
 
 class _StubTree:

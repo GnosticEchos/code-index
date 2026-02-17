@@ -22,7 +22,7 @@ from src.code_index.mcp_server.tools.search_tool import (
     search,
 )
 from src.code_index.models import SearchMatch, SearchResult
-from src.code_index.services.command_context import SearchDependencies
+from src.code_index.services import IndexDependencies; from src.code_index.services.shared.command_context import SearchDependencies
 
 
 class TestSearchTool:

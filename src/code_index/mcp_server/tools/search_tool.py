@@ -5,8 +5,8 @@ import logging
 from typing import List, Dict, Any, Optional, Callable
 
 from fastmcp import Context
-from ...services.command_context import CommandContext
-from ...services.config_overrides import build_search_overrides
+from ...services.shared.command_context import CommandContext
+from ...services.command.config_overrides import build_search_overrides
 _command_context_factory: Optional[Callable[[], CommandContext]] = None
 _default_config_path: Optional[str] = None
 

@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch, mock_open
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from code_index.config import Config
-from code_index.services.file_processor import TreeSitterFileProcessor
+from code_index.services import TreeSitterFileProcessor
 from code_index.errors import ErrorHandler
 
 

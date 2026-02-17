@@ -26,7 +26,7 @@ from src.code_index.mcp_server.tools.collections_tool import (
     collections,
     create_collections_tool_description,
 )
-from src.code_index.services.command_context import CollectionDependencies
+from src.code_index.services import IndexDependencies; from src.code_index.services.shared.command_context import CollectionDependencies
 
 
 class TestCollectionsTool:

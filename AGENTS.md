@@ -24,7 +24,7 @@
 Services should generally stay under 200 lines, but more nuanced limits apply based on service complexity:
 
 **Recommended Service Line Limits:**
-- **Core services** (parsers, executors, complex logic): 400-500 lines
+- **Core services** (parsers, executors, complex logic): 400-650 lines
 - **Simple services** (helpers, caches): 200 lines  
 - **Facade/Orchestrator services**: 300 lines
 

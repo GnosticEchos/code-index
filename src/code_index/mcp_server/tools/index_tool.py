@@ -15,8 +15,8 @@ from pathlib import Path
 from fastmcp import Context
 from ...config import Config
 from ..core.operation_estimator import OperationEstimator
-from ...services.command_context import CommandContext
-from ...services.config_overrides import build_index_overrides
+from ...services.shared.command_context import CommandContext
+from ...services.command.config_overrides import build_index_overrides
 
 _command_context_factory: Optional[Callable[[], CommandContext]] = None
 _default_config_path: Optional[str] = None

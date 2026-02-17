@@ -122,6 +122,42 @@ class ConfigPersistence:
                         "description": "Maximum number of search results to return"
                     }
                 }
+            },
+            "advanced": {
+                "description": "Advanced features and debugging configuration",
+                "priority": "optional",
+                "parameters": {
+                    "extensions": {
+                        "type": "array",
+                        "default": [".rs", ".ts", ".vue", ".js", ".py"],
+                        "description": "File extensions to index"
+                    },
+                    "auto_extensions": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Automatically detect additional file extensions using Pygments"
+                    },
+                    "skip_dot_files": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Skip hidden files and directories (starting with .)"
+                    },
+                    "auto_ignore_detection": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Automatically apply .gitignore and similar ignore patterns"
+                    },
+                    "timeout_log_path": {
+                        "type": "string",
+                        "default": "timeout_files.txt",
+                        "description": "File to log embedding timeouts for retry processing"
+                    },
+                    "tree_sitter_debug_logging": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Enable detailed Tree-sitter processing logs"
+                    }
+                }
             }
         }
     

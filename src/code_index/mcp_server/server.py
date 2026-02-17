@@ -29,7 +29,7 @@ class _ConfigPath(str):
 from fastmcp import FastMCP
 from ..config import Config
 from ..config_service import ConfigurationService
-from ..services.command_context import CommandContext
+from ..services.shared.command_context import CommandContext
 from .core.error_handler import error_handler
 
 
