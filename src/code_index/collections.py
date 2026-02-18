@@ -277,6 +277,73 @@ class CollectionManager:
         except Exception as e:
             raise Exception(f"Failed to list collections: {e}")
     
+    def _serialize_config(self, cfg_obj: Any) -> Dict[str, Any]:
+        """Serialize Qdrant collection config to structured dict."""
+        try:
+            # Try Pydantic model methods
+            if hasattr(cfg_obj, "dict"):
+                return cfg_obj.dict()
+            if hasattr(cfg_obj, "model_dump"):
+                return cfg_obj.model_dump()
+            if hasattr(cfg_obj, "to_dict"):
+                return cfg_obj.to_dict()
+            
+            # Manual extraction for known Qdrant config structures
+            config_dict: Dict[str, Any] = {}
+            
+            # Extract vectors configuration
+            vectors_attr = getattr(cfg_obj, "vectors", None)
+            if vectors_attr:
+                if hasattr(vectors_attr, "size") and hasattr(vectors_attr, "distance"):
+                    # Default vector configuration
+                    config_dict["vectors"] = {
+                        "size": getattr(vectors_attr, "size", None),
+                        "distance": str(getattr(vectors_attr, "distance", "Unknown"))
+                    }
+                elif isinstance(vectors_attr, dict):
+                    # Named vectors
+                    config_dict["vectors"] = {}
+                    for name, vp in vectors_attr.items():
+                        if hasattr(vp, "size") and hasattr(vp, "distance"):
+                            config_dict["vectors"][name] = {
+                                "size": getattr(vp, "size", None),
+                                "distance": str(getattr(vp, "distance", "Unknown"))
+                            }
+                        elif isinstance(vp, dict):
+                            config_dict["vectors"][name] = vp
+            
+            # Extract other common config fields
+            if hasattr(cfg_obj, "params"):
+                params = getattr(cfg_obj, "params", None)
+                if params:
+                    if hasattr(params, "vectors"):
+                        # Handle older config structure
+                        v = getattr(params, "vectors", None)
+                        if hasattr(v, "size") and hasattr(v, "distance"):
+                            config_dict["params"] = {
+                                "vectors": {
+                                    "size": getattr(v, "size", None),
+                                    "distance": str(getattr(v, "distance", "Unknown"))
+                                }
+                            }
+                    if hasattr(params, "shard_number"):
+                        if "params" not in config_dict:
+                            config_dict["params"] = {}
+                        config_dict["params"]["shard_number"] = getattr(params, "shard_number", None)
+            
+            if hasattr(cfg_obj, "hnsw_config"):
+                config_dict["hnsw_config"] = self._serialize_config(getattr(cfg_obj, "hnsw_config"))
+            if hasattr(cfg_obj, "optimizer_config"):
+                config_dict["optimizer_config"] = self._serialize_config(getattr(cfg_obj, "optimizer_config"))
+            if hasattr(cfg_obj, "wal_config"):
+                config_dict["wal_config"] = self._serialize_config(getattr(cfg_obj, "wal_config"))
+            
+            return config_dict
+            
+        except Exception as e:
+            logger.warning(f"Failed to serialize Qdrant config: {e}")
+            return {"raw": str(cfg_obj)}
+
     def get_collection_info(self, collection_name: str) -> Dict[str, Any]:
         """Get detailed information about a specific collection, including dimensions and model identifier."""
         try:
@@ -468,7 +535,7 @@ class CollectionManager:
                 "status": status,
                 "points_count": points_count,
                 "vectors_count": vectors_count,
-                "config": str(cfg_obj),
+                "config": self._serialize_config(cfg_obj),
                 "workspace_path": workspace_path,
                 "dimensions": dim_map if dim_map else {},
                 "model_identifier": model_identifier or "unknown",

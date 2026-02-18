@@ -6,19 +6,43 @@ Master build script for creating both CLI and MCP server binaries using Nuitka.
 import subprocess
 import sys
 import os
+import shutil
 from pathlib import Path
 
+# Our project-specific temp directory
+NUITKA_TMPDIR = "/tmp/code-index-nuitka"
+
 def run_command(cmd, description):
-    """Run a command and return True if successful."""
+    """Run a command with project-specific temp directory cleanup."""
     print(f"\n{description}")
     print(f"Command: {' '.join(cmd)}")
-    result = subprocess.run(cmd, cwd=os.getcwd())
-    if result.returncode == 0:
-        print(f"✓ {description} completed successfully")
-        return True
-    else:
-        print(f"✗ {description} failed (exit code: {result.returncode})")
-        return False
+    
+    # Clean up our temp directory at start (in case previous build crashed)
+    if os.path.exists(NUITKA_TMPDIR):
+        print(f"Cleaning old build temp: {NUITKA_TMPDIR}")
+        shutil.rmtree(NUITKA_TMPDIR, ignore_errors=True)
+    
+    # Create fresh temp directory
+    os.makedirs(NUITKA_TMPDIR, exist_ok=True)
+    
+    # Set TMPDIR for this build
+    env = os.environ.copy()
+    env["TMPDIR"] = NUITKA_TMPDIR
+    print(f"Using temp directory: {NUITKA_TMPDIR}")
+    
+    try:
+        result = subprocess.run(cmd, cwd=os.getcwd(), env=env)
+        if result.returncode == 0:
+            print(f"✓ {description} completed successfully")
+            return True
+        else:
+            print(f"✗ {description} failed (exit code: {result.returncode})")
+            return False
+    finally:
+        # Always clean up our temp directory after build
+        if os.path.exists(NUITKA_TMPDIR):
+            print(f"Cleaning up temp directory: {NUITKA_TMPDIR}")
+            shutil.rmtree(NUITKA_TMPDIR, ignore_errors=True)
 
 def build_cli_binary(extra_args=None):
     """Build the CLI binary."""
@@ -30,7 +54,7 @@ def build_cli_binary(extra_args=None):
 
     cmd = [
         venv_python, "-m", "nuitka",
-        "--onefile",
+        "--mode=onefile",
         "--onefile-cache-mode=cached",  # Cache unpacked files for better performance
         f"--python-for-scons={venv_python}",  # Use absolute path
         "--assume-yes-for-downloads",
@@ -74,7 +98,7 @@ def build_mcp_binary(extra_args=None):
 
     cmd = [
         venv_python, "-m", "nuitka",
-        "--onefile",
+        "--mode=onefile",
         "--onefile-cache-mode=cached",  # Cache unpacked files for better performance
         f"--python-for-scons={venv_python}",  # Use absolute path
         "--assume-yes-for-downloads",

@@ -391,8 +391,7 @@ class TestEndToEndWorkflows:
                                             "workspace_path": temp_workspace,
                                             "points_count": 10
                                         }
-                                    ]
-                                    
+                                    ]                                     
                                     # Mock search results as objects with attributes
                                     mock_match = Mock()
                                     mock_match.score = 0.85
@@ -408,7 +407,7 @@ class TestEndToEndWorkflows:
                                     
                                     # Mock the command context factory for search tool
                                     from src.code_index.mcp_server.tools.search_tool import set_command_context_factory
-                                    
+                                     
                                     def mock_command_context_factory():
                                         mock_context_instance = Mock()
                                         mock_deps = Mock()
@@ -445,11 +444,13 @@ class TestEndToEndWorkflows:
                                         max_results=10
                                     )
                                     
-                                    assert isinstance(search_result, list)
-                                    assert len(search_result) == 1
-                                    assert search_result[0]["filePath"] == "src/auth.py"
-                                    assert search_result[0]["type"] == "function"
-                                    assert "authenticate" in search_result[0]["snippet"]
+                                    assert isinstance(search_result, dict)
+                                    assert "status" in search_result
+                                    assert "results" in search_result
+                                    assert len(search_result["results"]) == 1
+                                    assert search_result["results"][0]["filePath"] == "src/auth.py"
+                                    assert search_result["results"][0]["type"] == "function"
+                                    assert "authenticate" in search_result["results"][0]["snippet"]
                                     
                                     # Verify search components were called
                                     # Note: The search tool uses the search service directly, not the vector store directly
@@ -537,34 +538,10 @@ class TestEndToEndWorkflows:
                                 mock_vector_store_class.return_value = mock_vector_store
                                 
                                 mock_scanner = Mock()
-                                mock_scanner.scan_directory.return_value = ([os.path.join(temp_workspace, "src/main.py")], 0)
+                                mock_scanner.scan_directory.return_value = (["src/main.py"], 0)
                                 mock_scanner_class.return_value = mock_scanner
-
-                                # Mock file existence checks to prevent real file access
-                                with patch('os.path.exists', return_value=True):
-                                    with patch('os.path.isfile', return_value=True):
-                                        with patch('builtins.open', create=True) as mock_file:
-                                            mock_file.return_value.__enter__.return_value.read.return_value = "mock file content"
-
-                                # Mock file existence checks to prevent real file access
-                                with patch('os.path.exists', return_value=True):
-                                    with patch('os.path.isfile', return_value=True):
-                                        with patch('builtins.open', create=True) as mock_file:
-                                            mock_file.return_value.__enter__.return_value.read.return_value = "mock file content"
                                 
                                 mock_parser = Mock()
-                                mock_parser.parse_file.return_value = [
-                                    Mock(
-                                        file_path=os.path.join(temp_workspace, "src/main.py"),
-                                        identifier="main",
-                                        type="function",
-                                        start_line=1,
-                                        end_line=3,
-                                        content="def main():\n    print('Hello')",
-                                        file_hash="mock_hash_1",
-                                        segment_hash="mock_segment_1"
-                                    )
-                                ]
                                 mock_parser_class.return_value = mock_parser
                                 
                                 mock_cache = Mock()
@@ -601,7 +578,9 @@ class TestEndToEndWorkflows:
                                         max_results=20
                                     )
                                     
-                                    assert isinstance(search_result, list)
+                                    assert isinstance(search_result, dict)
+                                    assert "status" in search_result
+                                    assert "results" in search_result
                                     
                                     # Verify search was called with overrides
                                     # Note: The search tool uses the search service directly, not the vector store directly
@@ -707,8 +686,9 @@ class TestEndToEndWorkflows:
                     query="test query",
                     workspace=temp_workspace
                 )
-                assert isinstance(search_result, list)
-                assert len(search_result) == 0
+                assert isinstance(search_result, dict)
+                assert search_result["status"] in ("not_indexed", "no_results")
+                assert search_result["results"] == []
 
 
 class TestConfigurationExampleValidation:

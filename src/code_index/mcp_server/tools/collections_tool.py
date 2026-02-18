@@ -208,7 +208,7 @@ async def collections(
         logger.info(f"Starting collections operation: {subcommand}")
 
         command_context = _get_command_context()
-        config_path = os.path.abspath("code_index.json")
+        config_path = _resolve_config_path()
         workspace_path = os.path.dirname(config_path) or os.getcwd()
 
         try:

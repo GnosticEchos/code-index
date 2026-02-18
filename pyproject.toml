@@ -32,7 +32,7 @@ dependencies = [
     "whats-that-code",
     "psutil>=7.1.0",
     "chardet>=5.2.0",
-    "nuitka==2.7.16"
+    "nuitka==4.0.1"
 ]
 
 [project.scripts]

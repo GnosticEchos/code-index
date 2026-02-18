@@ -6,6 +6,44 @@ Build script for CLI binary using Nuitka.
 import subprocess
 import sys
 import os
+import shutil
+
+# Our project-specific temp directory
+NUITKA_TMPDIR = "/tmp/code-index-nuitka"
+
+
+def run_command(cmd, description):
+    """Run a command with project-specific temp directory cleanup."""
+    print(f"\n{description}")
+    print(f"Command: {' '.join(cmd)}")
+    
+    # Clean up our temp directory at start (in case previous build crashed)
+    if os.path.exists(NUITKA_TMPDIR):
+        print(f"Cleaning old build temp: {NUITKA_TMPDIR}")
+        shutil.rmtree(NUITKA_TMPDIR, ignore_errors=True)
+    
+    # Create fresh temp directory
+    os.makedirs(NUITKA_TMPDIR, exist_ok=True)
+    
+    # Set TMPDIR for this build
+    env = os.environ.copy()
+    env["TMPDIR"] = NUITKA_TMPDIR
+    print(f"Using temp directory: {NUITKA_TMPDIR}")
+    
+    try:
+        result = subprocess.run(cmd, cwd=os.getcwd(), env=env)
+        if result.returncode == 0:
+            print(f"✓ {description} completed successfully")
+            return True
+        else:
+            print(f"✗ {description} failed (exit code: {result.returncode})")
+            return False
+    finally:
+        # Always clean up our temp directory after build
+        if os.path.exists(NUITKA_TMPDIR):
+            print(f"Cleaning up temp directory: {NUITKA_TMPDIR}")
+            shutil.rmtree(NUITKA_TMPDIR, ignore_errors=True)
+
 
 def build_cli_binary():
     """Build the CLI binary using Nuitka."""
@@ -14,7 +52,7 @@ def build_cli_binary():
     
     cmd = [
         venv_python, "-m", "nuitka",
-        "--onefile",  # Create a single executable file
+        "--mode=onefile",  # Create a single executable file
         f"--python-for-scons={venv_python}",  # Use absolute path
         "--assume-yes-for-downloads",  # Auto-download dependencies
         "--output-filename=code-index",
@@ -42,16 +80,12 @@ def build_cli_binary():
     ]
 
     print("Building CLI binary with Nuitka...")
-    print(f"Command: {' '.join(cmd)}")
-
-    result = subprocess.run(cmd, cwd=os.getcwd())
-    if result.returncode == 0:
+    
+    if run_command(cmd, "Building CLI binary"):
         print("CLI binary built successfully: dist/code-index")
     else:
-        print(f"Failed to build CLI binary (exit code: {result.returncode})")
+        print("Failed to build CLI binary")
         sys.exit(1)
 
 if __name__ == "__main__":
     build_cli_binary()
-# Temporary change for stashing
-# Temporary change for stashing

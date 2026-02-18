@@ -370,6 +370,8 @@ def search(workspace: str, config: str, min_score: float, max_results: int, json
         config_path=config,
         overrides=cli_overrides,
     )
+    
+    print(f"DEBUG: Configured search_snippet_preview_chars: {deps.config.search_snippet_preview_chars}")
 
     result = deps.search_service.search_code(query, deps.config)
 
@@ -386,10 +388,59 @@ def search(workspace: str, config: str, min_score: float, max_results: int, json
         print("No results found.")
         return
 
+    def create_code_snippet(code_chunk: str, preview_length: int) -> str:
+        """
+        Create a well-formatted code snippet for search results.
+        
+        Args:
+            code_chunk: Full code content
+            preview_length: Maximum length for the snippet
+            
+        Returns:
+            Formatted code snippet with proper truncation
+        """
+        if not code_chunk:
+            return ""
+        
+        # Clean up the code chunk - preserve some structure but make it readable
+        lines = code_chunk.split('\n')
+        
+        # Remove excessive empty lines but preserve some structure
+        cleaned_lines = []
+        prev_empty = False
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                if not prev_empty:
+                    cleaned_lines.append("")
+                    prev_empty = True
+            else:
+                cleaned_lines.append(line.rstrip())
+                prev_empty = False
+        
+        # Join back and truncate
+        cleaned_code = '\n'.join(cleaned_lines).strip()
+        
+        if len(cleaned_code) <= preview_length:
+            return cleaned_code
+        
+        # Truncate at word boundary if possible
+        truncated = cleaned_code[:preview_length]
+        
+        # Try to truncate at a reasonable boundary (space, newline, or punctuation)
+        for boundary in ['\n', ' ', ';', ',', ')', '}', ']']:
+            last_boundary = truncated.rfind(boundary)
+            if last_boundary > preview_length * 0.8:  # Don't truncate too early
+                truncated = truncated[:last_boundary + 1]
+                break
+        
+        return truncated.rstrip() + "..."
+
     if json_output:
         output = []
         preview_chars = getattr(deps.config, "search_snippet_preview_chars", 500)
         for match in result.matches:
+            snippet = create_code_snippet(match.code_chunk, preview_chars)
             output.append({
                 "filePath": match.file_path,
                 "startLine": match.start_line,
@@ -397,7 +448,7 @@ def search(workspace: str, config: str, min_score: float, max_results: int, json
                 "type": match.match_type,
                 "score": match.score,
                 "adjustedScore": match.adjusted_score,
-                "snippet": match.code_chunk[:preview_chars].replace("\n", "\\n") if len(match.code_chunk) > preview_chars else match.code_chunk.replace("\n", "\\n"),
+                "snippet": snippet.replace("\n", "\\n"),
             })
         print(json.dumps(output, indent=2, ensure_ascii=False))
         return
@@ -407,16 +458,6 @@ def search(workspace: str, config: str, min_score: float, max_results: int, json
     for i, match in enumerate(result.matches, 1):
         print(f"\n{i}. Score: {match.score:.3f} (adj {match.adjusted_score:.3f})")
         print(f"   File: {match.file_path}:{match.start_line}-{match.end_line}")
-        # Show more content - first few lines or up to preview_chars
-        code_lines = match.code_chunk.split('\n')
-        if len(code_lines) <= 5:
-            # Show all if 5 lines or fewer
-            preview = match.code_chunk
-        else:
-            # Show first 5 lines with indication of more
-            preview = '\n'.join(code_lines[:5]) + f"\n... ({len(code_lines) - 5} more lines)"
-        # Truncate if still too long
-        if len(preview) > preview_chars:
-            preview = preview[:preview_chars] + "..."
-        print(f"   Preview:\n{preview}")
+        snippet = create_code_snippet(match.code_chunk, preview_chars)
+        print(f"   Preview:\n{snippet}")
 

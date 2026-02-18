@@ -351,11 +351,16 @@ def create_index_tool_description() -> str:
     return """
 Indexes code files in one or more workspaces for semantic search. This is a long-running, non-read-only operation.
 
-⚠️  WARNING: Indexing can take significant time for large repositories. Consider running 
-    the equivalent CLI command in a separate terminal for repositories with >1000 files.
+⚠️ IMPORTANT FOR AGENTS - BEFORE CALLING THIS TOOL:
+1. First call collections(subcommand="list") to check if the workspace is already indexed
+2. For workspaces with >1000 files, recommend the user run the CLI command directly:
+   code-index index --workspace "/path/to/code" --use-tree-sitter --chunking-strategy treesitter
+3. Only use this MCP tool for small workspaces or re-indexing already-indexed workspaces
+4. First-time indexing of large workspaces WILL exceed the MCP client timeout (60s)
 
 USAGE:
   index(workspace="/path/to/code", chunking_strategy="treesitter", use_tree_sitter=true)
+  index(subcommand="estimate", workspace="/path/to/code")
 
 PARAMETERS:
   workspace (str): Path to the directory to index. Defaults to current directory.
@@ -364,15 +369,15 @@ PARAMETERS:
   embed_timeout (int): Override embedding timeout in seconds (default: 60).
   chunking_strategy (str): Strategy for splitting code: "lines", "tokens", or "treesitter".
   use_tree_sitter (bool): Enable semantic code structure analysis with Tree-sitter.
-
-# Configuration overrides removed due to FastMCP limitations
+  subcommand (str): The subcommand to execute. Can be "index" (default) to run full indexing
+                    or "estimate" to only return estimation data without indexing
 
 EXAMPLES:
   # Basic indexing
   index(workspace="./my-project")
   
   # Fast indexing with line-based chunking
-  index(workspace="./large-repo", chunking_strategy="lines", batch_segment_threshold=100)
+  index(workspace="./large-repo", chunking_strategy="lines")
   
   # Semantic indexing with Tree-sitter
   index(workspace="./rust-project", use_tree_sitter=true, chunking_strategy="treesitter")
@@ -380,24 +385,51 @@ EXAMPLES:
   # Batch processing multiple workspaces
   index(workspacelist="./workspaces.txt", embed_timeout=120)
   
-  # Memory-optimized for large repositories
-  index(workspace="./huge-repo", use_mmap_file_reading=true, max_file_size_bytes=2097152)
+  # Only estimate processing time without indexing
+  index(subcommand="estimate", workspace="./my-project")
+  
+  # Estimate for a large repo to decide if CLI is needed
+  index(subcommand="estimate", workspace="./large-repo")
 
 OPTIMIZATION STRATEGIES:
-  Fast Indexing: chunking_strategy="lines", batch_segment_threshold=100
+  Fast Indexing: chunking_strategy="lines"
   Balanced: chunking_strategy="tokens", use_tree_sitter=false
   Maximum Accuracy: chunking_strategy="treesitter", use_tree_sitter=true
-  Large Repos: use_mmap_file_reading=true, tree_sitter_skip_test_files=true
 
 RETURNS:
-  Dictionary containing:
-    - success (bool): Whether indexing completed successfully
-    - processed_files (int): Number of files processed
-    - total_blocks (int): Number of code blocks indexed
-    - processing_time (float): Time taken in seconds
-    - timeout_files (list): Files that timed out during processing
-    - warnings (list): Any warnings encountered
-    - cli_alternative (str): Equivalent CLI command for large operations
+  When subcommand="index" (default):
+    Dictionary containing:
+      - success (bool): Whether indexing completed successfully
+      - message (str): Human-readable status message
+      - processed_files (int): Number of files processed
+      - total_blocks (int): Number of code blocks indexed
+      - processing_time (float): Time taken in seconds
+      - timeout_files (list): Files that timed out during processing
+      - warnings (list): Any warnings encountered
+      - cli_alternative (str): Equivalent CLI command for large operations
+      - estimation (dict): Operation estimation details containing:
+          - total_estimated_time_seconds (float): Estimated total time
+          - warning_level (str): "none", "caution", "warning", or "critical"
+          - workspaces_analyzed (int): Number of workspaces analyzed
+          - cli_alternative (str): CLI command suggestion
+          - workspace_estimations (list): Per-workspace estimation details
+      - user_guidance (list): Array of actionable optimization suggestions
+      - parameter_validation (dict): Validation results for workspace and config parameters
+      - indexing_results (dict): Detailed results from the indexing operation
+  
+  When subcommand="estimate":
+    Dictionary containing:
+      - success (bool): Always true for valid parameters
+      - subcommand (str): Always "estimate"
+      - estimation (dict): Operation estimation details containing:
+          - total_estimated_time_seconds (float): Estimated total time
+          - warning_level (str): "none", "caution", "warning", or "critical"
+          - workspaces_analyzed (int): Number of workspaces analyzed
+          - cli_alternative (str): CLI command suggestion
+          - workspace_estimations (list): Per-workspace estimation details
+      - user_guidance (list): Array of actionable optimization suggestions
+      - parameter_validation (dict): Validation results for workspace and config parameters
+      - warnings (list): Any warnings encountered
 """
 
 
@@ -408,7 +440,8 @@ async def index(
     workspacelist: Optional[str] = None,
     embed_timeout: Optional[int] = None,
     chunking_strategy: Optional[str] = None,
-    use_tree_sitter: Optional[bool] = None
+    use_tree_sitter: Optional[bool] = None,
+    subcommand: str = "index"  # New parameter for subcommand (index or estimate)
 ) -> Dict[str, Any]:
     """
     Index tool for MCP server with comprehensive parameter validation.
@@ -424,6 +457,8 @@ async def index(
         embed_timeout: Override embedding timeout in seconds.
         chunking_strategy: "lines", "tokens", or "treesitter"
         use_tree_sitter: Force semantic chunking with Tree-sitter
+        subcommand: The subcommand to execute. Can be "index" (default) to run full indexing
+                    or "estimate" to only return estimation data without indexing
         # Config overrides removed due to FastMCP limitations
         
     Returns:
@@ -559,6 +594,23 @@ async def index(
             # Use the first CLI alternative as the primary suggestion
             cli_command = cli_alternatives[0]
             user_guidance.append(f"CLI alternative: {cli_command}")
+    
+    # If subcommand is estimate, return only the estimation data
+    if subcommand == "estimate":
+        return {
+            "success": True,
+            "subcommand": "estimate",
+            "estimation": {
+                "total_estimated_time_seconds": total_estimated_time,
+                "warning_level": warning_level,
+                "workspaces_analyzed": len(workspaces_to_analyze),
+                "cli_alternative": cli_command,
+                "workspace_estimations": estimation_results
+            },
+            "warnings": warnings,
+            "user_guidance": user_guidance,
+            "parameter_validation": validation_result["parameter_validation"]
+        }
     
     # Load base configuration (with overrides) to use for execution and testing
     try:
@@ -778,32 +830,8 @@ async def _execute_indexing(
                 embedder_instance = embedder_module.OllamaEmbedder(operation_config)
                 vector_store = vector_store_module.QdrantVectorStore(operation_config)
                 cache_manager = cache_module.CacheManager(workspace_path, operation_config)
-            except ImportError:
-                from unittest.mock import Mock
-                scanner = getattr(importlib, "scanner_mock", Mock())
-                parser = getattr(importlib, "parser_mock", Mock())
-                embedder_instance = getattr(importlib, "embedder_mock", Mock())
-                vector_store = getattr(importlib, "vector_store_mock", Mock())
-                cache_manager = getattr(importlib, "cache_manager_mock", Mock())
-                if hasattr(embedder_instance, "validate_configuration") and callable(embedder_instance.validate_configuration):
-                    validation = embedder_instance.validate_configuration()
-                else:
-                    validation = {"valid": True}
-                is_valid, validation_error, guidance = _parse_validation_result(validation)
-                if guidance:
-                    aggregate_warnings.extend(guidance)
-                if not is_valid:
-                    workspace_results.append({
-                        "workspace": workspace_path,
-                        "processed_files": 0,
-                        "total_blocks": 0,
-                        "timeout_files": 0,
-                        "processing_time": time.time() - workspace_start_time,
-                        "status": "failed",
-                        "error": f"Configuration validation failed: {validation_error or 'Unknown error'}",
-                        "warnings": guidance,
-                    })
-                    continue
+            except ImportError as e:
+                raise RuntimeError(f"Failed to import required indexing modules: {e}") from e
             except Exception as setup_error:
                 logger.error(f"Failed to initialize components for {workspace_path}: {setup_error}")
                 workspace_results.append({

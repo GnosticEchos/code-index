@@ -350,6 +350,92 @@ class TestIndexTool:
             yield temp_dir
     
     @pytest.mark.asyncio
+    async def test_index_tool_estimate_subcommand(self, mock_context, temp_workspace, command_context_mock):
+        """Test index tool with estimate subcommand (only estimation, no indexing)."""
+
+        # Mock operation estimator to return an estimation
+        with patch('src.code_index.mcp_server.core.operation_estimator.OperationEstimator') as mock_estimator_class:
+            mock_estimator = Mock()
+            mock_estimation = Mock()
+            mock_estimation.estimated_duration_seconds = 400  # Long time
+            mock_estimation.warning_level = "critical"
+            mock_estimation.optimization_suggestions = ["Use CLI for large repos"]
+            mock_estimation.cli_alternative = "code-index index --workspace /path"
+            mock_estimator.estimate_indexing_time.return_value = mock_estimation
+            mock_estimator.should_warn_user.return_value = True
+            mock_estimator._generate_cli_alternative.return_value = "code-index index --workspace /path"
+            mock_estimator_class.return_value = mock_estimator
+
+            self.configure_command_context(command_context_mock, temp_workspace)
+
+            result = await index(
+                ctx=mock_context,
+                workspace=temp_workspace,
+                config=None,
+                workspacelist=None,
+                embed_timeout=None,
+                chunking_strategy=None,
+                use_tree_sitter=None,
+                subcommand="estimate"
+            )
+
+            assert result["success"] is True
+            assert result["subcommand"] == "estimate"
+            assert "estimation" in result
+            assert "user_guidance" in result
+            assert "parameter_validation" in result
+            assert "warnings" in result
+            
+            # Should NOT have indexing results when using estimate subcommand
+            assert "indexing_results" not in result
+            
+            # Check estimation details
+            assert "warning_level" in result["estimation"]
+            assert "cli_alternative" in result["estimation"]
+            assert "workspace_estimations" in result["estimation"]
+            assert result["estimation"]["workspaces_analyzed"] == 1
+            assert len(result["estimation"]["workspace_estimations"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_index_tool_estimate_subcommand_with_workspacelist(self, mock_context, temp_workspace, command_context_mock):
+        """Test estimate subcommand with workspacelist parameter."""
+        # Create workspacelist file
+        workspacelist_path = os.path.join(temp_workspace, "workspaces.txt")
+        with open(workspacelist_path, 'w') as f:
+            f.write(f"{temp_workspace}\n")
+        
+        # Mock operation estimator
+        with patch('src.code_index.mcp_server.core.operation_estimator.OperationEstimator') as mock_estimator_class:
+            mock_estimator = Mock()
+            mock_estimation = Mock()
+            mock_estimation.estimated_duration_seconds = 120
+            mock_estimation.warning_level = "warning"
+            mock_estimation.optimization_suggestions = ["Consider using lines chunking"]
+            mock_estimation.cli_alternative = "code-index index --workspace /path"
+            mock_estimator.estimate_indexing_time.return_value = mock_estimation
+            mock_estimator.should_warn_user.return_value = True
+            mock_estimator._generate_cli_alternative.return_value = "code-index index --workspace /path"
+            mock_estimator_class.return_value = mock_estimator
+
+            self.configure_command_context(command_context_mock, temp_workspace)
+
+            result = await index(
+                ctx=mock_context,
+                workspace=".",
+                config=None,
+                workspacelist=workspacelist_path,
+                embed_timeout=None,
+                chunking_strategy=None,
+                use_tree_sitter=None,
+                subcommand="estimate"
+            )
+
+            assert result["success"] is True
+            assert result["subcommand"] == "estimate"
+            assert result["estimation"]["workspaces_analyzed"] == 1
+            assert len(result["estimation"]["workspace_estimations"]) == 1
+
+    @pytest.mark.asyncio
     async def test_index_tool_parameter_validation_failure(self, mock_context):
         """Test index tool with parameter validation failure."""
         result = await index(
@@ -678,10 +764,9 @@ class TestIndexToolDescription:
         assert len(description) > 100  # Should be comprehensive
         
         # Check for key sections
-        assert "WARNING" in description
+        assert "IMPORTANT FOR AGENTS" in description
         assert "USAGE:" in description
         assert "PARAMETERS:" in description
-        assert "# Configuration overrides removed due to FastMCP limitations" in description
         assert "EXAMPLES:" in description
         assert "OPTIMIZATION STRATEGIES:" in description
         assert "RETURNS:" in description
@@ -693,17 +778,24 @@ class TestIndexToolDescription:
         assert "embed_timeout" in description
         assert "chunking_strategy" in description
         assert "use_tree_sitter" in description
-        
-        # Configuration overrides removed due to FastMCP limitations
-        assert "# Configuration overrides removed due to FastMCP limitations" in description
+        assert "subcommand" in description
         
         # Check for examples
         assert "index(workspace=" in description
         assert "chunking_strategy=" in description
+        assert 'subcommand="estimate"' in description
         
         # Check for optimization strategies
         assert "Fast Indexing" in description
         assert "Maximum Accuracy" in description
+        
+        # Check for pre-call guidance
+        assert "collections(subcommand=\"list\")" in description
+        
+        # Check for documented response fields
+        assert "estimation" in description
+        assert "user_guidance" in description
+        assert "parameter_validation" in description
 
 
 if __name__ == "__main__":

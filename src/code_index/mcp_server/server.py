@@ -325,7 +325,32 @@ async def main(config_path: str = "code_index.json") -> None:
         await server.shutdown()
 
 def sync_main(config_path: str = "code_index.json") -> None:
-    """Synchronous entry point for console script."""
+    """Synchronous entry point for console script.
+    
+    If config_path is not explicitly provided (i.e., called directly as a console script
+    without arguments), this function will parse command-line arguments to support
+    the -c/--config flag.
+    """
+    import argparse
+    
+    # Check if we're being called with the default value (meaning no explicit argument)
+    # In this case, parse CLI arguments to allow --config override
+    if config_path == "code_index.json":
+        parser = argparse.ArgumentParser(description="Run the Code Index MCP server")
+        parser.add_argument(
+            "-c",
+            "--config",
+            "--configuration",
+            default="code_index.json",
+            dest="config",
+            help="Path to configuration file (defaults to code_index.json in working directory)",
+        )
+        # Only parse if there are actual CLI arguments beyond the script name
+        # This allows programmatic calls with explicit config_path to work
+        if len(sys.argv) > 1:
+            args = parser.parse_args()
+            config_path = args.config
+    
     asyncio.run(main(config_path=config_path))
 
 

@@ -285,9 +285,10 @@ class TestSearchTool:
             max_results=10,
         )
 
-        assert isinstance(result, list)
-        assert len(result) == 2
-        first_result = result[0]
+        assert isinstance(result, dict)
+        assert result["status"] == "success"
+        assert result["result_count"] == 2
+        first_result = result["results"][0]
         assert first_result["filePath"] == "main.py"
         assert first_result["startLine"] == 1
         assert first_result["endLine"] == 3
@@ -295,6 +296,34 @@ class TestSearchTool:
         assert first_result["score"] == 0.85
         assert first_result["adjustedScore"] == 0.9
         assert "def main()" in first_result["snippet"]
+
+    @pytest.mark.asyncio
+    async def test_search_tool_not_indexed(self, mock_context, temp_workspace, command_context_mock):
+        """Test search tool with not indexed workspace."""
+        config = Config()
+
+        collection_manager = MagicMock()
+        collection_manager.list_collections.return_value = []
+
+        deps = SearchDependencies(
+            config=config,
+            search_service=MagicMock(),
+            collection_manager=collection_manager,
+        )
+        command_context_mock.load_search_dependencies.side_effect = None
+        command_context_mock.load_search_dependencies.return_value = deps
+
+        result = await search(
+            ctx=mock_context,
+            query="test query",
+            workspace=temp_workspace
+        )
+
+        assert isinstance(result, dict)
+        assert result["status"] == "not_indexed"
+        assert result["results"] == []
+        assert "not indexed" in result["message"]
+        assert result["workspace"] == temp_workspace
 
     @pytest.mark.asyncio
     async def test_search_tool_empty_results(self, mock_context, temp_workspace, command_context_mock):
@@ -316,10 +345,15 @@ class TestSearchTool:
         search_service = MagicMock()
         search_service.search_code.return_value = empty_result
 
+        collection_manager = MagicMock()
+        collection_manager.list_collections.return_value = [
+            {"workspace_path": temp_workspace, "name": "test-collection"}
+        ]
+
         deps = SearchDependencies(
             config=config,
             search_service=search_service,
-            collection_manager=MagicMock(),
+            collection_manager=collection_manager,
         )
         command_context_mock.load_search_dependencies.side_effect = None
         command_context_mock.load_search_dependencies.return_value = deps
@@ -330,18 +364,15 @@ class TestSearchTool:
             workspace=temp_workspace
         )
 
-        assert result == []
+        assert isinstance(result, dict)
+        assert result["status"] == "no_results"
+        assert result["results"] == []
+        assert "no results matched the query" in result["message"]
+        assert result["query"] == "nonexistent query"
 
 
 class TestSearchToolHelpers:
     """Test cases for search tool helper functions."""
-    
-    def test_create_empty_results_response(self):
-        """Test creating empty results response."""
-        result = _create_empty_results_response("test query", 0.5, "/test/workspace")
-        
-        assert isinstance(result, list)
-        assert len(result) == 0
     
     def test_format_search_results_empty(self):
         """Test formatting empty search results."""
@@ -471,7 +502,6 @@ class TestSearchToolDescription:
         assert "PREREQUISITE" in description
         assert "Usage Examples:" in description
         assert "Parameters:" in description
-        assert "# Configuration overrides removed due to FastMCP limitations" in description
         assert "Search Optimization Tips:" in description
         assert "Common Error Solutions:" in description
         assert "Returns:" in description
@@ -481,9 +511,6 @@ class TestSearchToolDescription:
         assert "workspace" in description
         assert "min_score" in description
         assert "max_results" in description
-        
-        # Configuration overrides removed due to FastMCP limitations
-        assert "# Configuration overrides removed due to FastMCP limitations" in description
         
         # Check for examples
         assert "search(query=" in description

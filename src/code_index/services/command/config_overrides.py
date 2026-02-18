@@ -28,7 +28,7 @@ def build_index_overrides(
     if auto_ignore_detection is not None:
         overrides["auto_ignore_detection"] = auto_ignore_detection
 
-    if use_tree_sitter:
+    if use_tree_sitter is True:
         overrides["use_tree_sitter"] = True
         overrides["chunking_strategy"] = "treesitter"
     elif chunking_strategy:

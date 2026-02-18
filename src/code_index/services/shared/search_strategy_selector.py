@@ -48,8 +48,8 @@ class SearchStrategySelector:
         Returns:
             Tuple of (embedder, vector_store)
         """
-        from ..embedder import OllamaEmbedder
-        from ..vector_store import QdrantVectorStore
+        from ...embedder import OllamaEmbedder
+        from ...vector_store import QdrantVectorStore
         
         embedder = OllamaEmbedder(config)
         vector_store = QdrantVectorStore(config)

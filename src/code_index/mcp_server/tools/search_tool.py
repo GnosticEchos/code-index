@@ -55,7 +55,7 @@ with configurable scoring and filtering options.
 Usage Examples:
   search(query="authentication middleware", workspace="/path/to/project")
   search(query="error handling", min_score=0.6, max_results=20)
-  search(query="database connection", search_file_type_weights={".ts": 1.5, ".js": 1.2})
+  search(query="database connection", min_score=0.4)
 
 Parameters:
   query (str, required): Natural language search query describing what you're looking for
@@ -63,12 +63,9 @@ Parameters:
   min_score (float): Minimum similarity score threshold (0.0-1.0). Lower = more results.
   max_results (int): Maximum number of results to return (1-500). Higher may be slower.
 
-# Configuration overrides removed due to FastMCP limitations
-
 Search Optimization Tips:
   • Use specific technical terms for better matches
   • Try different min_score values: 0.2 (broad), 0.4 (balanced), 0.6 (precise)
-  • Boost file types relevant to your search with search_file_type_weights
   • Use path boosts to prioritize source code over tests/examples
 
 Common Error Solutions:
@@ -77,13 +74,46 @@ Common Error Solutions:
   • "Service connection failed": Ensure Ollama and Qdrant services are running
 
 Returns:
-  List of search results, each containing:
-  - filePath: Relative path to the file
-  - startLine/endLine: Line numbers of the code snippet
-  - type: Code element type (function, class, etc.)
-  - score: Raw similarity score (0.0-1.0)
-  - adjustedScore: Score after applying file type and path boosts
-  - snippet: Preview of the matching code (truncated to preview length)
+  Search response with status and results:
+  
+  1. **Successful search**:
+     ```python
+     {
+         "results": [
+             {
+                 "filePath": "relative/path/to/file.py",
+                 "startLine": 10,
+                 "endLine": 20,
+                 "type": "function",
+                 "score": 0.85,
+                 "adjustedScore": 0.9,
+                 "snippet": "def my_function(): ..."
+             }
+         ],
+         "status": "success",
+         "result_count": 1
+     }
+     ```
+
+  2. **No results matched query**:
+     ```python
+     {
+         "results": [],
+         "status": "no_results",
+         "message": "Search completed but no results matched the query.",
+         "query": "your search query"
+     }
+     ```
+
+  3. **Workspace not indexed**:
+     ```python
+     {
+         "results": [],
+         "status": "not_indexed",
+         "message": "Workspace is not indexed. Call the index tool first with this workspace path.",
+         "workspace": "/path/to/workspace"
+     }
+     ```
 """
 
 
@@ -93,7 +123,7 @@ async def search(
     workspace: str = ".",
     min_score: Optional[float] = None,
     max_results: Optional[int] = None
-) -> List[Dict[str, Any]]:
+) -> Dict[str, Any]:
     """
     Search tool for MCP server.
     
@@ -107,7 +137,10 @@ async def search(
         # Search overrides removed due to FastMCP limitations
         
     Returns:
-        List of search results with file paths, scores, and code snippets
+        Dict with search results and status information
+        - For successful search: {"results": [...], "status": "success", "result_count": len(results)}
+        - For no results: {"results": [], "status": "no_results", "message": "...", "query": query}
+        - For not indexed: {"results": [], "status": "not_indexed", "message": "...", "workspace": workspace_path}
         
     Raises:
         ValueError: If parameters are invalid or workspace is not indexed
@@ -161,11 +194,12 @@ async def search(
                 "Workspace '%s' has not been indexed yet; returning empty search results",
                 workspace_path,
             )
-            return _create_empty_results_response(
-                query,
-                getattr(deps.config, "search_min_score", 0.0),
-                workspace_path,
-            )
+            return {
+                "results": [],
+                "status": "not_indexed",
+                "message": "Workspace is not indexed. Call the index tool first with this workspace path.",
+                "workspace": workspace_path
+            }
 
         # Perform search via shared service with validation
         result = deps.search_service.search_code(query, deps.config)
@@ -185,14 +219,20 @@ async def search(
                 query,
                 getattr(deps.config, "search_min_score", None),
             )
-            return _create_empty_results_response(
-                query,
-                getattr(deps.config, "search_min_score", 0.0),
-                workspace_path,
-            )
+            return {
+                "results": [],
+                "status": "no_results",
+                "message": "Search completed but no results matched the query.",
+                "query": query
+            }
 
         preview_chars = getattr(deps.config, "search_snippet_preview_chars", 160)
-        return _format_search_results(result.matches, preview_chars)
+        results = _format_search_results(result.matches, preview_chars)
+        return {
+            "results": results,
+            "status": "success",
+            "result_count": len(results)
+        }
         
     except ValueError:
         # Re-raise validation errors as-is
