@@ -290,8 +290,7 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
                 file_scroller.update_status(file_path, "error")
 
         if status_panel:
-            current_panel = status_panel.update_operation(f"Processed {processed}/{total} files")
-            progress_manager.console.print(current_panel)
+            progress_manager.update_status(f"Processed {processed}/{total} files")
 
     try:
         if use_progress_ui:

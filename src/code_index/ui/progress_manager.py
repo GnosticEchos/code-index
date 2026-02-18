@@ -7,6 +7,7 @@ from rich.panel import Panel
 from rich.live import Live
 from typing import Optional, Dict, Any
 
+
 class ProgressManager:
     """Manage progress bars and status display for TUI operations."""
     
@@ -22,10 +23,13 @@ class ProgressManager:
             expand=True
         )
         self.live_display = None
+        self.current_status = "Initializing..."
+        self.overall_task_id = None
     
     def create_overall_task(self, total_files: int) -> int:
         """Create overall progress task."""
-        return self.progress.add_task("📁 Processing Files", total=total_files)
+        self.overall_task_id = self.progress.add_task(f"📁 Processing Files | {self.current_status}", total=total_files)
+        return self.overall_task_id
     
     def create_file_task(self, filename: str, total_blocks: int) -> int:
         """Create file processing task."""
@@ -33,10 +37,19 @@ class ProgressManager:
     
     def start_live_display(self):
         """Start live display for progress bars using context manager pattern."""
-        # Create a Live display that properly manages the progress context
         self.live_display = Live(self.progress, console=self.console, refresh_per_second=10)
         self.live_display.__enter__()
         return self.progress
+    
+    def update_status(self, current_operation: str):
+        """Update status panel text."""
+        self.current_status = current_operation
+        if self.overall_task_id is not None:
+            # Update the overall task description to include status
+            current_desc = self.progress.tasks[self.overall_task_id].description
+            if "|" in current_desc:
+                current_desc = current_desc.split("|", 1)[0]
+            self.progress.update(self.overall_task_id, description=f"{current_desc.strip()} | {self.current_status}")
     
     def update_overall_progress(
         self,
@@ -48,7 +61,7 @@ class ProgressManager:
         """Update overall progress, optionally changing the displayed description."""
         update_kwargs: Dict[str, Any] = {"completed": completed_files}
         if current_file:
-            update_kwargs["description"] = f"📄 {current_file}"
+            update_kwargs["description"] = f"📄 {current_file} | {self.current_status}"
         self.progress.update(overall_task_id, **update_kwargs)
     
     def update_file_progress(self, file_task_id: int, completed_blocks: int, total_blocks: int):
