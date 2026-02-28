@@ -8,36 +8,45 @@ class FileScroller:
         """Initialize file scroller."""
         self.max_files = max_files
         self.files: List[Dict[str, str]] = []
+        self.file_map: Dict[str, Dict[str, str]] = {}  # O(1) lookups
 
     def add_file(self, file_path: str, file_size: str = "Unknown"):
         """Add a file to the scroller."""
+        # If file already exists, update size and return
+        if file_path in self.file_map:
+            self.file_map[file_path]["size"] = file_size
+            # Update in files list too
+            for file in self.files:
+                if file["path"] == file_path:
+                    file["size"] = file_size
+            return
+
         # Remove oldest file if we have too many files
         if len(self.files) >= self.max_files:
-            self.files.pop(0)
+            oldest_file = self.files.pop(0)
+            del self.file_map[oldest_file["path"]]
 
         # Add new file
-        self.files.append({
+        file_entry = {
             "path": file_path,
             "size": file_size,
             "status": "pending",
             "message": ""
-        })
+        }
+        self.files.append(file_entry)
+        self.file_map[file_path] = file_entry
 
     def ensure_file(self, file_path: str, file_size: str = "Unknown"):
         """Ensure a file entry exists, adding it if necessary."""
-        for file in self.files:
-            if file["path"] == file_path:
-                return
-        self.add_file(file_path, file_size)
+        if file_path not in self.file_map:
+            self.add_file(file_path, file_size)
     
     def update_status(self, file_path: str, status: str, message: str = ""):
         """Update file status."""
-        for file in self.files:
-            if file["path"] == file_path:
-                file["status"] = status
-                if message:
-                    file["message"] = message
-                break
+        if file_path in self.file_map:
+            self.file_map[file_path]["status"] = status
+            if message:
+                self.file_map[file_path]["message"] = message
     
     def get_display_text(self) -> str:
         """Get display text for TUI display."""
@@ -69,3 +78,4 @@ class FileScroller:
     def clear(self):
         """Clear all files."""
         self.files = []
+        self.file_map.clear()

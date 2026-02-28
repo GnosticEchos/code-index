@@ -1,67 +1,40 @@
-# AGENTS.md - Code Index Tool Guidelines
+# AGENTS.md
 
-[MODE: RESEARCH] | [MODE: INNOVATE] | [MODE: PLAN] | [MODE: EXECUTE] | [MODE: REVIEW]
+This file provides guidance to agents when working with code in this repository.
 
-## Project Overview
-`code-index` is a high-performance semantic code indexing and search system. It leverages **Ollama** for vector embeddings and **Qdrant** for vector storage. The project provides both a **CLI** and an **MCP (Model Context Protocol) server** to enable AI assistants to interact with codebases semantically.
+## Critical Environment Rules
+- **Python 3.13 only** — 3.14 unsupported by Nuitka (linking issues with `_Py_TriggerGC`)
+- **`uv` is mandatory** — never use `pip` or `venv` directly; use `uv run` / `uv pip`
+- Nuitka builds require `--lto=no --clang` for Python 3.13+ stability
 
-## Core Mandates
+## Commands
+- Install: `uv pip install -e .`
+- Test all: `uv run pytest tests/ -v`
+- Test single: `uv run pytest tests/test_basic.py::test_config -v`
+- Lint: `black --check .` / `flake8` / `mypy`
+- Build binaries: `uv run python scripts/build/build_cross_platform.py`
 
-### 1. Environment & Tooling
-- **Python Version**: **Python 3.13 is MANDATORY**. Python 3.14 is currently unsupported by Nuitka (linking issues like `_Py_TriggerGC`).
-- **Dependency Management**: **`uv` is MANDATORY**. Never use `pip` or `venv` directly. Use `uv run` for executing scripts and `uv pip` for management.
-- **Build System**: Nuitka 2.7.16+ is used for binary builds. Always use `--lto=no` and `--clang` when building binaries to ensure stability across platforms.
+## Non-Obvious Architecture
+- CLI and MCP server **share logic** via [`CommandContext`](src/code_index/services/shared/command_context.py) — never duplicate business logic between them
+- MCP server uses [`MCPErrorHandlerAdapter`](src/code_index/mcp_server/server.py:36) to bridge MCP errors to core [`ErrorHandler`](src/code_index/errors.py)
+- Services use CQRS: commands in `services/command/`, queries in `services/query/`, shared in `services/shared/`
+- [`ConfigurationService`](src/code_index/config_service.py) loads config from 5 prioritized sources (CLI > workspace > env > file > defaults)
+- `pythonpath` in [`pytest.ini`](pytest.ini:39) adds both `.venv` site-packages AND `src/` — imports use `code_index.*` not `src.code_index.*`
 
-### 2. Architectural Patterns
-- **Facade & Orchestration**: 
-    - `IndexingService` acts as the primary facade.
-    - `IndexingOrchestrator` coordinates the workflow by delegating to specialized services in `src/code_index/indexing/`.
-- **Dependency Injection**: Services should accept `IndexingDependencies` or `CommandContext` to facilitate modularity and testability.
-- **CQRS Principles**: Maintain clear separation between state-changing commands and data-retrieval queries.
-- **MCP Integration**: The MCP server MUST share logic with the CLI via `CommandContext` to ensure behavioral parity. Use `MCPErrorHandlerAdapter` to bridge MCP-specific error reporting with the core `ErrorHandler`.
+## Coding Gotchas
+- **NEVER** use `print()` for errors in service layers — use [`ErrorHandler`](src/code_index/errors.py) and [`logging_utils.py`](src/code_index/logging_utils.py)
+- Rich TUI components in `src/code_index/ui/` for progress display — not tqdm in services
+- Services accept [`IndexingDependencies`](src/code_index/services/shared/indexing_dependencies.py) or [`CommandContext`](src/code_index/services/shared/command_context.py) — inject mocks for tests
+- Constants live in [`constants.py`](src/code_index/constants.py) — don't hardcode timeouts, batch sizes, or thresholds
+- Entry points: CLI = `code_index.cli:cli`, MCP = `code_index.mcp_server.server:sync_main`
+- `asyncio_mode = auto` in pytest.ini — async tests need no explicit decorator
 
-### Service Size Guidelines
-Services should generally stay under 200 lines, but more nuanced limits apply based on service complexity:
+## Service Size Limits
+- Simple services/helpers: ~200 lines
+- Core services (parsers, executors): 400-650 lines max
+- Hard rule: < 20 methods per class, no mixed responsibilities
 
-**Recommended Service Line Limits:**
-- **Core services** (parsers, executors, complex logic): 400-650 lines
-- **Simple services** (helpers, caches): 200 lines  
-- **Facade/Orchestrator services**: 300 lines
-
-**Conditions to EXCEED the limit:**
-1. Multiple API strategies/fallback patterns
-2. Complex state management (resource pooling, multi-layer caching)
-3. Well-documented with clear docstrings
-4. Low cyclomatic complexity (methods are short and focused)
-5. Has existing test coverage
-6. Single Responsibility Principle is followed (< 20 methods per class)
-
-**Conditions to NOT exceed:**
-1. More than 20 methods in a single class
-2. Duplicate code exists
-3. Mixed responsibilities in one file
-4. Difficult to test in isolation
-
-### 3. Coding Standards & Quality
-- **Error Handling**: **NEVER** use raw `print()` for errors in service layers. Use the centralized `ErrorHandler` located in `src/code_index/errors.py`.
-- **UI & Feedback**: Use the Rich-based TUI components (`ProgressManager`, `FileScroller`, `StatusPanel`) in `src/code_index/ui/` for long-running operations.
-- **Logging**: Use structured logging via `logging_utils.py`. Prohibit `print()` in any background or service logic.
-- **Formatting**:
-    - **Black**: 88 characters line length.
-    - **MyPy**: Strict typing where feasible.
-    - **Flake8**: Compliance with project linting rules.
-
-### 4. Testing Requirements
-- **Framework**: `pytest` with `pytest-asyncio` for async operations.
-- **Mocks**: Use dependency injection to supply mocks for `OllamaEmbedder` and `QdrantVectorStore` in unit tests.
-- **Coverage**: Every new service or significant refactor must include corresponding tests in the `tests/` directory.
-
-## Implementation Workflow (RIPER-5)
-All agents MUST follow the RIPER-5 protocol (RESEARCH, INNOVATE, PLAN, EXECUTE, REVIEW) as defined in the project configuration. Never skip the PLAN mode or move to EXECUTE without explicit user approval.
-
-## Binary Build Configuration
-When modifying build scripts, ensure the following Nuitka flags are preserved:
-- `--onefile`
-- `--clang`
-- `--lto=no` (Critical for Python 3.13+ stability)
-- `--include-package` for all core dependencies (tree-sitter, qdrant-client, fastmcp, etc.)
+## Code Style (non-obvious)
+- Black 88-char line length, target `py313`
+- Flake8: `max-complexity = 18`, ignores `E203, E501, W503, B950`
+- Type hints required; use `from __future__ import annotations` for forward refs

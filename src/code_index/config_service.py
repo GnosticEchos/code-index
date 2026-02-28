@@ -201,9 +201,9 @@ class ConfigurationService:
                 workspace_path_obj = Path(workspace_path).resolve()
                 default_workspace_config = workspace_path_obj / "code_index.json"
                 
-                print(f"DEBUG: Explicit config path: {explicit_path}")
-                print(f"DEBUG: Default workspace config path: {default_workspace_config}")
-                print(f"DEBUG: Paths are equal: {explicit_path == default_workspace_config}")
+                self.logger.debug("DEBUG: Explicit config path: %s", explicit_path)
+                self.logger.debug("DEBUG: Default workspace config path: %s", default_workspace_config)
+                self.logger.debug("DEBUG: Paths are equal: %s", explicit_path == default_workspace_config)
                 
                 # Skip workspace overrides if explicit config differs from default
                 if explicit_path != default_workspace_config:

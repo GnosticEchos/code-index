@@ -259,6 +259,7 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
     file_scroller = None
     status_panel = None
     overall_task_id = None
+    tui_failed = False
 
     indexing_service = deps.indexing_service
 
@@ -268,6 +269,21 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
 
     def progress_hook(file_path: str, processed: int, total: int, status: str, blocks: int) -> None:
         nonlocal overall_task_id
+        if tui_failed:
+            # Fallback to proper logging if TUI failed
+            if status == "init":
+                logger.info("Initializing indexing... Total files to process: %d", total)
+            elif status == "start":
+                logger.debug("Processing file: %s", file_path)
+            elif status == "success":
+                logger.info("Completed: %s (%d blocks)", file_path, blocks)
+            elif status == "skipped":
+                logger.debug("Skipped (unchanged): %s", file_path)
+            elif status == "error":
+                logger.warning("Error processing file: %s", file_path)
+            logger.info("Progress: %d/%d (%d%%) files", processed, total, (processed*100//total if total > 0 else 0))
+            return
+            
         if not progress_manager or not overall_task_id:
             if not progress_manager:
                 return
@@ -294,13 +310,23 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
 
     try:
         if use_progress_ui:
-            from code_index.ui.progress_manager import ProgressManager
-            from code_index.ui.file_scroller import FileScroller
-            from code_index.ui.status_panel import StatusPanel
-            progress_manager = ProgressManager()
-            file_scroller = FileScroller()
-            status_panel = StatusPanel(progress_manager.console)
-            progress_manager.start_live_display()
+            try:
+                from code_index.ui.progress_manager import ProgressManager
+                from code_index.ui.file_scroller import FileScroller
+                from code_index.ui.status_panel import StatusPanel
+                progress_manager = ProgressManager()
+                if not progress_manager.enabled:
+                    tui_failed = True
+                    logger.warning("TUI initialization failed, falling back to simple progress display")
+                else:
+                    file_scroller = FileScroller()
+                    status_panel = StatusPanel(progress_manager.console)
+                    if progress_manager.start_live_display() is None:
+                        tui_failed = True
+                        logger.warning("Failed to start live display, falling back to simple progress display")
+            except Exception as e:
+                tui_failed = True
+                logger.warning(f"TUI initialization failed: {e}, falling back to simple progress display")
 
         result = indexing_service.index_workspace(
             workspace,
@@ -370,8 +396,6 @@ def search(workspace: str, config: str, min_score: float, max_results: int, json
         overrides=cli_overrides,
     )
     
-    print(f"DEBUG: Configured search_snippet_preview_chars: {deps.config.search_snippet_preview_chars}")
-
     result = deps.search_service.search_code(query, deps.config)
 
     # Display results

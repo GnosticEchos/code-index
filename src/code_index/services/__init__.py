@@ -158,8 +158,8 @@ _SUBMODULE_MAP = {
     'tree_sitter_coordinator': '.treesitter.tree_sitter_coordinator',
     'streaming_embedder': '.embedding.streaming_embedder',
     'embedding_cache': '.embedding.embedding_cache',
-    'config_loader': '.shared.config_loader',
-    'dimension_validator': '.shared.dimension_validator',
+    'config_loader': '.command.config_loader',
+    'dimension_validator': '.embedding.dimension_validator',
 }
 
 def __getattr__(name):
