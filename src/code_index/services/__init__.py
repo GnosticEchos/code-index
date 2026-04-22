@@ -65,7 +65,8 @@ from .embedding.streaming_embedder import StreamingEmbedder, BatchResult
 from .embedding.embedding_cache import EmbeddingCache
 
 # Tree-sitter specialized services
-from .treesitter.file_processor import TreeSitterFileProcessor, FileProcessor
+from .treesitter.file_processor import FileProcessor
+from .treesitter.treesitter_file_processor import TreeSitterFileProcessor
 from .treesitter.resource_manager import TreeSitterResourceManager
 from .treesitter.block_extractor import TreeSitterBlockExtractor, ExtractionResult
 from .treesitter.tree_sitter_coordinator import TreeSitterChunkCoordinator

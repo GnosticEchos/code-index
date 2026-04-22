@@ -121,8 +121,8 @@ class TestConfigurationService:
     def test_get_file_status_success(self, service, config, sample_file_path):
         """Test successful file status query."""
         with patch('src.code_index.services.configuration_query_service.Path') as mock_path, \
-             patch('src.code_index.services.configuration_query_service.QdrantVectorStore') as mock_vs, \
-             patch('src.code_index.services.configuration_query_service.CacheManager') as mock_cache:
+             patch('src.code_index.services.shared.configuration_query_helpers.QdrantVectorStore') as mock_vs, \
+             patch('src.code_index.services.shared.configuration_query_helpers.CacheManager') as mock_cache:
 
             # Mock file exists and is accessible
             mock_file = Mock()
@@ -163,7 +163,7 @@ class TestConfigurationService:
     def test_get_processing_stats_success(self, service, config):
         """Test successful processing statistics query."""
         with patch('src.code_index.services.configuration_query_service.Path') as mock_path, \
-             patch('src.code_index.services.configuration_query_service.CacheManager') as mock_cache:
+             patch('src.code_index.services.shared.configuration_query_helpers.CacheManager') as mock_cache:
 
             # Mock workspace exists
             mock_workspace = Mock()
@@ -195,8 +195,8 @@ class TestConfigurationService:
     def test_get_workspace_status_success(self, service, config):
         """Test successful workspace status query."""
         with patch('src.code_index.services.configuration_query_service.Path') as mock_path, \
-             patch('src.code_index.services.configuration_query_service.QdrantVectorStore') as mock_vs, \
-             patch('src.code_index.services.configuration_query_service.CacheManager') as mock_cache:
+             patch('src.code_index.services.shared.configuration_query_helpers.QdrantVectorStore') as mock_vs, \
+             patch('src.code_index.services.shared.configuration_query_helpers.CacheManager') as mock_cache:
 
             # Mock workspace exists and is directory
             mock_workspace = Mock()
@@ -358,7 +358,7 @@ class TestConfigurationService:
     def test_caching_performance(self, service, config):
         """Test that caching improves performance for repeated queries."""
         with patch('src.code_index.services.configuration_query_service.Path') as mock_path, \
-             patch('src.code_index.services.configuration_query_service.QdrantVectorStore') as mock_vs:
+             patch('src.code_index.services.shared.configuration_query_helpers.QdrantVectorStore') as mock_vs:
 
             # Mock file exists
             mock_file = Mock()

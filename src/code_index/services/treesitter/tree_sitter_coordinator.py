@@ -151,7 +151,7 @@ class TreeSitterChunkCoordinator:
         if self._services_initialized:
             return
 
-        from .file_processor import TreeSitterFileProcessor
+        from .treesitter_file_processor import TreeSitterFileProcessor
         from .resource_manager import TreeSitterResourceManager
         from .block_extractor import TreeSitterBlockExtractor
         from ..query.query_executor import TreeSitterQueryExecutor

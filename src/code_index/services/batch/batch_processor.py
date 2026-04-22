@@ -114,7 +114,7 @@ class TreeSitterBatchProcessor:
         }
 
         # Use dependency injection for services (for test compatibility)
-        from ..treesitter.file_processor import TreeSitterFileProcessor
+        from ..treesitter.treesitter_file_processor import TreeSitterFileProcessor
         from ..treesitter.resource_manager import TreeSitterResourceManager
         from ..treesitter.block_extractor import TreeSitterBlockExtractor
 

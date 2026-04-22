@@ -11,6 +11,7 @@ from ...config import Config
 from ...models import FileStatus, ProcessingStats, WorkspaceStatus, ServiceHealth, SystemStatus
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from ...vector_store import QdrantVectorStore
+from ...cache import CacheManager
 
 
 class ConfigurationQueryHelpers:
@@ -37,7 +38,6 @@ class ConfigurationQueryHelpers:
     @staticmethod
     def get_last_indexing_timestamp(workspace: str, config: Config) -> Optional[datetime]:
         """Get timestamp of last indexing operation."""
-        from ..query.configuration_query_service import CacheManager
         try:
             cache_manager = CacheManager(workspace, config)
             return None
@@ -72,7 +72,6 @@ class ConfigurationQueryHelpers:
                           cache: 'QueryCache', cache_ttl_seconds: int, max_cache_size: int,
                           path_cls: Type = PathImpl) -> FileStatus:
         """Build file status with caching."""
-        from ..query.configuration_query_service import CacheManager
         
         cache_key = f"file_status:{file_path}:{config.workspace_path}"
         if cache_key in cache.file_status_cache and cache.is_cache_valid(cache_ttl_seconds):
@@ -120,7 +119,6 @@ class ConfigurationQueryHelpers:
                                cache: 'QueryCache', cache_ttl_seconds: int,
                                path_cls: Type = PathImpl) -> ProcessingStats:
         """Build processing stats with caching."""
-        from ..query.configuration_query_service import CacheManager
         
         cache_key = f"processing_stats:{config.workspace_path}"
         if cache.processing_stats_cache and cache.is_cache_valid(cache_ttl_seconds):
