@@ -7,7 +7,7 @@ with thread-safe error handling, progress reporting, and result aggregation.
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
-from typing import List, Callable, Any, Optional, Dict, Tuple, Iterator
+from typing import List, Callable, Any, Optional, Dict, Tuple
 from enum import Enum
 import logging
 import time

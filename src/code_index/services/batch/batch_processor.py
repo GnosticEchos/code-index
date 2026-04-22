@@ -11,7 +11,6 @@ Uses extracted modules:
 
 import time
 import logging
-import threading
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
@@ -507,7 +506,7 @@ class TreeSitterBatchProcessor:
                     blocks = self._process_file_individually(file_info)
                     results[file_info['file_path']] = blocks
                     processed_files += 1
-                except Exception as e:
+                except Exception:
                     failed_files += 1
                     # Final fallback to line-based chunking
                     from ...chunking import LineChunkingStrategy
@@ -523,7 +522,7 @@ class TreeSitterBatchProcessor:
                 metadata={"processing_method": "individual"}
             )
 
-        except Exception as e:
+        except Exception:
             raise
 
     def _process_file_individually(self, file_info: Dict[str, Any]) -> List[CodeBlock]:

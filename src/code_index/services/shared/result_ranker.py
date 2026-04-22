@@ -75,7 +75,7 @@ class ResultRanker:
                 warnings.append(f"Failed to reassemble split block {parent_id}: {str(e)}")
                 for part in parts:
                     try:
-                        match = self._create_match(part, query, f"split_part")
+                        match = self._create_match(part, query, "split_part")
                         matches.append(match)
                     except Exception:
                         continue

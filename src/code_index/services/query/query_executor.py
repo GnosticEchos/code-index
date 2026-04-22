@@ -6,7 +6,6 @@ and API compatibility across different Tree-sitter versions.
 """
 
 import os
-import json
 import logging
 from typing import List, Optional, Dict, Any, Tuple
 from dataclasses import dataclass

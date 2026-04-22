@@ -1,6 +1,4 @@
-import os
 import pytest
-from pathlib import Path
 
 from code_index.config import Config
 from code_index.scanner import DirectoryScanner

@@ -6,7 +6,6 @@ search execution, and result formatting.
 """
 
 import json
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, Mock
@@ -16,13 +15,12 @@ import pytest
 from src.code_index.config import Config
 from src.code_index.mcp_server.tools.search_tool import (
     _create_code_snippet,
-    _create_empty_results_response,
     _format_search_results,
     create_search_tool_description,
     search,
 )
 from src.code_index.models import SearchMatch, SearchResult
-from src.code_index.services import IndexDependencies; from src.code_index.services.shared.command_context import SearchDependencies
+from src.code_index.services.shared.command_context import SearchDependencies
 
 
 class TestSearchTool:

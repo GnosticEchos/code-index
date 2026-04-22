@@ -3,8 +3,7 @@ Gitignore template manager with GitHub template integration.
 """
 import os
 import requests
-from typing import List, Optional, Dict
-from pathlib import Path
+from typing import List, Optional
 from code_index.config import Config
 
 

@@ -2,7 +2,6 @@
 """
 Script to run all tests for the code index tool.
 """
-import os
 import sys
 import subprocess
 

@@ -2,7 +2,7 @@
 File filtering service.
 """
 import os
-from typing import List, Callable, Optional
+from typing import List
 
 
 class FileFilter:

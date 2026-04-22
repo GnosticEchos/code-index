@@ -5,10 +5,10 @@ This module handles language-based grouping and scheduling of batch operations.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from ...constants import BATCH_TIMEOUT, MAX_WORKERS_DEFAULT, CHUNK_SIZE_DEFAULT, TREE_SITTER_MAX_BLOCKS_SMALL
+from ...constants import BATCH_TIMEOUT, MAX_WORKERS_DEFAULT, CHUNK_SIZE_DEFAULT
 
 
 batch_logger = logging.getLogger('code_index.batch_scheduler')

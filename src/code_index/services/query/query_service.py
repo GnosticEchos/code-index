@@ -124,7 +124,6 @@ class QueryService:
         """Get memory information."""
         try:
             import psutil
-            import shutil
             memory = psutil.virtual_memory()
             return f"{memory.percent:.1f}% used"
         except Exception:

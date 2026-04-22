@@ -6,7 +6,6 @@ actionable guidance generation, and error categorization.
 """
 
 import pytest
-from unittest.mock import Mock, patch
 
 from src.code_index.mcp_server.core.error_handler import error_handler
 
@@ -416,7 +415,6 @@ class TestErrorHandler:
     def test_error_handler_thread_safety(self):
         """Test error handler thread safety with concurrent calls."""
         import threading
-        import time
         
         results = []
         

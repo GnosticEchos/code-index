@@ -3,10 +3,9 @@ Unit tests for the Language Detection Service.
 """
 
 import pytest
-from unittest.mock import Mock, patch
-from pathlib import Path
+from unittest.mock import patch
 
-from code_index.language_detection import LanguageDetector, UnsupportedLanguageError
+from code_index.language_detection import LanguageDetector
 from code_index.config import Config
 from code_index.errors import ErrorHandler
 

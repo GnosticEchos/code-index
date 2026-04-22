@@ -3,9 +3,8 @@ Unit tests for TreeSitterResourceManager service.
 """
 import os
 import sys
-import time
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 # Add src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))

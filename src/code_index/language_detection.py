@@ -9,10 +9,9 @@ and integrates with ConfigurationService for language-specific settings.
 import os
 import logging
 from typing import Dict, List, Optional, Set, Any
-from pathlib import Path
 
 from .config import Config
-from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity, error_handler
+from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from .config_service import ConfigurationService as ConfigService
 
 logger = logging.getLogger(__name__)

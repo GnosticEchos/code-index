@@ -5,7 +5,7 @@ import os
 import mmap
 import time
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from code_index.config import Config
 from code_index.chunking import ChunkingStrategy
 from code_index.models import CodeBlock

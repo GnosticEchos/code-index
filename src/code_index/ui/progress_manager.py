@@ -1,9 +1,8 @@
 """
 Progress manager for TUI progress bars and status display.
 """
-from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn, SpinnerColumn, TaskProgressColumn, MofNCompleteColumn
+from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn, SpinnerColumn, TaskProgressColumn
 from rich.console import Console
-from rich.panel import Panel
 from rich.live import Live
 from typing import Optional, Dict, Any
 import logging

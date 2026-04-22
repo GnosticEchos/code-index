@@ -15,13 +15,10 @@ import threading
 from collections import OrderedDict
 from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
-from datetime import datetime
 
 from ...config import Config
 from ...config_service import ConfigurationService
 from ...service_validation import ServiceValidator, ValidationResult
-from ...embedder import OllamaEmbedder
-from ...vector_store import QdrantVectorStore
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from ...models import SearchResult, SearchMatch
 from ..query.query_embedding_cache import QueryEmbeddingCache

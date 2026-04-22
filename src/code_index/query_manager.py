@@ -8,11 +8,11 @@ managing queries across different programming languages.
 
 import time
 import logging
-from typing import Dict, Any, Optional, Set
+from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
 from .config import Config
-from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity, error_handler
+from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from .treesitter_queries import get_queries_for_language
 
 logger = logging.getLogger(__name__)

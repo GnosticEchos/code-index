@@ -7,7 +7,7 @@ from typing import List, Set, Tuple
 from code_index.config import Config
 from code_index.smart_ignore_manager import SmartIgnoreManager
 from code_index.file_processing import FileProcessingService
-from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from code_index.errors import ErrorHandler
 from code_index.path_utils import PathUtils
 
 logger = logging.getLogger(__name__)

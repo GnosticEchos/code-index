@@ -13,7 +13,6 @@ This follows the CQRS pattern where command operations are separated from query 
 
 import json
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypeVar
@@ -21,7 +20,7 @@ from dataclasses import dataclass
 
 from ...config import Config
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
-from ...service_validation import ServiceValidator, ValidationResult
+from ...service_validation import ServiceValidator
 
 
 T = TypeVar('T')

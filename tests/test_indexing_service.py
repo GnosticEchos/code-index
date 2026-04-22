@@ -8,16 +8,14 @@ proper separation of command operations from CLI concerns.
 import pytest
 import tempfile
 import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from datetime import datetime
-from pathlib import Path
 
 from code_index.config import Config
 from code_index.services import IndexingService
-from code_index.services import SearchService
-from code_index.services import IndexingDependencies, _create_test_dependencies
+from code_index.services import _create_test_dependencies
 from code_index.models import IndexingResult, ProcessingResult, ValidationResult
-from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from code_index.errors import ErrorHandler
 
 
 @pytest.fixture

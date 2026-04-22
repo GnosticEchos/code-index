@@ -1,9 +1,6 @@
 """
 Test module for CLI commands.
 """
-import os
-import tempfile
-import pytest
 from click.testing import CliRunner
 from code_index.cli import cli
 from code_index.services import IndexingService, SearchService, ConfigurationService

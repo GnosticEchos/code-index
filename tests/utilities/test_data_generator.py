@@ -1,7 +1,6 @@
 """
 Utility functions and classes for generating test data.
 """
-import pytest
 from typing import Dict, List, Any
 
 class TestDataGenerator:

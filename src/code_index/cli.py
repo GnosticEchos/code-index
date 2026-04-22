@@ -6,28 +6,12 @@ import sys
 import json
 import logging
 import click
-from tqdm import tqdm
 from typing import List, Set
-from requests.exceptions import ReadTimeout
 
-from code_index.config import Config
-from code_index.scanner import DirectoryScanner
-from code_index.parser import CodeParser
-from code_index.embedder import OllamaEmbedder
-from code_index.vector_store import QdrantVectorStore
-from code_index.cache import CacheManager
-from code_index.collections import CollectionManager
 from code_index.collections_commands import list_collections, collection_info, delete_collection, prune_collections, clear_all_collections
-from code_index.chunking import (
-    ChunkingStrategy,
-    LineChunkingStrategy,
-    TokenChunkingStrategy,
-    TreeSitterChunkingStrategy,
-)
-from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from code_index.errors import ErrorHandler
 from code_index.file_processing import FileProcessingService
 from code_index.path_utils import PathUtils
-from code_index.service_validation import ServiceValidator
 from code_index.services.shared.command_context import CommandContext
 from code_index.services.command.config_overrides import build_index_overrides, build_search_overrides
 from code_index.logging_utils import LoggingConfigurator
@@ -195,7 +179,7 @@ def index(ctx, workspace: str, config: str, workspacelist: str | None, embed_tim
                 print(f"Error processing workspace {workspace_path}: {e}")
                 continue
         
-        print(f"\nBatch processing completed:")
+        print("\nBatch processing completed:")
         print(f"  Total workspaces processed: {len(workspaces)}")
         print(f"  Total files processed: {total_processed}")
         print(f"  Total code blocks: {total_blocks}")

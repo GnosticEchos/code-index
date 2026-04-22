@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, MatchValue
 from code_index.config import Config
-from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity, error_handler
+from code_index.errors import ErrorContext, ErrorCategory, ErrorSeverity, error_handler
 from code_index.service_validation import ValidationResult
 
 # Conditional import for Qdrant client
@@ -128,7 +128,7 @@ class QdrantVectorStore:
                 if test_created:
                     client.delete_collection(test_collection_name)
 
-            except Exception as e:
+            except Exception:
                 # Test collection operations might fail due to permissions
                 # This is not necessarily a critical error
                 pass

@@ -3,8 +3,6 @@ Test module for the code index tool.
 """
 import os
 import tempfile
-import pytest
-from code_index.config import Config
 from code_index.file_processing import FileProcessingService
 from code_index.errors import ErrorHandler
 from code_index.cache import CacheManager

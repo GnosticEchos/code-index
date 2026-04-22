@@ -1,7 +1,6 @@
 """
 QueryCursor execution patterns for Tree-sitter queries.
 """
-from typing import List, Tuple, Any
 from ..query.query_result_formatter import _safe_len, _summarize_capture_tuples, _summarize_capture_dicts, _tb_excerpt, AttemptRecord
 
 

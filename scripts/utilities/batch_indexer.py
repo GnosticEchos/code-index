@@ -8,7 +8,6 @@ import time
 import subprocess
 import json
 from datetime import datetime
-from pathlib import Path
 import click
 
 
@@ -159,7 +158,7 @@ def batch_indexer(workspace_list, workspace, config, embed_timeout, concurrent, 
             pass
     
     # Summary
-    print(f"\\n=== Batch Indexing Complete ===")
+    print("\\n=== Batch Indexing Complete ===")
     print(f"Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Successful: {successful}")
     print(f"Failed: {failed}")
@@ -174,7 +173,7 @@ def batch_indexer(workspace_list, workspace, config, embed_timeout, concurrent, 
         print(f"Failed workspaces list: {failed_file}")
     
     with open(log_file, 'a') as f:
-        f.write(f"\\n=== Batch Indexing Complete ===\\n")
+        f.write("\\n=== Batch Indexing Complete ===\\n")
         f.write(f"Finished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\\n")
         f.write(f"Successful: {successful}\\n")
         f.write(f"Failed: {failed}\\n")

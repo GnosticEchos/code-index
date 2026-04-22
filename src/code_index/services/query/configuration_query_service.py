@@ -15,8 +15,6 @@ from ..shared.health_service import HealthService
 from .query_service import QueryService
 from ...service_validation import ServiceValidator
 from ...file_processing import FileProcessingService
-from ...vector_store import QdrantVectorStore
-from ...cache import CacheManager
 from ..shared.configuration_query_helpers import ConfigurationQueryHelpers
 
 

@@ -1,11 +1,8 @@
 """
 TreeSitterResourceManager service for resource management and cleanup.
 """
-import time
-import threading
 import logging
-import gc
-from typing import Dict, Any, Optional, Set
+from typing import Dict, Any, Optional
 
 from ...config import Config
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity

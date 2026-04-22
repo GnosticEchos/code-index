@@ -6,7 +6,7 @@ based on configuration and query types.
 """
 
 import logging
-from typing import Tuple, Any, Optional, Dict
+from typing import Tuple, Any, Dict
 
 logger = logging.getLogger('code_index.search_strategy_selector')
 

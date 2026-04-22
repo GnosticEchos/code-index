@@ -2,12 +2,10 @@
 Collection management for the code index tool.
 """
 import os
-import time
 import hashlib
-import json
 from typing import List, Dict, Any, Optional
 from qdrant_client import QdrantClient
-from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, MatchValue
+from qdrant_client.models import Filter, FieldCondition, MatchValue
 from code_index.config import Config
 
 

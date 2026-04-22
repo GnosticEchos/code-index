@@ -2,7 +2,7 @@
 Ollama embedder for the code index tool.
 """
 import requests
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from code_index.config import Config
 from code_index.service_validation import ValidationResult
 
@@ -148,7 +148,7 @@ class OllamaEmbedder:
                 response_time_ms=int((time.time() - start_time) * 1000)
             )
 
-        except requests.exceptions.ConnectionError as e:
+        except requests.exceptions.ConnectionError:
             error_msg = f"Cannot connect to Ollama service at {self.base_url}"
             guidance = [
                 "Start Ollama service: ollama serve",
@@ -169,7 +169,7 @@ class OllamaEmbedder:
                 actionable_guidance=guidance
             )
 
-        except requests.exceptions.Timeout as e:
+        except requests.exceptions.Timeout:
             error_msg = f"Ollama service timeout after {int((time.time() - start_time) * 1000)}ms"
             guidance = [
                 "Increase timeout settings in configuration",

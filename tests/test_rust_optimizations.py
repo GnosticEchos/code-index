@@ -4,9 +4,6 @@ Test script for Rust-specific optimizations in code indexing.
 """
 import os
 import sys
-import json
-import time
-from pathlib import Path
 
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))

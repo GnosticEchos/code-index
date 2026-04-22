@@ -4,7 +4,7 @@ Block filter module for filtering Tree-sitter extracted blocks.
 This module handles block filtering based on content thresholds and capture types.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 
 
 # Captures that are just identifiers (names) and should be skipped

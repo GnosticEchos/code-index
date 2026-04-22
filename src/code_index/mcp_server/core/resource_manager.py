@@ -11,22 +11,18 @@ Uses extracted modules:
 
 import asyncio
 import logging
-import signal
-import sys
 import threading
 import time
-import weakref
 from typing import Dict, Any, List, Optional, Set, Callable
 from contextlib import asynccontextmanager
 
 from ...constants import (
-    MEMORY_THRESHOLD_MCP, CLEANUP_INTERVAL_MCP, OLD_RESOURCE_THRESHOLD,
-    MEMORY_POOL_MAX_SIZE, SHUTDOWN_WAIT_TIMEOUT
+    MEMORY_THRESHOLD_MCP, CLEANUP_INTERVAL_MCP, SHUTDOWN_WAIT_TIMEOUT
 )
 
 # Import from extracted modules
 from .mcp_resource_models import ResourceInfo
-from .mcp_memory_manager import MemoryManager, create_memory_manager
+from .mcp_memory_manager import create_memory_manager
 from .mcp_resource_utils import (
     cleanup_old_resources_by_type,
     check_memory_and_collect,

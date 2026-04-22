@@ -1,4 +1,4 @@
-from typing import List, Optional, Callable, Iterator, Any
+from typing import List, Optional, Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import logging

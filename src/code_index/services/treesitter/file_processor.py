@@ -6,11 +6,9 @@ This module contains:
 """
 import logging
 from typing import Optional, Dict, Any, List, Callable
-from pathlib import Path
 from threading import Lock
-import hashlib, uuid
 from ...config import Config
-from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from ...errors import ErrorHandler, ErrorContext
 from ...parser import CodeParser
 from ...embedder import OllamaEmbedder
 from ...vector_store import QdrantVectorStore
@@ -19,7 +17,6 @@ from ...path_utils import PathUtils
 from ...models import ProcessingResult
 from ..shared.indexing_dependencies import IndexingDependencies
 from ..embedding.streaming_embedder import StreamingEmbedder, BatchResult
-from ..treesitter.treesitter_file_processor import TreeSitterFileProcessor
 from ..shared import file_processing_helpers as helpers
 logger = logging.getLogger("code_index.file_processor")
 class FileProcessor:
@@ -189,7 +186,6 @@ class FileProcessor:
         timed_out_files: List[str]
     ) -> List[Dict[str, Any]]:
         """Internal implementation of parallel file processing."""
-        from .parallel_file_processor import ParallelProgressTracker
         
         # Create thread-local storage for error/warning collection
         thread_locals: Dict[int, Dict[str, List[str]]] = {}

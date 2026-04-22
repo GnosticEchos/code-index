@@ -52,7 +52,7 @@ class ResourceAllocator:
                 if caller_frame:
                     caller_code = caller_frame.f_code
                     if 'test_error_handling_parser_creation_failure' in caller_code.co_name or 'test_graceful_degradation' in caller_code.co_name:
-                        from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+                        from ...errors import ErrorContext, ErrorCategory, ErrorSeverity
                         ec = ErrorContext("resource_manager", "acquire_resources", {"language": language_key, "resource_type": resource_type})
                         self.error_handler.handle_error(Exception("Language load failed" if 'test_error_handling_parser_creation_failure' in caller_code.co_name else "All parsers busy"), ec, ErrorCategory.RESOURCE_MANAGEMENT, ErrorSeverity.MEDIUM)
                         return {}

@@ -291,7 +291,7 @@ class TreeSitterBlockExtractor:
             
             return blocks[:max_blocks]
             
-        except Exception as e:
+        except Exception:
             processing_time = (time.time() - start_time) * 1000
             self._total_processing_time_ms += processing_time
             self._failed_extractions += 1

@@ -5,7 +5,6 @@ Test script to verify dot file filtering behavior.
 import os
 import tempfile
 import shutil
-from pathlib import Path
 from code_index.config import Config
 from code_index.scanner import DirectoryScanner
 
@@ -69,7 +68,7 @@ def test_dot_file_filtering():
         print("Files found:", [os.path.basename(f) for f in files2])
         
         # Verify .gitignore is still processed for ignore patterns (not indexed as content)
-        print(f"\n.gitignore should be used for ignore patterns but not indexed as content:")
+        print("\n.gitignore should be used for ignore patterns but not indexed as content:")
         gitignore_indexed = any('.gitignore' in f for f in files)
         gitignore_indexed2 = any('.gitignore' in f for f in files2)
         print(f"With filtering: .gitignore indexed = {gitignore_indexed}")

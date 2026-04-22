@@ -6,11 +6,10 @@ Handles file batching, memory management, and parallel processing coordination.
 
 from typing import List, Dict, Any, Optional
 from pathlib import Path
-import asyncio
 from dataclasses import dataclass
 
 from ..config import Config
-from ..errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from ..errors import ErrorHandler
 
 
 @dataclass

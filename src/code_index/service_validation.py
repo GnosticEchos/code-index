@@ -5,7 +5,6 @@ This module provides a comprehensive service validation system that eliminates
 duplicated validation logic across CLI and MCP server components.
 """
 
-import asyncio
 import time
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
@@ -22,7 +21,7 @@ except ImportError:
     QdrantClient = None
 
 from .config import Config
-from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from .errors import ErrorHandler
 
 
 @dataclass
@@ -250,7 +249,7 @@ class ServiceValidator:
                 response_time_ms=int((time.time() - start_time) * 1000)
             )
 
-        except requests.exceptions.ConnectionError as e:
+        except requests.exceptions.ConnectionError:
             error_msg = f"Cannot connect to Ollama service at {config.ollama_base_url}"
             guidance = [
                 "Start Ollama service: ollama serve",
@@ -271,7 +270,7 @@ class ServiceValidator:
                 actionable_guidance=guidance
             )
 
-        except requests.exceptions.Timeout as e:
+        except requests.exceptions.Timeout:
             error_msg = f"Ollama service timeout after {int((time.time() - start_time) * 1000)}ms"
             guidance = [
                 "Increase timeout settings in configuration",
@@ -400,7 +399,7 @@ class ServiceValidator:
                 if test_created:
                     client.delete_collection(test_collection_name)
 
-            except Exception as e:
+            except Exception:
                 # Test collection operations might fail due to permissions
                 # This is not necessarily a critical error
                 pass

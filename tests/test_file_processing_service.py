@@ -4,9 +4,9 @@ Test module for the FileProcessingService class.
 import os
 import tempfile
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from code_index.file_processing import FileProcessingService
-from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from code_index.errors import ErrorHandler
 
 
 def test_file_processing_service_initialization():
@@ -160,7 +160,7 @@ def test_process_files_batch_success():
     files = []
     temp_files = []
     for i in range(3):
-        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=f".py") as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".py") as f:
             f.write(f"test content {i}")
             temp_files.append(f.name)
             files.append({
@@ -197,7 +197,7 @@ def test_process_files_batch_with_errors():
     files = []
     temp_files = []
     for i in range(3):
-        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=f".py") as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".py") as f:
             f.write(f"test content {i}")
             temp_files.append(f.name)
             files.append({
@@ -253,7 +253,7 @@ def test_process_files_batch_with_progress_callback():
     files = []
     temp_files = []
     for i in range(3):
-        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=f".py") as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".py") as f:
             f.write(f"test content {i}")
             temp_files.append(f.name)
             files.append({

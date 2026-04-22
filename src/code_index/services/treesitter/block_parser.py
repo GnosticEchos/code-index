@@ -5,7 +5,7 @@ This module handles the actual parsing of code into semantic blocks using Tree-s
 """
 
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 from ...models import CodeBlock
 from ...utils import split_content
 
@@ -15,7 +15,7 @@ def compile_treesitter_query(language, query_text: str):
     try:
         from tree_sitter import Query
         return Query(language, query_text)
-    except Exception as e:
+    except Exception:
         return None
 
 

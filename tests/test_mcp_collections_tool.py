@@ -4,7 +4,6 @@ safety confirmations, and collection management operations.
 """
 
 import json
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -12,7 +11,6 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 
 from fastmcp import Context
-from src.code_index.cache import delete_collection_cache
 from src.code_index.collections import CollectionManager
 from src.code_index.config import Config
 from src.code_index.mcp_server.tools.collections_tool import (
@@ -26,7 +24,7 @@ from src.code_index.mcp_server.tools.collections_tool import (
     collections,
     create_collections_tool_description,
 )
-from src.code_index.services import IndexDependencies; from src.code_index.services.shared.command_context import CollectionDependencies
+from src.code_index.services.shared.command_context import CollectionDependencies
 
 
 class TestCollectionsTool:

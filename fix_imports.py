@@ -6,7 +6,6 @@ Run with: uv run python fix_imports.py
 import subprocess
 import re
 import os
-import sys
 
 def run_tests():
     """Run pytest and capture output."""

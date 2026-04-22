@@ -2,9 +2,7 @@
 Enhanced ignore pattern system with fast language detection.
 """
 import os
-import glob
-from pathlib import Path
-from typing import List, Set, Dict, Optional
+from typing import List
 from whats_that_code.extension_based import guess_by_extension
 from code_index.config import Config
 

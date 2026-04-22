@@ -151,14 +151,14 @@ class MCPErrorHandler:
             # Add operation-specific guidance
             if operation == "indexing":
                 guidance.extend([
-                    f"Indexing operation failed - check the following:",
+                    "Indexing operation failed - check the following:",
                     "Ensure the workspace path exists and is accessible",
                     "Check that required services (Ollama, Qdrant) are running",
                     "Verify configuration file has all required fields"
                 ])
             elif operation == "search":
                 guidance.extend([
-                    f"Search operation failed - check the following:",
+                    "Search operation failed - check the following:",
                     "Ensure the workspace has been indexed first",
                     "Check that the collection exists in the vector store",
                     "Verify search parameters are within valid ranges"

@@ -1,7 +1,7 @@
 """
 Search strategy pattern implementation for flexible search algorithms.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Any
 
 from ..config import Config
 from ..errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity

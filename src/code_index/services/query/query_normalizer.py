@@ -1,7 +1,7 @@
 """
 Query result normalization service.
 """
-from typing import List, Tuple, Any, Dict
+from typing import List, Tuple, Any
 
 
 class QueryNormalizer:

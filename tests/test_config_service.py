@@ -10,13 +10,11 @@ import os
 import json
 import tempfile
 import pytest
-from unittest.mock import patch, mock_open, MagicMock
-from pathlib import Path
+from unittest.mock import patch
 
 from code_index.config import Config
 from code_index.config_service import ConfigurationService, ConfigurationSource
-from code_index.service_validation import ValidationResult
-from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from code_index.errors import ErrorHandler
 
 
 class TestConfigurationService:

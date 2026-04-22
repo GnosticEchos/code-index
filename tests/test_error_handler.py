@@ -1,11 +1,8 @@
 """
 Test module for the ErrorHandler class.
 """
-import pytest
-import tempfile
-import os
 import json
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 from code_index.errors import (
     ErrorHandler, 
     ErrorContext, 

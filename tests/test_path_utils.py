@@ -1,13 +1,9 @@
 """
 Test module for the PathUtils class.
 """
-import os
-import tempfile
-import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
 from code_index.path_utils import PathUtils
-from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from code_index.errors import ErrorHandler
 
 
 def test_path_utils_initialization():

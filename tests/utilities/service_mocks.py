@@ -1,7 +1,7 @@
 """
 Utility mocks for services.
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 class ServiceMocks:
     """Collection of service mocks for testing."""

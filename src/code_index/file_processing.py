@@ -3,7 +3,6 @@ File processing utilities for the code index tool.
 """
 import os
 import chardet
-import psutil
 import time
 import logging
 import mmap
@@ -1170,7 +1169,6 @@ class FileProcessingService:
             Set of .gitignore patterns
         """
         import os
-        from typing import Set
         
         error_context = ErrorContext(
             component="file_processing",
@@ -1356,7 +1354,6 @@ class FileProcessingService:
         Returns:
             Normalized path with forward slashes
         """
-        from pathlib import Path
 
         error_context = ErrorContext(
             component="file_processing",

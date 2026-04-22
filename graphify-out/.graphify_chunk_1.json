@@ -1,0 +1,326 @@
+{
+  "nodes": [
+    {
+      "id": "cache_cache_manager",
+      "label": "CacheManager",
+      "file_type": "code",
+      "source_file": "src/code_index/cache.py"
+    },
+    {
+      "id": "chunking_chunking_strategy",
+      "label": "ChunkingStrategy",
+      "file_type": "code",
+      "source_file": "src/code_index/chunking.py"
+    },
+    {
+      "id": "chunking_line_chunking_strategy",
+      "label": "LineChunkingStrategy",
+      "file_type": "code",
+      "source_file": "src/code_index/chunking.py"
+    },
+    {
+      "id": "chunking_token_chunking_strategy",
+      "label": "TokenChunkingStrategy",
+      "file_type": "code",
+      "source_file": "src/code_index/chunking.py"
+    },
+    {
+      "id": "chunking_tree_sitter_chunking_strategy",
+      "label": "TreeSitterChunkingStrategy",
+      "file_type": "code",
+      "source_file": "src/code_index/chunking.py"
+    },
+    {
+      "id": "cli_cli",
+      "label": "CLI Group",
+      "file_type": "code",
+      "source_file": "src/code_index/cli.py"
+    },
+    {
+      "id": "collections_collection_manager",
+      "label": "CollectionManager",
+      "file_type": "code",
+      "source_file": "src/code_index/collections.py"
+    },
+    {
+      "id": "config_config",
+      "label": "Config",
+      "file_type": "code",
+      "source_file": "src/code_index/config.py"
+    },
+    {
+      "id": "config_service_configuration_service",
+      "label": "ConfigurationService",
+      "file_type": "code",
+      "source_file": "src/code_index/config_service.py"
+    },
+    {
+      "id": "embedder_ollama_embedder",
+      "label": "OllamaEmbedder",
+      "file_type": "code",
+      "source_file": "src/code_index/embedder.py"
+    },
+    {
+      "id": "enhanced_scanner_enhanced_directory_scanner",
+      "label": "EnhancedDirectoryScanner",
+      "file_type": "code",
+      "source_file": "src/code_index/enhanced_scanner.py"
+    },
+    {
+      "id": "errors_error_handler",
+      "label": "ErrorHandler",
+      "file_type": "code",
+      "source_file": "src/code_index/errors.py"
+    },
+    {
+      "id": "fast_language_detector_fast_language_detector",
+      "label": "FastLanguageDetector",
+      "file_type": "code",
+      "source_file": "src/code_index/fast_language_detector.py"
+    },
+    {
+      "id": "file_processing_file_processing_service",
+      "label": "FileProcessingService",
+      "file_type": "code",
+      "source_file": "src/code_index/file_processing.py"
+    },
+    {
+      "id": "gitignore_manager_gitignore_template_manager",
+      "label": "GitignoreTemplateManager",
+      "file_type": "code",
+      "source_file": "src/code_index/gitignore_manager.py"
+    },
+    {
+      "id": "hybrid_parsers_hybrid_parser_manager",
+      "label": "HybridParserManager",
+      "file_type": "code",
+      "source_file": "src/code_index/hybrid_parsers.py"
+    },
+    {
+      "id": "language_detection_language_detector",
+      "label": "LanguageDetector",
+      "file_type": "code",
+      "source_file": "src/code_index/language_detection.py"
+    },
+    {
+      "id": "logging_utils_logging_configurator",
+      "label": "LoggingConfigurator",
+      "file_type": "code",
+      "source_file": "src/code_index/logging_utils.py"
+    },
+    {
+      "id": "models_code_block",
+      "label": "CodeBlock",
+      "file_type": "code",
+      "source_file": "src/code_index/models.py"
+    },
+    {
+      "id": "parser_manager_tree_sitter_parser_manager",
+      "label": "TreeSitterParserManager",
+      "file_type": "code",
+      "source_file": "src/code_index/parser_manager.py"
+    },
+    {
+      "id": "path_utils_path_utils",
+      "label": "PathUtils",
+      "file_type": "code",
+      "source_file": "src/code_index/path_utils.py"
+    }
+  ],
+  "edges": [
+    {
+      "source": "config_service_configuration_service",
+      "target": "config_config",
+      "relation": "manages",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/config_service.py"
+    },
+    {
+      "source": "chunking_chunking_strategy",
+      "target": "config_config",
+      "relation": "initialized_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/chunking.py"
+    },
+    {
+      "source": "chunking_tree_sitter_chunking_strategy",
+      "target": "errors_error_handler",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/chunking.py"
+    },
+    {
+      "source": "cli_cli",
+      "target": "config_config",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/cli.py"
+    },
+    {
+      "source": "cli_cli",
+      "target": "errors_error_handler",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/cli.py"
+    },
+    {
+      "source": "collections_collection_manager",
+      "target": "config_config",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/collections.py"
+    },
+    {
+      "source": "embedder_ollama_embedder",
+      "target": "config_config",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/embedder.py"
+    },
+    {
+      "source": "file_processing_file_processing_service",
+      "target": "errors_error_handler",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/file_processing.py"
+    },
+    {
+      "source": "file_processing_file_processing_service",
+      "target": "path_utils_path_utils",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/file_processing.py"
+    },
+    {
+      "source": "language_detection_language_detector",
+      "target": "config_config",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/language_detection.py"
+    },
+    {
+      "source": "language_detection_language_detector",
+      "target": "config_service_configuration_service",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/language_detection.py"
+    },
+    {
+      "source": "parser_manager_tree_sitter_parser_manager",
+      "target": "config_config",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/parser_manager.py"
+    },
+    {
+      "source": "parser_manager_tree_sitter_parser_manager",
+      "target": "errors_error_handler",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/parser_manager.py"
+    },
+    {
+      "source": "hybrid_parsers_hybrid_parser_manager",
+      "target": "config_config",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/hybrid_parsers.py"
+    },
+    {
+      "source": "hybrid_parsers_hybrid_parser_manager",
+      "target": "errors_error_handler",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/hybrid_parsers.py"
+    },
+    {
+      "source": "fast_language_detector_fast_language_detector",
+      "target": "config_config",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/fast_language_detector.py"
+    },
+    {
+      "source": "enhanced_scanner_enhanced_directory_scanner",
+      "target": "config_config",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/enhanced_scanner.py"
+    },
+    {
+      "source": "enhanced_scanner_enhanced_directory_scanner",
+      "target": "file_processing_file_processing_service",
+      "relation": "uses",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/code_index/enhanced_scanner.py"
+    },
+    {
+      "source": "config_config",
+      "target": "errors_error_handler",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "src/code_index/config.py"
+    },
+    {
+      "source": "file_processing_file_processing_service",
+      "target": "cache_cache_manager",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/code_index/file_processing.py"
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "he_chunking_strategy_family",
+      "label": "Chunking Strategy Family",
+      "nodes": [
+        "chunking_chunking_strategy",
+        "chunking_line_chunking_strategy",
+        "chunking_token_chunking_strategy",
+        "chunking_tree_sitter_chunking_strategy"
+      ]
+    },
+    {
+      "id": "he_core_services",
+      "label": "Core System Services",
+      "nodes": [
+        "config_service_configuration_service",
+        "file_processing_file_processing_service",
+        "errors_error_handler",
+        "path_utils_path_utils",
+        "logging_utils_logging_configurator"
+      ]
+    },
+    {
+      "id": "he_metadata_management",
+      "label": "Metadata and Resource Management",
+      "nodes": [
+        "cache_cache_manager",
+        "collections_collection_manager",
+        "parser_manager_tree_sitter_parser_manager"
+      ]
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

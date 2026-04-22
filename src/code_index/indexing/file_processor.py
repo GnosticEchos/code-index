@@ -11,7 +11,6 @@ import hashlib
 
 from ..config import Config
 from ..errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
-from ..models import FileProcessingResult
 from .language_detector import LanguageDetector
 
 

@@ -1,7 +1,5 @@
-import json
 from types import SimpleNamespace as NS
 
-import pytest
 
 import code_index.collections_commands as cc
 

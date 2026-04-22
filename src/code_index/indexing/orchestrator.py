@@ -7,11 +7,10 @@ files and services while maintaining clean separation of concerns.
 
 from typing import List, Dict, Any, Optional
 from pathlib import Path
-import asyncio
 from datetime import datetime
 
 from ..config import Config
-from ..models import IndexingResult, ProcessingStats
+from ..models import IndexingResult
 from ..errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from .file_processor import FileProcessor
 from .batch_manager import BatchManager

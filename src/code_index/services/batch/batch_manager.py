@@ -17,10 +17,9 @@ from ...chunking import (
     TokenChunkingStrategy,
     TreeSitterChunkingStrategy,
 )
-from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from ...errors import ErrorHandler
 from ...constants import (
-    BATCH_SIZE_SMALL, BATCH_SIZE_DEFAULT, BATCH_SIZE_MEDIUM, BATCH_SIZE_LARGE,
-    BATCH_SEGMENT_THRESHOLD, MEMORY_TARGET_BATCH, MEMORY_TARGET_EMBEDDING,
+    BATCH_SIZE_SMALL, BATCH_SIZE_MEDIUM, BATCH_SEGMENT_THRESHOLD, MEMORY_TARGET_BATCH, MEMORY_TARGET_EMBEDDING,
     EMBEDDING_DIMENSION_DEFAULT
 )
 from ..shared.indexing_dependencies import IndexingDependencies
@@ -208,7 +207,6 @@ class BatchManager:
         ordered_results: bool
     ) -> List[Any]:
         """Process files in parallel using ThreadPoolExecutor."""
-        from .parallel_file_processor import ProcessingOrder
         
         # Configure ordered/unordered processing
         original_ordered = getattr(self._parallel_processor, '_ordered', False)

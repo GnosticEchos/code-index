@@ -8,11 +8,10 @@ and its impact on search quality and performance.
 
 import sys
 import os
-import time
 import json
 import argparse
 import tempfile
-from typing import List, Dict, Any
+from typing import Dict, Any
 from datetime import datetime
 
 # Add the src directory to the path

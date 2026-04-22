@@ -3,7 +3,6 @@ Helper functions for FileProcessor to reduce file size.
 """
 import uuid
 from typing import Dict, Any, List, Optional, Callable
-from ...config import Config
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 
 

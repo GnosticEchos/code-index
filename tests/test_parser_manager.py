@@ -4,9 +4,9 @@ Unit tests for the Parser Management Service.
 
 import pytest
 import time
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
-from code_index.parser_manager import TreeSitterParserManager, ParserInfo, ParserResourceMonitor, ParserCreationError
+from code_index.parser_manager import TreeSitterParserManager, ParserInfo, ParserResourceMonitor
 from code_index.config import Config
 from code_index.errors import ErrorHandler
 

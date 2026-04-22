@@ -7,7 +7,7 @@ and comprehensive collection operations.
 
 import os
 import logging
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, Optional, Callable
 
 # Robust import of Context to tolerate environments where fastmcp may be missing or incomplete.
 try:

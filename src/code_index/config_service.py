@@ -10,9 +10,9 @@ import os
 import json
 import yaml
 import logging
-from typing import Dict, Any, Optional, List, Union, TypeVar, Type, Generic
+from typing import Dict, Any, Optional, List, TypeVar, Type
 from pathlib import Path
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from urllib.parse import urlparse
 
 from .config import Config

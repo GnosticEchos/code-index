@@ -12,8 +12,7 @@ This refactoring extracts:
 
 import time
 import logging
-from typing import List, Set, Dict, Any, Optional, Callable
-from datetime import datetime
+from typing import List, Optional, Callable
 
 from ...config import Config
 from ...config_service import ConfigurationService
@@ -21,7 +20,6 @@ from ...file_processing import FileProcessingService
 from ...service_validation import ServiceValidator
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from ...models import IndexingResult, ProcessingResult, ValidationResult
-from ...logging_utils import push_logging_context, reset_logging_context
 from ..shared.indexing_orchestrator import IndexingOrchestrator
 from ..treesitter.file_processor import FileProcessor
 from ..batch.batch_manager import BatchManager

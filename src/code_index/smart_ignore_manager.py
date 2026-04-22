@@ -4,8 +4,7 @@ Smart ignore pattern manager combining multiple sources.
 import os
 import fnmatch
 import logging
-from typing import List, Set, Dict, Optional
-from pathlib import Path
+from typing import List, Optional
 
 from code_index.config import Config
 from code_index.fast_language_detector import FastLanguageDetector
@@ -173,7 +172,6 @@ class SmartIgnoreManager:
     
     def _matches_pattern(self, file_path: str, pattern: str) -> bool:
         """Check if file path matches ignore pattern."""
-        import fnmatch
         
         # Handle directory patterns ending with /
         if pattern.endswith('/'):

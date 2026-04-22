@@ -6,7 +6,7 @@ for different Tree-sitter versions.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 
 class QueryValidator:

@@ -76,7 +76,7 @@ def test_search():
         print("No results found.")
         return
     
-    print(f"Top 5 results:")
+    print("Top 5 results:")
     print("-" * 80)
     
     for i, result in enumerate(results[:5], 1):

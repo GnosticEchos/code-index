@@ -6,13 +6,12 @@ and ValidationResult dataclass, ensuring proper validation of external services.
 """
 
 import pytest
-import time
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from datetime import datetime
 
 from code_index.service_validation import ServiceValidator, ValidationResult
 from code_index.config import Config
-from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from code_index.errors import ErrorHandler
 
 
 class TestValidationResult:

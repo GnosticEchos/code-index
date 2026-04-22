@@ -76,7 +76,7 @@ class SearchValidationService:
                 return False
             
             return True
-        except Exception as e:
+        except Exception:
             return False
     
     def get_validation_info(self) -> Dict[str, Any]:

@@ -9,13 +9,12 @@ CQRS pattern implementation.
 import pytest
 import time
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
-from pathlib import Path
+from unittest.mock import Mock, patch
 
 from src.code_index.config import Config
 from src.code_index.services import ConfigurationService, QueryCache
 from src.code_index.models import FileStatus, ProcessingStats, WorkspaceStatus, ServiceHealth, SystemStatus
-from src.code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from src.code_index.errors import ErrorHandler
 
 
 class TestQueryCache:

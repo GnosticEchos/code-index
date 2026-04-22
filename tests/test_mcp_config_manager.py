@@ -9,7 +9,6 @@ import pytest
 import tempfile
 import os
 import json
-from unittest.mock import Mock, patch
 from pathlib import Path
 
 from src.code_index.mcp_server.core.config_manager import (

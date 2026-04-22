@@ -7,9 +7,7 @@ for code indexing operations.
 
 import pytest
 import tempfile
-import os
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 from src.code_index.mcp_server.core.operation_estimator import (
     OperationEstimator,

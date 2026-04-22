@@ -8,7 +8,7 @@ batch operations, and MCP-compatible progress updates.
 import pytest
 import asyncio
 import time
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock
 
 from src.code_index.mcp_server.core.progress_reporter import (
     ProgressReporter,

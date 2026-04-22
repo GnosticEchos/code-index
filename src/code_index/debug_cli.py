@@ -4,7 +4,6 @@ Debug CLI with enhanced file processing display.
 Adds real-time file processing to the working tree-sitter system.
 """
 
-import os
 import logging
 
 from code_index.config import Config
@@ -12,7 +11,6 @@ from code_index.config_service import ConfigurationService
 from code_index.scanner import DirectoryScanner
 from code_index.parser import CodeParser
 from code_index.chunking import TreeSitterChunkingStrategy
-from code_index.errors import ErrorHandler
 from code_index.ui.tui_integration import TUIInterface
 
 # Configure module logger

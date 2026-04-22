@@ -4,12 +4,10 @@ Script to completely delete all Qdrant collections and cache files for fresh sta
 """
 import os
 import sys
-import shutil
 import glob
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from code_index.config import Config
-from code_index.vector_store import QdrantVectorStore
 from qdrant_client import QdrantClient
 
 

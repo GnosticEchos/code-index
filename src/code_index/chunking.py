@@ -25,18 +25,12 @@ class TreeSitterFileTooLargeError(TreeSitterError):
 """
 Chunking strategies for the code index tool.
 """
-import os
-import traceback
-import weakref
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, Set
-from weakref import WeakValueDictionary
+from typing import List, Dict, Any
 
 from .config import Config
 from .models import CodeBlock
-from .treesitter_queries import get_queries_for_language as get_ts_queries
 from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
-from .path_utils import PathUtils
 from .utils import split_content
 
 

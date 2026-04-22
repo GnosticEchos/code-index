@@ -9,15 +9,12 @@ Fixes:
 """
 
 import os
-import sys
 from pathlib import Path
-from typing import List
 
 from code_index.config import Config
 from code_index.scanner import DirectoryScanner
 from code_index.parser import CodeParser
 from code_index.chunking import TreeSitterChunkingStrategy
-from code_index.embedder import OllamaEmbedder
 from code_index.errors import ErrorHandler
 
 class CorrectedIndexer:
@@ -43,7 +40,7 @@ class CorrectedIndexer:
             return {"error": "workspace_not_found"}
         
         # List workspace contents
-        print(f"\n📋 Workspace contents:")
+        print("\n📋 Workspace contents:")
         files = [f for f in os.listdir(workspace) 
                 if os.path.isfile(os.path.join(workspace, f))]
         
@@ -69,7 +66,7 @@ class CorrectedIndexer:
         cfg.use_tree_sitter = True
         cfg.chunking_strategy = "treesitter"
         
-        print(f"\n⚙️  Configuration:")
+        print("\n⚙️  Configuration:")
         print(f"   workspace_path: {cfg.workspace_path}")
         print(f"   model_name: {cfg.model_name}")
         print(f"   use_tree_sitter: {cfg.use_tree_sitter}")
@@ -101,7 +98,7 @@ class CorrectedIndexer:
                 print(f"   ❌ Error: {e}")
         
         print("-" * 40)
-        print(f"✅ COMPLETE!")
+        print("✅ COMPLETE!")
         print(f"   Files processed: {len(processed_files)}")
         print(f"   Total blocks: {total_blocks}")
         

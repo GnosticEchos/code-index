@@ -4,9 +4,9 @@ Unit tests for the Query Management Service.
 
 import pytest
 import time
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
-from code_index.query_manager import TreeSitterQueryManager, QueryInfo, QueryCompilationError
+from code_index.query_manager import TreeSitterQueryManager, QueryInfo
 from code_index.config import Config
 from code_index.errors import ErrorHandler
 
@@ -238,7 +238,6 @@ class TestTreeSitterQueryManager:
 
     def test_query_info_creation(self):
         """Test QueryInfo dataclass creation."""
-        from unittest.mock import Mock
 
         mock_query = Mock()
         query_info = QueryInfo(

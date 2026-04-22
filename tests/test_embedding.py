@@ -40,7 +40,7 @@ def test_embedding():
         
         try:
             embedding_response = embedder.create_embeddings([text])
-            print(f"Embedding generated successfully")
+            print("Embedding generated successfully")
             print(f"Vector length: {len(embedding_response['embeddings'][0])}")
             print(f"Response keys: {list(embedding_response.keys())}")
             

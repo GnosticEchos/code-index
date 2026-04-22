@@ -4,7 +4,6 @@ TUI integration for rich TUI operations.
 from typing import Optional
 import time
 
-from code_index.config import Config
 from code_index.errors import ErrorHandler
 from code_index.ui.progress_manager import ProgressManager
 from code_index.ui.file_scroller import FileScroller

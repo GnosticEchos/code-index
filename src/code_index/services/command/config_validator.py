@@ -1,7 +1,6 @@
 """
 Configuration validation service.
 """
-from typing import Dict, Any, Optional
 
 
 class ConfigValidator:

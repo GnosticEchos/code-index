@@ -5,9 +5,9 @@ Test module for scalability features including large file handling and fallback 
 import os
 import tempfile
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 from code_index.file_processing import FileProcessingService
-from code_index.services import TreeSitterFileProcessor, FileProcessor
+from code_index.services import TreeSitterFileProcessor
 from code_index.hybrid_parsers import HybridParserManager, PlainTextParser, ConfigFileParser
 from code_index.services import TreeSitterBlockExtractor, ExtractionResult
 from code_index.config import Config

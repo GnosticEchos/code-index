@@ -62,7 +62,7 @@ def test_search():
         print("No results found.")
         return
     
-    print(f"All results:")
+    print("All results:")
     print("-" * 80)
     
     for i, result in enumerate(results, 1):

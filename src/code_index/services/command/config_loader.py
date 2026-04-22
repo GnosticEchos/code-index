@@ -5,7 +5,6 @@ This service handles configuration loading from various sources.
 """
 import os
 import json
-import yaml
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -129,7 +128,7 @@ class ConfigLoaderService:
                 config.use_tree_sitter = os.getenv("CODE_INDEX_USE_TREE_SITTER").lower() in ("true", "1", "yes")
 
             return config
-        except Exception as e:
+        except Exception:
             return config
 
     def _apply_workspace_config(self, config: Config, workspace_path: str, explicit_config_path: Optional[str] = None) -> Config:
@@ -177,7 +176,7 @@ class ConfigLoaderService:
                         break
 
             return config
-        except Exception as e:
+        except Exception:
             return config
 
     def _apply_cli_overrides(self, config: Config, overrides: Dict[str, Any]) -> Config:

@@ -1,7 +1,6 @@
 """
 Search result processor for formatting and ranking search results.
 """
-import time
 from typing import List, Dict, Any, Optional
 
 from ..config import Config

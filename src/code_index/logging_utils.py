@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, Iterable, Mapping, MutableMapping, Optional
+from typing import Dict, Mapping, Optional
 from contextvars import ContextVar
 
 __all__ = [

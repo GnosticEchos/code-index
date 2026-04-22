@@ -255,11 +255,11 @@ def _create_empty_results_response(query: str, min_score: float, workspace_path:
         Empty list (as per requirement 3.4) - guidance is provided through logging
     """
     # Log helpful guidance for debugging
-    logger.info(f"Search suggestions for empty results:")
+    logger.info("Search suggestions for empty results:")
     logger.info(f"  • Try lowering min_score (current: {min_score}, try: {max(0.1, min_score - 0.2)})")
-    logger.info(f"  • Use broader search terms or synonyms")
+    logger.info("  • Use broader search terms or synonyms")
     logger.info(f"  • Check if the relevant files were indexed in workspace: {workspace_path}")
-    logger.info(f"  • Consider using different technical terminology")
+    logger.info("  • Consider using different technical terminology")
     
     # Return empty array as per requirement 3.4
     return []

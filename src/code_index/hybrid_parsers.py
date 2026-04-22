@@ -9,7 +9,7 @@ unsupported formats.
 import re
 import os
 import time
-from typing import List, Dict, Any, Optional, Callable, Pattern
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 

@@ -4,7 +4,7 @@ Configuration persistence module for MCP server.
 This module handles configuration documentation, templates, and optimization examples.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 
 class ConfigPersistence:

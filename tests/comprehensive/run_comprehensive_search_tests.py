@@ -113,7 +113,7 @@ Full JSON results available at: `{output_path}.json`
     with open(f"{output_path}.md", 'w') as f:
         f.write(markdown_report)
     
-    print(f"✅ Reports generated:")
+    print("✅ Reports generated:")
     print(f"   - {output_path}.json (detailed results)")
     print(f"   - {output_path}.md (summary report)")
 

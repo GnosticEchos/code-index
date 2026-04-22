@@ -4,9 +4,8 @@ Query builder module for building configuration queries.
 This module handles building queries for status, validation, and search operations.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from datetime import datetime
-from pathlib import Path
 from ...config import Config
 
 

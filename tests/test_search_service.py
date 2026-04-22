@@ -6,16 +6,13 @@ covering all search operations and edge cases.
 """
 
 import pytest
-import tempfile
-import os
-from unittest.mock import Mock, patch, MagicMock
-from pathlib import Path
+from unittest.mock import Mock, patch
 
 from code_index.config import Config
 from code_index.services import SearchService
 from code_index.models import SearchResult, SearchMatch
 from code_index.service_validation import ValidationResult
-from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from code_index.errors import ErrorHandler
 
 
 @pytest.fixture

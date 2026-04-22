@@ -4,7 +4,6 @@ Script to monitor the status of ongoing indexing processes.
 """
 import os
 import sys
-import time
 import subprocess
 from pathlib import Path
 

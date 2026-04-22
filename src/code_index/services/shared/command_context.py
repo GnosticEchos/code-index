@@ -6,7 +6,7 @@ import logging
 import copy
 import os
 from dataclasses import dataclass
-from typing import Dict, Optional, Callable, Any
+from typing import Dict, Optional, Callable
 
 logger = logging.getLogger(__name__)
 

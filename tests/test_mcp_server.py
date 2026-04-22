@@ -10,7 +10,7 @@ import asyncio
 import tempfile
 import os
 import json
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 from pathlib import Path
 
 from src.code_index.mcp_server.server import CodeIndexMCPServer

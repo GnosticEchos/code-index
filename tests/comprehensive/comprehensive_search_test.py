@@ -13,7 +13,7 @@ import time
 import json
 import argparse
 import statistics
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 from datetime import datetime
 
 # Add the src directory to the path

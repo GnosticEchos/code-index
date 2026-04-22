@@ -5,9 +5,7 @@ This service ensures users search with correct model/dimensions
 and provides clear guidance for mismatches.
 """
 
-import json
 from typing import Dict, Any, Optional, List
-from pathlib import Path
 
 from ...config import Config
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
@@ -204,7 +202,7 @@ class DimensionValidator:
             
         checklist.extend([
             f"✓ Ollama base URL: {config.ollama_base_url}",
-            f"✓ Use same config for indexing and searching",
+            "✓ Use same config for indexing and searching",
             f"✓ Verify via: ollama show {config.ollama_model}"
         ])
         

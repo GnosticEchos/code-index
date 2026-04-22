@@ -6,7 +6,7 @@ to SearchMatch objects, delegating to ResultRanker for ranking logic.
 """
 
 from typing import List, Dict, Any, Optional
-from ...models import SearchMatch, SearchResult
+from ...models import SearchMatch
 from ..shared.result_ranker import ResultRanker
 
 

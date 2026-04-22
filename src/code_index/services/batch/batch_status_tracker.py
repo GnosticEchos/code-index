@@ -4,10 +4,8 @@ Batch status tracker module for tracking batch processing status and metrics.
 This module handles performance metrics, status tracking, and memory monitoring.
 """
 
-import time
 import logging
-from typing import Dict, Any, Optional
-from collections.abc import Mapping
+from typing import Dict, Any
 
 batch_logger = logging.getLogger('code_index.batch_status_tracker')
 

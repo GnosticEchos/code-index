@@ -3,7 +3,6 @@ TreeSitterConfigurationManager service for configuration handling.
 """
 import logging
 from typing import Dict, Any, Optional
-from dataclasses import dataclass
 
 from ...config import Config
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
@@ -87,7 +86,7 @@ class TreeSitterConfigurationManager:
             optimizations = dict(config.optimizations) if hasattr(config, 'optimizations') else {}
             optimizations['language'] = language_key
             return optimizations
-        except Exception as e:
+        except Exception:
             return self._get_default_optimizations()
     
     def _get_default_optimizations(self) -> Dict[str, Any]:

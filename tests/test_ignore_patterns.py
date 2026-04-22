@@ -33,7 +33,7 @@ def test_ignore_patterns():
         "build/lib/code_index/__init__.py"
     ]
     
-    print(f"\n=== Testing File Ignore Detection ===")
+    print("\n=== Testing File Ignore Detection ===")
     for file_path in test_files:
         # Create absolute path for testing
         abs_path = os.path.join(config.workspace_path, file_path)

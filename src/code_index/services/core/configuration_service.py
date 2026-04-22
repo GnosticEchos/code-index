@@ -12,20 +12,15 @@ This separates read operations (queries) from write operations (commands),
 improving maintainability and enabling independent scaling of query and command paths.
 """
 
-import time
-import psutil
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 
 from ...config import Config
 from ...config_service import ConfigurationService as ConfigService
-from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from ...errors import ErrorHandler
 from ...file_processing import FileProcessingService
 from ...service_validation import ServiceValidator
-from ...cache import CacheManager
-from ...vector_store import QdrantVectorStore
 from ...models import FileStatus, ProcessingStats, ServiceHealth, SystemStatus, WorkspaceStatus
 
 from ..query.configuration_query_service import ConfigurationQueryService

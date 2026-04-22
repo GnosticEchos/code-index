@@ -5,7 +5,7 @@ Provides robust language detection with fallback mechanisms and
 support for common file extensions.
 """
 
-from typing import Optional, Dict
+from typing import Optional
 from pathlib import Path
 import mimetypes
 

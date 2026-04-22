@@ -9,12 +9,11 @@ monitoring and timeout mechanisms.
 
 import logging
 import time
-import weakref
-from typing import Dict, Any, Optional, Set
+from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
 from .config import Config
-from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity, error_handler
+from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 
 logger = logging.getLogger(__name__)
 

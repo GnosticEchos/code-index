@@ -6,10 +6,9 @@ Provides real-time progress tracking, performance metrics, and status reporting.
 
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
-import time
 
 from ..config import Config
-from ..errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from ..errors import ErrorHandler
 
 
 class ProgressTracker:

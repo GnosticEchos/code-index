@@ -7,13 +7,11 @@ for code indexing operations.
 
 import os
 import logging
-import time
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 from pathlib import Path
 
 from ...config import Config
-from ...scanner import DirectoryScanner
 from ...constants import (
     EMBEDDING_TIME_PER_CHUNK, LARGE_FILE_OPERATION_THRESHOLD,
     MANY_FILES_THRESHOLD, CRITICAL_FILES_THRESHOLD,
