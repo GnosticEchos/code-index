@@ -54,7 +54,7 @@ class BatchStatusTracker:
         try:
             self.performance_metrics['total_batches_processed'] += 1
         except (TypeError, KeyError) as e:
-            batch_logger.error(f"Failed to increment batch count: {e}")
+            batch_logger.error(f"Failed to increment batch count (metrics={self.performance_metrics}): {e}")
             return
         
         if file_count > 0:
@@ -69,7 +69,7 @@ class BatchStatusTracker:
                     total_time / total_files if total_files > 0 else 0
                 )
             except (TypeError, KeyError) as e:
-                batch_logger.error(f"Failed to update file/time metrics: {e}")
+                batch_logger.error(f"Failed to update file/time metrics (metrics={self.performance_metrics}): {e}")
                 return
         
         # Calculate parallel processing efficiency

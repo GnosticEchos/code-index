@@ -5,7 +5,7 @@ from typing import Optional
 import time
 
 from code_index.config import Config
-from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from code_index.errors import ErrorHandler
 from code_index.ui.progress_manager import ProgressManager
 from code_index.ui.file_scroller import FileScroller
 from code_index.ui.status_panel import StatusPanel

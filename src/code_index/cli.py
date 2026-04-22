@@ -326,7 +326,7 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
                         logger.warning("Failed to start live display, falling back to simple progress display")
             except Exception as e:
                 tui_failed = True
-                logger.warning(f"TUI initialization failed: {e}, falling back to simple progress display")
+                logger.warning(f"TUI initialization failed: {type(e).__name__}: {e}, falling back to simple progress display")
 
         result = indexing_service.index_workspace(
             workspace,
