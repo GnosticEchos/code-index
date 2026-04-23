@@ -52,10 +52,35 @@ class CollectionManager:
         """List all collections in Qdrant with basic metadata."""
         try:
             collections = self.client.get_collections().collections
+            
+            # Build workspace path mapping from metadata collection
+            path_map = {}
+            try:
+                # Get up to 100 recent metadata entries
+                scroll_res = self.client.scroll(
+                    collection_name="code_index_metadata",
+                    limit=100,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                points = scroll_res[0] if isinstance(scroll_res, tuple) else scroll_res.points
+                for p in points:
+                    payload = p.payload if hasattr(p, 'payload') else p.get('payload', {})
+                    c_name = payload.get('collection_name')
+                    w_path = payload.get('workspace_path')
+                    if c_name and w_path:
+                        path_map[c_name] = w_path
+            except Exception:
+                # Metadata collection might not exist yet; ignore
+                pass
+
             result = []
             for c in collections:
                 c_name = c.name if hasattr(c, 'name') else str(c)
                 info = self.get_collection_info(c_name)
+                # Correctly assign workspace path from mapping
+                if c_name in path_map:
+                    info["workspace_path"] = path_map[c_name]
                 result.append(info)
             return result
         except Exception as e:
@@ -86,6 +111,7 @@ class CollectionManager:
             dimensions = {}
             dimension = 0
             model = "unknown"
+            workspace_path = "Unknown"
             
             try:
                 # Probe first point for metadata
@@ -115,6 +141,25 @@ class CollectionManager:
             except Exception:
                 pass
 
+            # Try to get workspace path from code_index_metadata if it's not the metadata collection itself
+            if name != "code_index_metadata":
+                try:
+                    meta_res = self.client.scroll(
+                        collection_name="code_index_metadata",
+                        limit=1,
+                        with_payload=True,
+                        with_vectors=False,
+                        scroll_filter=Filter(
+                            must=[FieldCondition(key="collection_name", match=MatchValue(value=name))]
+                        )
+                    )
+                    meta_points = meta_res[0] if isinstance(meta_res, tuple) else meta_res.points
+                    if meta_points:
+                        m_payload = meta_points[0].payload if hasattr(meta_points[0], 'payload') else meta_points[0].get('payload', {})
+                        workspace_path = m_payload.get("workspace_path", "Unknown")
+                except Exception:
+                    pass
+
             # Fallback to config extraction
             if not dimensions:
                 try:
@@ -123,44 +168,38 @@ class CollectionManager:
                         if isinstance(obj, dict): return obj.get(key)
                         return None
 
-                    # 1) Search for 'vectors' or 'size' at all potential levels (root, config, config.params)
-                    candidates = [info]
+                    # Navigate to params
                     config = _try_get(info, 'config')
-                    if config: candidates.append(config)
-                    params = _try_get(config, 'params') if config else None
-                    if params: candidates.append(params)
+                    params = _try_get(config, 'params') if config else (info.get('config', {}).get('params', {}) if isinstance(info, dict) else {})
                     
-                    # Also handle dict-style access for the col2 mock
-                    if isinstance(info, dict) and 'config' in info:
-                        cfg = info['config']
-                        if 'params' in cfg: candidates.append(cfg['params'])
-                        if 'vectors' in cfg: candidates.append(cfg['vectors'])
-                    if isinstance(info, dict) and 'vectors' in info:
-                        candidates.append(info['vectors'])
-
-                    for cand in candidates:
-                        if dimension and dimensions: break
-                        
-                        # Check for 'size' directly
-                        s = _try_get(cand, 'size')
-                        if s:
-                            dimension = s
-                            dimensions["default"] = s
-                        
-                        # Check for 'vectors' map
-                        v_data = _try_get(cand, 'vectors')
-                        if v_data and isinstance(v_data, dict) and 'size' not in v_data:
-                            # It's a map of vector configs (e.g., {'text': {'size': 768}})
-                            for vk, vv in v_data.items():
-                                vs = _try_get(vv, 'size')
-                                if vs:
-                                    dimensions[vk] = vs
-                                    if not dimension or vk == 'text': dimension = vs
-                        elif v_data and _try_get(v_data, 'size'):
-                            # It's a single vector config object
-                            vs = _try_get(v_data, 'size')
-                            dimension = vs
-                            dimensions["default"] = vs
+                    # 1) Try 'size' directly
+                    size = _try_get(params, 'size')
+                    if size:
+                        dimension = size
+                        dimensions["default"] = size
+                    
+                    # 2) Try 'vectors' key
+                    if not dimensions:
+                        v_data = _try_get(params, 'vectors')
+                        if v_data:
+                            # It's a map of named vector configs
+                            if isinstance(v_data, dict):
+                                for vk, vv in v_data.items():
+                                    v_size = _try_get(vv, 'size')
+                                    if v_size:
+                                        dimensions[vk] = v_size
+                                        if not dimension or vk == 'text': dimension = v_size
+                            elif hasattr(v_data, 'size'):
+                                dimension = v_data.size
+                                dimensions["default"] = dimension
+                    
+                    # 3) Try 'vector' key
+                    if not dimensions:
+                        v_data = _try_get(params, 'vector')
+                        v_size = _try_get(v_data, 'size')
+                        if v_size:
+                            dimension = v_size
+                            dimensions["default"] = v_size
                 except Exception:
                     pass
             
@@ -174,7 +213,7 @@ class CollectionManager:
                 "model": model,
                 "model_identifier": model,
                 "indexing_status": getattr(info, 'optimizer_status', 'unknown'),
-                "workspace_path": "Unknown" 
+                "workspace_path": workspace_path 
             }
         except Exception as e:
             logger.error(f"Error getting collection info for {name}: {e}")
