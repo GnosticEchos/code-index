@@ -125,7 +125,7 @@ def get_queries_for_language(language_key: str) -> Optional[str]:
         'go': '''
             (function_declaration name: (identifier) @name) @function
             (method_declaration name: (field_identifier) @name) @method
-            (type_declaration) @type
+            (type_declaration (type_spec name: (type_identifier) @name)) @type
         ''',
         'graphql': '''
             (type_definition) @type
@@ -134,12 +134,12 @@ def get_queries_for_language(language_key: str) -> Optional[str]:
         ''',
         'groovy': None,
         'haskell': '''
-            (function) @function
-            (function_declaration) @function
-            (header) @module
-            (module) @module
-            (signature) @signature
-            (type_declaration) @type
+            (signature name: (variable_name) @name) @function
+            (data_type name: (type_name) @name) @type
+            (newtype_declaration name: (type_name) @name) @type
+            (type_alias name: (type_name) @name) @type
+            (class_declaration name: (type_name) @name) @class
+            (instance_declaration name: (type_name) @name) @instance
         ''',
         'hcl': '''
             (block) @block
@@ -316,7 +316,7 @@ def get_queries_for_language(language_key: str) -> Optional[str]:
             (struct_item name: (type_identifier) @name) @struct
             (enum_item name: (type_identifier) @name) @enum
             (trait_item name: (type_identifier) @name) @trait
-            (impl_item) @impl
+            (impl_item type: (type_identifier) @name) @impl
         ''',
         'sass': '''
             (rule_set) @rule
@@ -350,6 +350,12 @@ def get_queries_for_language(language_key: str) -> Optional[str]:
             (function_definition) @function
             (modifier_definition) @modifier
             (event_definition) @event
+        ''',
+        'sparql': '''
+            (select_query) @select
+            (ask_query) @ask
+            (construct_query) @construct
+            (describe_query) @describe
         ''',
         'sparql': '''
             (select_query) @select
@@ -522,7 +528,7 @@ def validate_queries_for_language(language_key: str) -> dict:
                 syntax_errors.append(f"Unbalanced braces: {braces}")
             
             # Check for common syntax issues
-            if "@" in queries and not any(f"@{token}" in queries for token in ["function", "class", "method", "variable", "identifier"]):
+            if "@" in queries and not any(f"@{token}" in queries for token in ["function", "class", "method", "variable", "identifier", "name"]):
                 syntax_errors.append("Queries contain @ symbols but no valid capture names")
             
         # Count query patterns (rough estimate)
@@ -567,7 +573,7 @@ def validate_all_queries() -> dict:
             continue
         elif in_dict and line.startswith("}"):
             break
-        elif in_dict and line.strip().startswith('"'):
+        elif in_dict and line.strip().startswith('"') or line.strip().startswith("'"):
             # Extract language key
             key = line.split(":")[0].strip().strip('"\'')
             if key:
@@ -691,7 +697,7 @@ def test_all_query_compilations() -> dict:
             continue
         elif in_dict and line.startswith("}"):
             break
-        elif in_dict and line.strip().startswith('"'):
+        elif in_dict and line.strip().startswith('"') or line.strip().startswith("'"):
             key = line.split(":")[0].strip().strip('"\'')
             if key:
                 languages.append(key)
