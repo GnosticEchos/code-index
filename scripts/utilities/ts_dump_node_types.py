@@ -16,7 +16,7 @@ from typing import Any, Optional
 
 def get_language(lang_key: str):
     try:
-        import tree_sitter_language_pack as tsl  # type: ignore
+        import tree_sitter_language_pack as tsl
         return tsl.get_language(lang_key)
     except Exception as e:
         print(f"ERROR: failed to load language '{lang_key}': {e}", file=sys.stderr)
@@ -24,7 +24,7 @@ def get_language(lang_key: str):
 
 def build_parser(language) -> Optional[Any]:
     try:
-        from tree_sitter import Parser  # type: ignore
+        from tree_sitter import Parser
     except Exception as e:
         print(f"ERROR: tree_sitter not available: {e}", file=sys.stderr)
         return None

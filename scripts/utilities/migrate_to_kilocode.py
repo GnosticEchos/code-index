@@ -44,15 +44,28 @@ def ensure_collection(client: QdrantClient, name: str, vector_size: int) -> None
         # Attempt to read existing vector size
         existing_size = None
         try:
-            vecs = info.config.params.vectors
-            if isinstance(vecs, dict):
-                existing_size = vecs.get("size")
-            elif hasattr(vecs, "size"):
-                existing_size = vecs.size
+            # Handle both dictionary and object attributes for robustness
+            params = getattr(info.config, "params", {}) if not isinstance(info.config, dict) else info.config.get("params", {})
+            vecs = getattr(params, "vectors", None) if not isinstance(params, dict) else params.get("vectors")
+            
+            if vecs:
+                if isinstance(vecs, dict):
+                    existing_size = vecs.get("size")
+                elif hasattr(vecs, "size"):
+                    existing_size = vecs.size
         except Exception:
             pass
 
-        if existing_size is None or int(existing_size) != vector_size:
+        # Safely convert to int, handling potential VectorParams objects
+        if existing_size is not None:
+            try:
+                if hasattr(existing_size, "size"):
+                    existing_size = existing_size.size
+                existing_size = int(existing_size)
+            except (ValueError, TypeError):
+                existing_size = None
+
+        if existing_size is None or existing_size != vector_size:
             # Recreate with proper dimension
             try:
                 client.delete_collection(name)
@@ -213,7 +226,7 @@ def main():
     src = source_collection(ws)
     dst = target_collection(ws)
 
-    client = QdrantClient(url=args.qdrant, timeout=60.0)
+    client = QdrantClient(url=args.qdrant, timeout=60)
 
     # Sanity check that source exists
     try:

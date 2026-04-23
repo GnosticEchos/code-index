@@ -1,30 +1,26 @@
 """
 Data models for the code index tool.
 """
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
 
 
+@dataclass
 class CodeBlock:
-    """Represents a code block extracted from a file."""
-
-    def __init__(self, file_path: str, identifier: str, type: str, start_line: int,
-                  end_line: int, content: str, file_hash: str, segment_hash: str,
-                  split_index: Optional[int] = None, split_total: Optional[int] = None,
-                  parent_block_id: Optional[str] = None):
-        self.file_path = file_path
-        self.identifier = identifier
-        self.type = type
-        self.start_line = start_line
-        self.end_line = end_line
-        self.content = content
-        self.file_hash = file_hash
-        self.segment_hash = segment_hash
-        # Split metadata for tracking chunked blocks
-        self.split_index = split_index  # 1-based index of this part (None if not split)
-        self.split_total = split_total  # Total number of parts (None if not split)
-        self.parent_block_id = parent_block_id  # Original block identifier before splitting
+    """Represents a semantic block of code."""
+    file_path: str
+    identifier: Optional[str]
+    type: str
+    start_line: int
+    end_line: int
+    content: str
+    file_hash: str
+    segment_hash: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    parent_block_id: Optional[str] = None
+    split_index: Optional[int] = None
+    split_total: Optional[int] = None
 
     def is_split_part(self) -> bool:
         """Check if this block is part of a split block."""
@@ -37,7 +33,7 @@ class CodeBlock:
         return None
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert CodeBlock to dictionary for serialization."""
+        """Convert to dictionary for storage."""
         result = {
             "file_path": self.file_path,
             "identifier": self.identifier,
@@ -47,6 +43,7 @@ class CodeBlock:
             "content": self.content,
             "file_hash": self.file_hash,
             "segment_hash": self.segment_hash,
+            "metadata": self.metadata,
         }
         if self.is_split_part():
             result["split_index"] = self.split_index
@@ -58,22 +55,27 @@ class CodeBlock:
 @dataclass
 class IndexingResult:
     """Structured result for workspace indexing operations."""
-
     processed_files: int
     total_blocks: int
     errors: List[str]
     warnings: List[str]
     timed_out_files: List[str]
     processing_time_seconds: float
-    timestamp: datetime
-    workspace_path: str
-    config_summary: Dict[str, Any]
+    timestamp: datetime = field(default_factory=datetime.now)
+    workspace_path: str = ""
+    config_summary: Dict[str, Any] = field(default_factory=dict)
     performance_metrics: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
-        """Initialize timestamp if not provided."""
+        """Initialize optional fields if provided as None."""
         if self.timestamp is None:
             self.timestamp = datetime.now()
+        if self.errors is None:
+            self.errors = []
+        if self.warnings is None:
+            self.warnings = []
+        if self.timed_out_files is None:
+            self.timed_out_files = []
 
     def is_successful(self) -> bool:
         """Check if indexing completed successfully."""
@@ -101,13 +103,12 @@ class IndexingResult:
 @dataclass
 class ProcessingResult:
     """Result for file processing operations."""
-
     file_path: str
     success: bool
     blocks_processed: int
     error: Optional[str] = None
     processing_time_seconds: Optional[float] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         """Initialize optional fields."""
@@ -126,13 +127,12 @@ class ProcessingResult:
 @dataclass
 class FileProcessingResult:
     """Result for file processing operations with additional metadata."""
-
     file_path: str
     success: bool
     blocks: List[CodeBlock]
     error: Optional[str] = None
     processing_time_seconds: Optional[float] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         """Initialize optional fields."""
@@ -155,18 +155,21 @@ class FileProcessingResult:
 @dataclass
 class ValidationResult:
     """Result for workspace validation operations."""
-
     workspace_path: str
     valid: bool
     errors: List[str]
     warnings: List[str]
-    metadata: Dict[str, Any]
-    validation_time_seconds: float
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    validation_time_seconds: float = 0.0
 
     def __post_init__(self):
-        """Initialize metadata if not provided."""
+        """Initialize optional fields."""
         if self.metadata is None:
             self.metadata = {}
+        if self.errors is None:
+            self.errors = []
+        if self.warnings is None:
+            self.warnings = []
 
     def is_valid(self) -> bool:
         """Check if workspace validation passed."""
@@ -190,7 +193,6 @@ class ValidationResult:
 @dataclass
 class SearchMatch:
     """Individual search match result."""
-
     file_path: str
     start_line: int
     end_line: int
@@ -198,7 +200,7 @@ class SearchMatch:
     match_type: str  # "function", "class", "method", "variable", "comment", "text"
     score: float
     adjusted_score: float
-    metadata: Dict[str, Any]
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         """Initialize metadata if not provided."""
@@ -207,8 +209,6 @@ class SearchMatch:
 
     def get_context_lines(self, before: int = 2, after: int = 2) -> List[str]:
         """Get context lines around the match."""
-        # For now, return the code_chunk as-is since we don't have full file context
-        # In a real implementation, this would read the file to get full context
         lines = self.code_chunk.split('\n')
         return lines
 
@@ -229,18 +229,17 @@ class SearchMatch:
 @dataclass
 class SearchResult:
     """Structured result for search operations."""
-
     query: str
     matches: List[SearchMatch]
     total_found: int
     execution_time_seconds: float
     search_method: str  # "text", "similarity", "embedding"
     config_summary: Dict[str, Any]
-    errors: List[str]
-    warnings: List[str]
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
 
     def __post_init__(self):
-        """Initialize lists if not provided."""
+        """Initialize optional fields."""
         if self.errors is None:
             self.errors = []
         if self.warnings is None:
@@ -300,14 +299,14 @@ class SearchResult:
 @dataclass
 class FileStatus:
     """Result for file processing status queries."""
-
     file_path: str
     is_processed: bool
     last_modified: Optional[datetime] = None
     file_size_bytes: Optional[int] = None
     processing_time_seconds: Optional[float] = None
     error_message: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    file_hash: str = ""
 
     def __post_init__(self):
         """Initialize optional fields."""
@@ -338,7 +337,6 @@ class FileStatus:
 @dataclass
 class ProcessingStats:
     """Result for processing statistics queries."""
-
     total_files: int
     processed_files: int
     failed_files: int
@@ -346,7 +344,7 @@ class ProcessingStats:
     average_processing_time_seconds: float
     last_processing_timestamp: Optional[datetime] = None
     workspace_path: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         """Initialize optional fields."""
@@ -383,16 +381,17 @@ class ProcessingStats:
 @dataclass
 class WorkspaceStatus:
     """Result for workspace status queries."""
-
     workspace_path: str
     is_valid: bool
     total_files: int
     indexed_files: int
     last_indexing_timestamp: Optional[datetime] = None
     indexing_progress_percent: float = 0.0
-    errors: Optional[List[str]] = None
-    warnings: Optional[List[str]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    is_healthy: bool = True
+    collections: List[str] = field(default_factory=list)
 
     def __post_init__(self):
         """Initialize optional fields."""
@@ -430,13 +429,13 @@ class WorkspaceStatus:
 @dataclass
 class ServiceHealth:
     """Result for service health queries."""
-
     service_name: str
     is_healthy: bool
+    url: str = ""
     response_time_ms: Optional[int] = None
     last_check_timestamp: Optional[datetime] = None
     error_message: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         """Initialize optional fields."""
@@ -467,22 +466,26 @@ class ServiceHealth:
 @dataclass
 class SystemStatus:
     """Result for system status queries."""
-
-    overall_health: str  # "healthy", "degraded", "unhealthy"
-    total_services: int
-    healthy_services: int
-    degraded_services: int
-    unhealthy_services: int
-    total_workspaces: int
-    indexed_workspaces: int
+    overall_health: str = "healthy"  # "healthy", "degraded", "unhealthy"
+    total_services: int = 0
+    healthy_services: int = 0
+    degraded_services: int = 0
+    unhealthy_services: int = 0
+    total_workspaces: int = 0
+    indexed_workspaces: int = 0
     system_uptime_seconds: Optional[float] = None
     last_status_check: Optional[datetime] = None
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    ollama: Optional[ServiceHealth] = None
+    qdrant: Optional[ServiceHealth] = None
+    timestamp: datetime = field(default_factory=datetime.now)
 
     def __post_init__(self):
         """Initialize optional fields."""
         if self.metadata is None:
             self.metadata = {}
+        if self.timestamp is None:
+            self.timestamp = datetime.now()
 
     def is_system_healthy(self) -> bool:
         """Check if overall system is healthy."""

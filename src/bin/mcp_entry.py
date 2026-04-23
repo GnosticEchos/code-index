@@ -1,24 +1,34 @@
-#!/usr/bin/env python3
-"""Entry point for MCP server binary."""
+"""
+MCP entry point for the code index tool.
+"""
+import asyncio
+import os
+import sys
 
-import argparse
+# Ensure src is in path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from code_index.mcp_server.server import sync_main
+from code_index.mcp_server.server import CodeIndexMCPServer
 
 
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run the Code Index MCP server")
-    parser.add_argument(
-        "-c",
-        "--config",
-        "--configuration",
-        default="code_index.json",
-        dest="config",
-        help="Path to configuration file (defaults to code_index.json in working directory)",
-    )
-    return parser.parse_args()
+async def main():
+    """Main entry point for MCP server."""
+    # Default to current directory if no config specified
+    config_path = "code_index.json"
+    if len(sys.argv) > 1:
+        config_path = sys.argv[1]
+        
+    server = CodeIndexMCPServer(config_path=config_path)
+    try:
+        await server.start()
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        print(f"Error starting MCP server: {e}", file=sys.stderr)
+        sys.exit(1)
+    finally:
+        await server.shutdown()
 
 
 if __name__ == "__main__":
-    args = _parse_args()
-    sync_main(config_path=args.config)
+    asyncio.run(main())

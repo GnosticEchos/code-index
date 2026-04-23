@@ -15,7 +15,7 @@ from typing import List
 
 def dump_symbols(lang_key: str) -> List[str]:
     try:
-        import tree_sitter_language_pack as tsl  # type: ignore
+        import tree_sitter_language_pack as tsl
         language = tsl.get_language(lang_key)
     except Exception as e:
         print(f"ERROR: failed to load language '{lang_key}': {e}")

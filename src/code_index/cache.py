@@ -9,13 +9,14 @@ import os
 import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Callable
 
 logger = logging.getLogger(__name__)
 
 # Optional platformdirs support (preferred fallback)
+_user_cache_dir: Optional[Callable[..., str]]
 try:
-    from platformdirs import user_cache_dir as _user_cache_dir  # type: ignore
+    from platformdirs import user_cache_dir as _user_cache_dir
 except Exception:  # pragma: no cover - import-time environment variance
     _user_cache_dir = None
 
