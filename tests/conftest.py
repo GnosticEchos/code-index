@@ -86,7 +86,8 @@ class _QdrantCollectionGuard:
         candidates = [
             name
             for name in existing
-            if name in self._registered_collections and name not in self._initial_collections
+            if (name.startswith("ws-") or name == "code_index_metadata") 
+            and name not in self._initial_collections
         ]
 
         for name in candidates:
