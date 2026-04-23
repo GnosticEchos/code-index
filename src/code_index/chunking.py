@@ -1,6 +1,13 @@
 """
-Tree-sitter based chunking strategy for code indexing.
+Chunking strategies for the code index tool.
 """
+from abc import ABC, abstractmethod
+from typing import List, Dict, Any
+
+from .config import Config
+from .models import CodeBlock
+from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from .utils import split_content
 
 # Tree-sitter Error Classes
 class TreeSitterError(Exception):
@@ -22,16 +29,6 @@ class TreeSitterLanguageError(TreeSitterError):
 class TreeSitterFileTooLargeError(TreeSitterError):
     """Exception raised when a file exceeds the maximum size for Tree-sitter processing."""
     pass
-"""
-Chunking strategies for the code index tool.
-"""
-from abc import ABC, abstractmethod
-from typing import List, Dict, Any
-
-from .config import Config
-from .models import CodeBlock
-from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
-from .utils import split_content
 
 
 class ChunkingStrategy(ABC):
@@ -124,6 +121,7 @@ class TokenChunkingStrategy(ChunkingStrategy):
 
     def __init__(self, config: Config):
         super().__init__(config)
+        self.error_handler = ErrorHandler()
         self.min_block_chars = 50
         self.max_block_chars = 6000  # Default max chars for token chunks
 
@@ -145,7 +143,7 @@ class TokenChunkingStrategy(ChunkingStrategy):
                 operation="token_chunking",
                 file_path=file_path
             )
-            error_response = error_handler.handle_error(e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM)
+            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM)
             print(f"Warning: {error_response.message}")
 
         return LineChunkingStrategy(self.config).chunk(text, file_path, file_hash)
@@ -211,8 +209,6 @@ class TokenChunkingStrategy(ChunkingStrategy):
                     )
         return blocks
 
-# Remove the standalone function as it's causing circular imports
-# This function is not used and creates circular dependency issues
 
 class TreeSitterChunkingStrategy(ChunkingStrategy):
     """Tree-sitter chunking strategy backed by `TreeSitterChunkCoordinator`."""

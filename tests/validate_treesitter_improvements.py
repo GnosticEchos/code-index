@@ -293,6 +293,11 @@ fn main() {
             
             for file_name, file_path, expected_result in test_cases:
                 try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        code = f.read()
+                    import hashlib
+                    file_hash = hashlib.sha256(code.encode()).hexdigest()
+                    
                     blocks = chunker.coordinator.chunk_text(code, file_path, file_hash)
                     should_process = chunker.coordinator.should_process_file(file_path)
                     status = 'success' if should_process == expected_result else 'failed'

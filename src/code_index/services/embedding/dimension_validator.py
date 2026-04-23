@@ -67,7 +67,7 @@ class DimensionValidator:
                 )
                 metadata["actual_dimensions"] = actual_dims
                 
-                # Add guidance based on model name patterns
+            # Add guidance based on model name patterns
                 if "qwen" in current_model.lower():
                     warnings.append("Qwen models typically use 1024 dimensions")
                 elif "nomic" in current_model.lower():
@@ -76,6 +76,9 @@ class DimensionValidator:
                     warnings.append("Large embedding models typically use 3584+ dimensions")
             
             # Validate dimension consistency (only warn for known models)
+            guide = self.get_model_dimension_guide()
+            supported_models = {k: v["dimensions"] for k, v in guide["supported_models"].items()}
+            
             if current_model in supported_models and expected_dims != supported_models[current_model]:
                 errors.append(
                     f"Dimension mismatch: config specifies {expected_dims} but model '{current_model}' "

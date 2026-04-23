@@ -13,6 +13,10 @@ from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from ...vector_store import QdrantVectorStore
 from ...cache import CacheManager
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..query.configuration_query_service import QueryCache
+
 
 class ConfigurationQueryHelpers:
     """Static helper methods for configuration queries."""

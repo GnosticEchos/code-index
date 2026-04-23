@@ -311,7 +311,6 @@ class LanguageDetector:
             'v': 'v',
             'nim': 'nim',
             'tcl': 'tcl',
-            'm': 'objc',
             'mm': 'objcpp',
 
             # Web and markup languages

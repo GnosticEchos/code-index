@@ -47,9 +47,9 @@ class ParallelExecutor:
         
         with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
             if self._ordered:
-                self._process_ordered(executor, files, process_func)
+                self._process_ordered(executor, files, process_func, progress_callback)
             else:
-                self._process_unordered(executor, files, process_func)
+                self._process_unordered(executor, files, process_func, progress_callback)
         
         return self._results
     
@@ -57,7 +57,8 @@ class ParallelExecutor:
         self,
         executor: ThreadPoolExecutor,
         files: List[str],
-        process_func: Callable
+        process_func: Callable,
+        progress_callback: Optional[Callable] = None
     ) -> None:
         """Process files in order."""
         futures = []
@@ -78,7 +79,8 @@ class ParallelExecutor:
         self,
         executor: ThreadPoolExecutor,
         files: List[str],
-        process_func: Callable
+        process_func: Callable,
+        progress_callback: Optional[Callable] = None
     ) -> None:
         """Process files as they complete."""
         futures = {

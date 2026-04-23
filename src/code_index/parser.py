@@ -10,7 +10,7 @@ from code_index.config import Config
 from code_index.chunking import ChunkingStrategy
 from code_index.models import CodeBlock
 from code_index.file_processing import FileProcessingService
-from code_index.errors import ErrorHandler
+from code_index.errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 
 # Set up logging for mmap operations
 mmap_logger = logging.getLogger('code_index.mmap')

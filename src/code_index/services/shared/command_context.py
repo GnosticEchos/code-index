@@ -8,8 +8,6 @@ import os
 from dataclasses import dataclass
 from typing import Dict, Optional, Callable
 
-logger = logging.getLogger(__name__)
-
 from ...config import Config
 from ...config_service import ConfigurationService
 from ...errors import ErrorHandler
@@ -19,6 +17,8 @@ from ...embedder import OllamaEmbedder
 from ...vector_store import QdrantVectorStore
 from ..core.indexing_service import IndexingService
 from ..core.search_service import SearchService
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass

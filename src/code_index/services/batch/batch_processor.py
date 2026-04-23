@@ -185,8 +185,11 @@ class TreeSitterBatchProcessor:
             )
 
             # Log final memory usage if enabled
+            end_memory = 0
+            memory_delta = 0
             if self.log_memory_usage:
                 end_memory = self.status_tracker.get_memory_usage_mb()
+                memory_delta = end_memory - start_memory
                 self.status_tracker.log_memory_stats(start_memory, end_memory)
 
             batch_logger.info(

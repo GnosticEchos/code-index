@@ -49,6 +49,18 @@ class TreeSitterResourceManager:
         self.max_memory_usage_percent = getattr(config, "max_memory_usage_percent", MEMORY_THRESHOLD_HIGH)
         self.enable_aggressive_cleanup = getattr(config, "enable_aggressive_cleanup", True)
     
+    def initialize(self) -> None:
+        """Initialize resource manager (stub for tests)."""
+        pass
+
+    async def shutdown(self) -> None:
+        """Shut down resource manager (stub for tests)."""
+        self.cleanup_all()
+
+    def register_shutdown_handler(self) -> None:
+        """Register shutdown handler (stub for tests)."""
+        pass
+
     def acquire_resources(self, language_key: str, resource_type: str = "parser") -> Dict[str, Any]:
         return self._allocator.acquire(language_key, resource_type)
     
@@ -257,6 +269,14 @@ class TreeSitterResourceManager:
     def _calculate_memory_efficiency(self) -> float:
         return self._monitor.calculate_memory_efficiency()
     
+    def register_ollama_connection(self, url: str) -> None:
+        """Track Ollama connection (stub for tests)."""
+        pass
+
+    def register_qdrant_connection(self, url: str) -> None:
+        """Track Qdrant connection (stub for tests)."""
+        pass
+
     def __del__(self):
         try:
             self.cleanup_all()
