@@ -134,10 +134,7 @@ class CodeIndexMCPServer:
             yield
         finally:
             self.logger.info("MCP server resources shutting down...")
-            # Tests expect an awaitable shutdown
-            shutdown_result = resource_manager.shutdown()
-            if asyncio.iscoroutine(shutdown_result):
-                await shutdown_result
+            # Unified cleanup handled by _cleanup_server_resources
             await self._cleanup_server_resources()
 
     async def _cleanup_server_resources(self):
@@ -145,6 +142,7 @@ class CodeIndexMCPServer:
         self.logger.info("Starting resource cleanup...")
         try:
             # Resource manager handles System-level cleanup
+            # Tests expect this to be called once during lifespan shutdown
             await resource_manager.shutdown()
             self.logger.info("Resource cleanup completed")
         except Exception as e:
@@ -238,8 +236,8 @@ class CodeIndexMCPServer:
         # ensure our internal state reflects the shutdown
         self._running = False
         
-        # Handle async shutdown of resource manager
-        await resource_manager.shutdown()
+        # Cleanup handled by lifespan manager when run_async finishes
+        # but if called manually, ensure we clean up
         await self._cleanup_server_resources()
 
 
