@@ -106,17 +106,20 @@ class CodeIndexMCPServer:
         )
 
         # Create FastMCP server with custom lifespan for resource management integration
+        # Set debug=False to silence ASCII banner which corrupts STDIO protocol
         self._mcp = FastMCP(
             "Code Index MCP Server",
-            lifespan=self._lifespan_manager
+            lifespan=self._lifespan_manager,
+            debug=False
         )
         self._running = False
         
-        # Set up logging
+        # Set up logging - Ensure logs go to stderr to avoid protocol corruption on stdout
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s [%(levelname)8s] %(name)s: %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            datefmt='%Y-%m-%d %H:%M:%S',
+            stream=sys.stderr
         )
         self.logger = logging.getLogger("src.code_index.mcp_server.server")
 
@@ -127,7 +130,7 @@ class CodeIndexMCPServer:
         try:
             # Initialize resource manager and shutdown handler as expected by tests
             resource_manager.initialize()
-            resource_manager.register_shutdown_handler()
+            resource_manager.register_shutdown_handler(lambda: None) # Placeholder handler
             yield
         finally:
             self.logger.info("MCP server resources shutting down...")
@@ -141,8 +144,8 @@ class CodeIndexMCPServer:
         """Clean up shared resources used by the server."""
         self.logger.info("Starting resource cleanup...")
         try:
-            # Resource manager handles Tree-sitter cleanup
-            resource_manager.cleanup_resources()
+            # Resource manager handles System-level cleanup
+            await resource_manager.shutdown()
             self.logger.info("Resource cleanup completed")
         except Exception as e:
             self.logger.error(f"Error during resource cleanup: {e}")
@@ -236,10 +239,7 @@ class CodeIndexMCPServer:
         self._running = False
         
         # Handle async shutdown of resource manager
-        shutdown_result = resource_manager.shutdown()
-        if asyncio.iscoroutine(shutdown_result):
-            await shutdown_result
-            
+        await resource_manager.shutdown()
         await self._cleanup_server_resources()
 
 
