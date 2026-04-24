@@ -146,6 +146,8 @@ Thumbs.db
 .ropeproject/
 
 # Project-specific cleanup (publish-ready)
+.gemini/
+docs/plans/
 EXTRA/
 .qdrant-data/
 .ruff_cache/
