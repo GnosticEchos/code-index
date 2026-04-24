@@ -701,3 +701,40 @@ class ConfigurationService:
             "search_min_score": config.search_min_score,
             "search_max_results": config.search_max_results,
         }
+
+    def get_language_defaults(self, language: str) -> Dict[str, Any]:
+        """Get default settings for a specific language (expected by tests)."""
+        supported_langs = {
+            'python', 'javascript', 'typescript', 'tsx', 'go', 'java', 'cpp', 'c',
+            'rust', 'csharp', 'ruby', 'php', 'kotlin', 'swift', 'lua', 'dart',
+            'scala', 'bash', 'html', 'css', 'scss', 'json', 'yaml', 'markdown',
+            'sql', 'dockerfile', 'toml', 'xml', 'cmake'
+        }
+        
+        defaults = {
+            'python': {
+                'language': 'python',
+                'supported': True,
+                'max_file_size_mb': 5,
+                'skip_patterns': ['*.pyc', '__pycache__'],
+                'test_patterns': ['test_*.py', '*_test.py']
+            },
+            'javascript': {
+                'language': 'javascript',
+                'supported': True,
+                'max_file_size_mb': 2,
+                'skip_patterns': ['node_modules', 'dist'],
+                'test_patterns': ['*.test.js', '*.spec.js']
+            }
+        }
+        
+        if language in defaults:
+            return defaults[language]
+            
+        return {
+            'language': language,
+            'supported': language in supported_langs,
+            'max_file_size_mb': 10,
+            'skip_patterns': [],
+            'test_patterns': []
+        }

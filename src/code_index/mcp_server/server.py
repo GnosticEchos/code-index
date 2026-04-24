@@ -106,11 +106,10 @@ class CodeIndexMCPServer:
         )
 
         # Create FastMCP server with custom lifespan for resource management integration
-        # Set debug=False to silence ASCII banner which corrupts STDIO protocol
+        # Note: 'debug' is no longer a constructor param in FastMCP 3.x
         self._mcp = FastMCP(
             "Code Index MCP Server",
-            lifespan=self._lifespan_manager,
-            debug=False
+            lifespan=self._lifespan_manager
         )
         self._running = False
         
@@ -241,6 +240,11 @@ class CodeIndexMCPServer:
         await self._cleanup_server_resources()
 
 
-if __name__ == "__main__":
+def sync_main():
+    """Synchronous entry point for the MCP binary."""
     server = CodeIndexMCPServer()
     asyncio.run(server.start())
+
+
+if __name__ == "__main__":
+    sync_main()

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LanguageQuery",
+  "description": "Tree-sitter query for language-aware code extraction",
+  "type": "object",
+  "required": ["language", "capture", "query"],
+  "properties": {
+    "language": {
+      "type": "string",
+      "description": "ISO language name (rust, python, javascript, etc.)"
+    },
+    "capture": {
+      "type": "string",
+      "enum": ["function", "class", "import", "call", "definition", "extends", "contains", "returns", "throws"],
+      "description": "Relationship category for this capture"
+    },
+    "query": {
+      "type": "string",
+      "description": "Tree-sitter S-expression query"
+    },
+    "target_capture": {
+      "type": "string",
+      "description": "Which @capture contains the symbol name for linking (e.g., 'function.name')"
+    },
+    "priority": {
+      "type": "integer",
+      "default": 0,
+      "description": "Query priority when multiple queries match same node"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "verified": {"type": "boolean"},
+        "test_file": {"type": "string"},
+        "notes": {"type": "string"}
+      }
+    }
+  }
+}

@@ -10,10 +10,14 @@ from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 # Import extracted services
 from ..command.config_validator import ConfigValidator
 from ..command.config_builder import ConfigBuilder, LanguageConfig
+from ..query.universal_schema_service import UniversalSchemaService
 
 
 class TreeSitterConfigurationManager:
-    """Service for managing Tree-sitter configuration."""
+    """
+    Service for managing Tree-sitter configuration and relationship queries.
+    Now powered by the Universal Schema Service.
+    """
     
     def __init__(self, config: Config, error_handler: Optional[ErrorHandler] = None):
         self.config = config
@@ -24,6 +28,7 @@ class TreeSitterConfigurationManager:
         # Use extracted services
         self._validator = ConfigValidator()
         self._builder = ConfigBuilder(config, self.debug_enabled)
+        self._schema_service = UniversalSchemaService()
         
         # Cache for language configurations
         self._language_configs: Dict[str, LanguageConfig] = {}
@@ -32,21 +37,32 @@ class TreeSitterConfigurationManager:
         self.query_cache = {}
         self.language_configs = self._language_configs
     
-    def _set_cached_query(self, language_key: str, query_key: str, query) -> None:
-        if language_key not in self.query_cache:
-            self.query_cache[language_key] = {}
-        self.query_cache[language_key][query_key] = query
-    
-    def _get_cached_query(self, language_key: str, query_key: str):
-        return self.query_cache.get(language_key, {}).get(query_key)
-    
-    def _invalidate_cache(self, language_key: str) -> None:
-        if language_key in self.query_cache:
-            del self.query_cache[language_key]
-    
-    def _invalidate_all_caches(self) -> None:
-        self.query_cache.clear()
-    
+    def get_query_for_language(self, language_key: str) -> Optional[str]:
+        """
+        Get relationship-native queries for the language.
+        Dynamically loaded from the universal schema library.
+        """
+        try:
+            if language_key == 'unsupported_language':
+                return None
+            if language_key == 'nonexistent_language':
+                raise Exception("Language not supported")
+            
+            # Use the new dynamic schema service
+            queries = self._schema_service.get_all_queries_combined(language_key)
+            
+            # Tier 2 Fallback: Internal queries (if schema file is missing)
+            if not queries:
+                from ..treesitter_queries import get_queries_for_language
+                queries = get_queries_for_language(language_key)
+                
+            return queries if queries else None
+            
+        except Exception as e:
+            error_context = ErrorContext("config_manager", "get_query_for_language", {"language": language_key})
+            self.error_handler.handle_error(e, error_context, ErrorCategory.CONFIGURATION, ErrorSeverity.LOW)
+            return None
+
     def get_language_config(self, language_key: str) -> Optional[Dict[str, Any]]:
         """Get configuration for a specific language."""
         self.logger.debug("get_language_config entry", extra={"language_key": language_key})
@@ -131,21 +147,6 @@ class TreeSitterConfigurationManager:
         except (ImportError, AttributeError, TypeError):
             return {"rss_bytes": 0, "vms_bytes": 0, "percent": 0.0, "cached_configs": 0}
     
-    def get_query_for_language(self, language_key: str) -> Optional[str]:
-        """Get query for language."""
-        try:
-            if language_key == 'unsupported_language':
-                return None
-            if language_key == 'nonexistent_language':
-                raise Exception("Language not supported")
-            from ..treesitter_queries import get_queries_for_language
-            queries = get_queries_for_language(language_key)
-            return queries if queries else None
-        except Exception as e:
-            error_context = ErrorContext("config_manager", "get_query_for_language", {"language": language_key})
-            self.error_handler.handle_error(e, error_context, ErrorCategory.CONFIGURATION, ErrorSeverity.LOW)
-            return None
-    
     def _compile_query(self, language_key: str, query_string: str):
         """Compile query."""
         try:
@@ -156,7 +157,11 @@ class TreeSitterConfigurationManager:
             language_obj = get_language(language_key)
             return Query(language_obj, query_string)
         except Exception as e:
-            error_context = ErrorContext("config_manager", "_compile_query", {"language": language_key})
+            error_context = ErrorContext(
+                component="config_manager",
+                operation="_compile_query",
+                additional_data={"language": language_key}
+            )
             self.error_handler.handle_error(e, error_context, ErrorCategory.CONFIGURATION, ErrorSeverity.LOW)
             return None
     

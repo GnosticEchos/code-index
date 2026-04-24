@@ -1,6 +1,6 @@
 # Simple Makefile for code index tool
 
-.PHONY: help install test clean build-cross-platform build-binaries build-cli build-mcp build-windows build-macos build-macos-universal
+.PHONY: help install test clean build-cross-platform build-binaries build-cli build-mcp build-windows build-macos build-macos-universal build-all
 
 help:
 	@echo "Code Index Tool Makefile"
@@ -11,6 +11,7 @@ help:
 	@echo "  clean                   - Clean build artifacts"
 	@echo "  build-cross-platform    - Build binaries for current platform (auto-detect)"
 	@echo "  build-binaries          - Build both CLI and MCP binaries for current platform"
+	@echo "  build-all               - Unified build of all binaries with AI features"
 	@echo "  build-cli               - Build CLI binary only"
 	@echo "  build-mcp               - Build MCP server binary only"
 	@echo "  build-windows           - Build Windows binaries"
@@ -40,6 +41,8 @@ build-cross-platform:
 build-binaries:
 	@echo "Building both CLI and MCP binaries..."
 	uv run python scripts/build/build_binaries.py
+
+build-all: build-cli build-mcp
 
 build-cli:
 	@echo "Building CLI binary only..."

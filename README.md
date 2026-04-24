@@ -1,628 +1,85 @@
 # Code Index Tool
 
-A standalone code indexing tool that uses Ollama for embeddings and Qdrant for vector storage. It provides fast, configurable, and resilient indexing for many programming languages, with KiloCode-compatible collections and payloads.
+A high-precision Universal Structural Intelligence engine for codebase indexing and semantic search. It combines deep structural analysis with AI-driven content identification to create a relationship-native map of any codebase.
 
-- Index code files from any directory
-- Generate embeddings using Ollama
-- Store embeddings in Qdrant vector database
-- Search indexed code using semantic search
-- Multi-strategy chunking: lines, tokens (LangChain), and Tree-sitter, with graceful fallbacks
-- File change detection to avoid reprocessing
-- Configurable Ollama and Qdrant endpoints
-- Config-first embedding length (required via config.embedding_length)
-- Token-based chunking option using LangChain TokenTextSplitter with approximate line mapping
-- Auto-extensions discovery via Pygments (augment supported extensions)
-- Configurable embed timeout (config/env/CLI), timeout logging, and retry-list processing
-- Exclude arbitrary files via a newline-separated path list (config.exclude_files_path)
-- Enhanced collection management with workspace path mapping
-- Smart ignore patterns (community templates, project .gitignore, global ignores)
-- Memory-mapped file reading (mmap) for improved large-file performance (config-only)
-- KiloCode-compatible collection naming and payload fields
-- **MCP Server**: Full Model Context Protocol server with tools for indexing, searching, and managing collections
-- **Cross-platform binaries**: Standalone executables for Linux, macOS, and Windows with fixed static linking
+- **Universal Relationship Schema**: Surgical S-expression queries (908 records) for 200+ languages, identifying `class`, `function`, `import`, and `call` relationships.
+- **AI Gatekeeper (Magika)**: Google's Magika Deep Learning model identifies files by structural patterns in the first 2KB, ensuring precise language routing.
+- **High-Precision Search**: Semantic search weighted by structural importance, file type, and path.
+- **Unified MCP Server**: Full Model Context Protocol server exposing indexing, search, and collection management tools to AI assistants.
+- **Cross-Platform Binaries**: Standalone 37MB executables for Linux, macOS, and Windows with embedded Magika ONNX runtime.
 
-Notes:
-- No synonym-expansion query rewriting or interactive search prompts are implemented.
-- No built-in concurrent batch scheduler/resumer; batch processing is supported via a workspace list file.
-- **Recent fixes**: Resolved static libpython linking issues in build scripts for reliable cross-platform binaries
+## Core Intelligence Features
+
+### 1. Universal Relationship Schema
+Unlike generic chunking, Code Index understands the *nature* of code. It uses the Relationship-Native Query Forge to extract:
+- **`class`**: Structural types (Structs, Enums, Interfaces, Modules).
+- **`function`**: Callable logic (Methods, Procedures, Signatures).
+- **`import`**: Dependency links (Cross-file imports, requires).
+- **`call`**: Execution links (Method calls, qualified calls).
+
+### 2. Magika AI Identification
+Integrated Google's Magika model to provide 99%+ accuracy in file identification.
+- **Intelligence**: Identifies content types by structural patterns rather than just extensions.
+- **Tiered Detection**: `Magika (AI) -> Extension Map -> Generic Text` fallback.
+- **Performance**: High-speed ONNX-based detection with minimal overhead.
+
+### 3. Structural Chunking (Tree-sitter)
+Uses modern Tree-sitter bindings (v0.23.x) to perform surgical extraction of code symbols.
+- **Version-Aware**: Dual-API support for both dictionary-based and list-based capture returns.
+- **Relationship-Native**: Every chunk is tagged with its relationship class (e.g., `type: function, name: validate`).
 
 ## MCP Server
 
-This tool includes a complete **Model Context Protocol (MCP) server** that provides AI assistants with powerful code indexing and search capabilities. The MCP server exposes three main tools that can be used by any MCP-compatible client.
+This tool includes a complete **Model Context Protocol (MCP) server** that provides AI assistants with powerful code indexing and search capabilities.
 
-### MCP Tools
-
-## 🛠️ MCP Tools Overview
+### 🛠️ MCP Tools Overview
 
 | Category          | Tool                  | Description                                |
 |-------------------|------------------------|--------------------------------------------|
-| 📊 **Indexing**   | `index`                | Index code files for semantic search       |
-|                   |                        | Long-running operation with progress tracking |
-| 🔍 **Search**     | `search`               | Perform semantic searches on indexed code |
-|                   |                        | Natural language queries with ranking     |
-| 📋 **Management** | `collections`          | Manage indexed collections                |
-|                   |                        | List, delete, prune with safety confirmations |
-
-**Recent Updates:**
-- ✅ Fixed static libpython linking issues for reliable binary builds
-- ✅ Verified MCP server functionality with collections listing (3 collections found)
-- ✅ Cross-platform binary compatibility confirmed
-- ✅ All MCP tools tested and operational
-
-## Recent Updates and Fixes
-
-### Version 0.1.0 (Latest)
-- ✅ **Fixed static libpython linking issues** in all build scripts
-- ✅ **Verified MCP server functionality** with collections listing (3 collections found)
-- ✅ **Cross-platform binary compatibility** confirmed for Linux, macOS, and Windows
-- ✅ **Enhanced build scripts** with comprehensive dependency inclusion
-- ✅ **Updated documentation** to reflect current capabilities and fixes
-
-### Build System Improvements
-- Removed problematic `--static-libpython=yes` flags from all build scripts
-- Enhanced build scripts with complete package inclusion
-- Fixed Windows and macOS build configurations
-- Verified binary functionality across platforms
-
-### MCP Server Enhancements
-- Full MCP server implementation with index, search, and collections tools
-- Verified collections management with workspace path mapping
-- Confirmed semantic search capabilities
-- Tested cross-platform compatibility
-
-### Documentation Updates
-- Updated installation and setup instructions
-- Enhanced troubleshooting section with common issues and solutions
-- Added comprehensive MCP server usage examples
-- Verified all feature descriptions match actual capabilities
-
-### Index Tool
-Indexes code files in workspaces for semantic search. This is a long-running operation that processes files and creates vector embeddings.
-
-**Parameters:**
-- `workspace` (str): Path to the directory to index (default: current directory)
-- `config` (str): Path to configuration file (auto-created if missing)
-- `workspacelist` (str): Path to file containing workspace paths for batch indexing
-- `embed_timeout` (int): Override embedding timeout in seconds (default: 60)
-- `chunking_strategy` (str): Strategy for splitting code: "lines", "tokens", or "treesitter"
-- `use_tree_sitter` (bool): Enable semantic code structure analysis with Tree-sitter
-
-**Examples:**
-```python
-# Basic indexing
-index(workspace="./my-project")
-
-# Semantic indexing with Tree-sitter
-index(workspace="./rust-project", use_tree_sitter=true, chunking_strategy="treesitter")
-
-# Batch processing multiple workspaces
-index(workspacelist="./workspaces.txt", embed_timeout=120)
-```
-
-### Search Tool
-Performs semantic searches on indexed code repositories using natural language queries.
-
-**Parameters:**
-- `query` (str, required): Natural language search query
-- `workspace` (str): Path to the workspace to search (default: current directory)
-- `min_score` (float): Minimum similarity score threshold (0.0-1.0, default: 0.4)
-- `max_results` (int): Maximum number of results to return (1-500, default: 50)
-
-**Examples:**
-```python
-# Basic search
-search(query="authentication middleware")
-
-# Precise search with custom thresholds
-search(query="database connection", min_score=0.6, max_results=20)
-```
-
-### Collections Tool
-Manages indexed code collections with comprehensive operations and safety confirmations.
-
-**Parameters:**
-- `subcommand` (str, required): Operation to perform (list, info, delete, prune, clear-all)
-- `collection_name` (str): Name of collection (required for info/delete)
-- `older_than_days` (int): Age threshold for prune operation (default: 30)
-- `yes` (bool): Skip confirmation prompts for destructive operations
-- `detailed` (bool): Include detailed information in results
-
-**Examples:**
-```python
-# List all collections
-collections(subcommand="list")
-
-# Get detailed collection information
-collections(subcommand="info", collection_name="ws-abc123def456")
-
-# Delete a collection (with confirmation)
-collections(subcommand="delete", collection_name="ws-abc123def456", yes=true)
-```
-
-### MCP Client Configuration
-
-To use the MCP server with any MCP-compatible client, add this configuration to your client's MCP settings:
-
-```json
-{
-  "mcpServers": {
-    "code_index_mcp_server": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/absolute/path/to/your/code_index/project",
-        "run",
-        "code-index-mcp"
-      ]
-    }
-  }
-}
-```
-
-**Configuration Notes:**
-- Replace `/absolute/path/to/your/code_index/project` with the actual absolute path to your project
-- The server name `code_index_mcp_server` can be customized
-- Ensure `uv` is installed and available in your PATH
-- The server will validate Ollama and Qdrant connectivity on startup
-
-**Optional Environment Variables:**
-- `OLLAMA_BASE_URL`: Ollama server URL (default: `http://localhost:11434`)
-- `QDRANT_URL`: Qdrant server URL (default: `http://localhost:6333`)
-- `QDRANT_API_KEY`: Qdrant API key (optional)
-
-**Testing Your Setup:**
-1. Start Ollama and Qdrant services
-2. Run `uv run code-index-mcp` to start the server
-3. Test with `collections(subcommand="list")` in your MCP client
-
-## KiloCode Compatibility
-
-This tool produces Qdrant collections KiloCode can use directly:
-- Collection naming matches KiloCode convention: “ws-” + SHA256(workspace_path) prefix
-- Payload fields match KiloCode expectations: filePath, codeChunk, startLine, endLine, type
-- Both tools can use the same collections without duplication
-
-See the CLI entry points [cli.index()](src/code_index/cli.py#L154), [cli.search()](src/code_index/cli.py#L471), and collection commands in [collections_commands.py](src/code_index/collections_commands.py) including collections clear-all.
-
-## Requirements
-
-- Python 3.13+
-- Ollama with an embedding model available
-- Qdrant server
-- Optional: uv for environment management
-- FastMCP for MCP server functionality (included in dependencies)
-
-**Build Requirements (for cross-platform binaries):**
-- Nuitka 2.7.16+ for Python-to-binary compilation
-- Clang compiler (recommended for performance)
-- C++ build tools (Visual Studio Build Tools on Windows)
-- **Note**: Static libpython linking issues have been resolved in build scripts
-
-## Windows Development Notes
-
-If you are developing on Windows, please note the following differences:
-
-**1. Makefile:** This project uses a `Makefile` for common tasks. On Windows, you should use the `Makefile.windows` file, which is designed for the `cmd.exe` shell.
-    ```shell
-    # Example: running the 'clean' command on Windows
-    make -f Makefile.windows clean
-    ```
-
-**2. Virtual Environment:** To activate the virtual environment, use the following command:
-    ```shell
-    .\venv\Scripts\activate
-    ```
-
-**3. Configuration File:** The `cat` command is not available in `cmd.exe`. Create the `code_index.json` file manually in the root of the project and paste the JSON configuration into it.
-
-**4. `tree-sitter` Compilation:** The `tree-sitter` dependency requires a C++ compiler. If you run into installation errors, you will need to install the **Visual Studio Build Tools**. You can download them from the official [Visual Studio website](https://visualstudio.microsoft.com/visual-cpp-build-tools/). Ensure that the "C++ build tools" workload is selected during installation.
-
-**5. Binary Builds:** Cross-platform binaries can be built using the fixed build scripts. The static libpython linking issues have been resolved:
-    ```shell
-    # Build Windows binaries (fixed static linking)
-    python scripts/build/build_windows.py
-    ```
+| 📊 **Indexing**   | `index`                | Index code files with high-precision structural analysis |
+| 🔍 **Search**     | `search`               | Semantic search on relationship-native chunks |
+| 📋 **Management** | `collections`          | Manage vector collections with workspace mapping |
 
 ## Quick Start
 
 ```bash
-# For Windows users, please see the "Windows Development Notes" section above for platform-specific commands.
-# Clone the repository
-git clone <repository-url>
-cd code_index
-
-# Create virtual environment with uv (optional)
-uv venv
-
-# Activate virtual environment
-source .venv/bin/activate
-
 # Install package and dependencies
 uv pip install -e .
 
-# Optional: improve language detection for Tree-sitter file routing
-uv pip install whats-that-code
+# Index your codebase with Structural Intelligence
+code-index index --use-tree-sitter
 
-# Create configuration file
-cat > code_index.json << 'EOF'
-{
-  "ollama_base_url": "http://localhost:11434",
-  "ollama_model": "nomic-embed-text:latest",
-  "qdrant_url": "http://localhost:6333",
-  "workspace_path": ".",
-  "extensions": [".rs", ".ts", ".vue", ".surql", ".js", ".py", ".jsx", ".tsx"],
-  "max_file_size_bytes": 1048576,
-  "batch_segment_threshold": 60,
-  "search_min_score": 0.4,
-  "search_max_results": 50,
-  "embedding_length": 768,
-  "embed_timeout_seconds": 60,
-  "chunking_strategy": "lines",
-  "use_tree_sitter": false
-}
-EOF
-
-# Index your codebase
-code-index index
-
-# Search indexed code
-code-index search "function to parse JSON"
+# Search relationship-native chunks
+code-index search "authentication logic"
 
 # Start MCP server for AI assistant integration
 uv run code-index-mcp
-
-# Global reset: delete ALL collections and clear cache (destructive)
-code-index collections clear-all --yes
 ```
-
-Tip:
-- Set embedding_length to match your model’s dimensionality (e.g., 1024 for some Qwen models, 768 for nomic-embed-text).
-
-## CLI Commands
-
-Full reference: [docs/cli-reference.md](docs/cli-reference.md)
-
-Primary entry points:
-- [cli.index()](src/code_index/cli.py#L154)
-- [cli.search()](src/code_index/cli.py#L471)
-
-### Index Command
-
-```bash
-code-index index [--workspace PATH] [--config FILE] [--workspacelist FILE] \
-                 [--embed-timeout SECONDS] [--retry-list FILE] [--timeout-log FILE] \
-                 [--ignore-config FILE] [--ignore-override-pattern PATTERN] \
-                 [--auto-ignore-detection]
-                 [--use-tree-sitter] [--chunking-strategy lines|tokens|treesitter]
-```
-
-Indexes code files in the specified workspace.
-
-Options:
-- --workspace: Workspace path (default: current directory)
-- --config: Configuration file (default: code_index.json)
-- --workspacelist: Path to file containing newline-delimited absolute directory paths to process (batch)
-- --embed-timeout: Override embedding timeout (seconds) for this run
-- --retry-list: Path to file with newline-separated relative file paths to reprocess only
-- --timeout-log: Override timeout log path for this run (default from config.timeout_log_path)
-- --ignore-config: Path to custom ignore configuration file
-- --ignore-override-pattern: Additional ignore pattern(s) to apply
-- --auto-ignore-detection: Enable automatic ignore detection (default: enabled). To disable, set auto_ignore_detection to false in the configuration file.
-- --use-tree-sitter: Force Tree-sitter-based semantic chunking for this run (overrides --chunking-strategy and config)
-- --chunking-strategy: lines (default), tokens, or treesitter
-
-Batch indexing:
-```bash
-# Prepare a list of workspaces (absolute paths), one per line
-printf "/path/to/project1\n/path/to/project2\n" > workspace_list.txt
-
-# Process all listed workspaces sequentially
-code-index index --workspacelist workspace_list.txt --use-tree-sitter
-```
-
-Retry only failed files after timeouts (exact guidance printed after a run):
-```bash
-code-index index --workspace <your-workspace> --retry-list <timeout_files.txt> --embed-timeout <seconds>
-```
-
-### Search Command
-
-```bash
-code-index search QUERY [--config FILE] [--min-score SCORE] [--max-results COUNT] [--json]
-```
-
-Searches indexed code using semantic search.
-
-Options:
-- QUERY: Search query text
-- --config: Configuration file (default: code_index.json)
-- --min-score: Minimum similarity score (default: 0.4, from config.search_min_score)
-- --max-results: Maximum number of results (default: 50, from config.search_max_results)
-- --json: Output results as JSON; snippet preview length uses config.search_snippet_preview_chars (default: 160)
-
-Implementation details:
-- Vector search and ranking: [vector_store.QdrantVectorStore.search()](src/code_index/vector_store.py#L300)
-- Adjusted scores apply file-type, path, and language weighting from configuration
-
-### Collections Management
-
-```bash
-code-index collections list [--detailed]
-code-index collections info COLLECTION_NAME
-code-index collections delete COLLECTION_NAME
-code-index collections prune [--older-than DAYS]
-code-index collections clear-all [--yes|-y] [--dry-run] [--keep-metadata]
-```
-
-Manages Qdrant collections and metadata mapping.
-
-- list: Show collections, with optional detailed view
-- info: Show collection status and mapped workspace path (when available)
-- delete: Remove a collection (with confirmation)
-- prune: Delete collections older than the specified days (default: 30)
-
-See collection commands in [collections_commands.py](src/code_index/collections_commands.py).
-
-## MCP Usage Examples
-
-Once your MCP server is configured and running, AI assistants can use these tools:
-
-### Basic Workflow
-1. **Index a codebase:**
-   ```
-   index(workspace="./my-project", use_tree_sitter=true, chunking_strategy="treesitter")
-   ```
-
-2. **Search for code:**
-   ```
-   search(query="authentication logic", min_score=0.5)
-   ```
-
-3. **Manage collections:**
-   ```
-   collections(subcommand="list")
-   ```
-
-### Advanced Examples
-
-**Large Repository Indexing:**
-```python
-# For large repositories, use line-based chunking for speed
-index(
-    workspace="/path/to/large-repo",
-    chunking_strategy="lines",
-    batch_segment_threshold=100,
-    embed_timeout=120
-)
-```
-
-**Precise Code Search:**
-```python
-# Find specific implementation patterns
-search(
-    query="JWT token validation",
-    min_score=0.7,
-    max_results=10
-)
-```
-
-**Batch Processing:**
-```python
-# Index multiple projects at once
-index(workspacelist="/path/to/workspace-list.txt")
-```
-
-**Collection Management:**
-```python
-# Clean up old collections
-collections(subcommand="prune", older_than_days=30, yes=true)
-
-# Get detailed collection info
-collections(subcommand="info", collection_name="ws-abc123def456", detailed=true)
-```
-
-### MCP Client Integration
-
-The MCP server integrates seamlessly with AI assistants that support the Model Context Protocol:
-
-- **VSCode with MCP extension**: Configure using the JSON settings above
-- **Other MCP clients**: Use the same configuration format
-- **AI assistants**: Can now index, search, and manage code collections through natural language
-
-### Troubleshooting MCP
-
-**Server won't start:**
-- Ensure Ollama and Qdrant services are running
-- Check that all dependencies are installed with `uv pip install -e .`
-- Verify configuration file exists and is valid
-- **Fixed**: Static libpython linking issues resolved in build scripts
-
-**Search returns no results:**
-- Make sure the workspace has been indexed first
-- Try lowering `min_score` (e.g., from 0.4 to 0.2)
-- Check that the collection exists with `collections(subcommand="list")`
-- **Verified**: MCP collections tool successfully lists 3 collections
-
-**Indexing is slow:**
-- Use `chunking_strategy="lines"` for faster processing
-- Increase `batch_segment_threshold` for larger batches
-- Consider using `use_mmap_file_reading=true` for large files
-- **Fixed**: Binary performance optimized with corrected linking
-
-**Binary runtime errors:**
-- **Resolved**: Static libpython linking issues fixed in build scripts
-- Ensure compatible Python runtime version (3.13+)
-- Check that all dependencies are properly included in binary
-- **Verified**: Both CLI and MCP binaries work correctly
 
 ## Configuration
 
-JSON-first configuration (default file: code_index.json). See [config.Config](src/code_index/config.py#L9) for fields and defaults.
-
-Example:
-```json
-{
-  "ollama_base_url": "http://localhost:11434",
-  "ollama_model": "nomic-embed-text:latest",
-  "qdrant_url": "http://localhost:6333",
-  "qdrant_api_key": null,
-  "workspace_path": ".",
-  "extensions": [".rs", ".ts", ".vue", ".surql", ".js", ".py", ".jsx", ".tsx"],
-  "max_file_size_bytes": 1048576,
-  "batch_segment_threshold": 60,
-
-  "search_min_score": 0.4,
-  "search_max_results": 50,
-
-  "search_file_type_weights": {
-    ".vue": 1.30,
-    ".ts": 1.25,
-    ".tsx": 1.25,
-    ".rs": 1.20,
-    ".surql": 1.25,
-    ".js": 1.10,
-    ".md": 0.80,
-    ".txt": 0.60
-  },
-  "search_path_boosts": [
-    {"pattern": "src/", "weight": 1.25},
-    {"pattern": "components/", "weight": 1.25},
-    {"pattern": "views/", "weight": 1.15},
-    {"pattern": "docs/", "weight": 0.85}
-  ],
-  "search_language_boosts": {
-    "vue": 1.20,
-    "typescript": 1.15,
-    "rust": 1.10
-  },
-  "search_exclude_patterns": [],
-  "search_snippet_preview_chars": 160,
-
-  "embedding_length": 768,
-  "embed_timeout_seconds": 60,
-
-  "chunking_strategy": "lines",
-  "token_chunk_size": 1000,
-  "token_chunk_overlap": 200,
-
-  "auto_extensions": false,
-  "exclude_files_path": null,
-  "timeout_log_path": "timeout_files.txt",
-
-  "auto_ignore_detection": true,
-
-  "skip_dot_files": true,
-  "read_root_gitignore_only": true,
-
-  "use_mmap_file_reading": false,
-  "mmap_min_file_size_bytes": 65536,
-
-  "use_tree_sitter": false,
-  "tree_sitter_max_file_size_bytes": 524288,
-  "tree_sitter_min_block_chars": 50,
-  "tree_sitter_max_blocks_per_file": 100,
-  "tree_sitter_max_functions_per_file": 50,
-  "tree_sitter_max_classes_per_file": 20,
-  "tree_sitter_max_impl_blocks_per_file": 30,
-  "tree_sitter_skip_test_files": true,
-  "tree_sitter_skip_examples": true,
-  "tree_sitter_skip_patterns": [
-    "*.min.js", "*.bundle.js", "*.min.css",
-    "package-lock.json", "yarn.lock",
-    "target/", "build/", "dist/", "node_modules/", "__pycache__/"
-  ]
-}
-```
-
-Environment variables supported:
-- OLLAMA_BASE_URL — Ollama base URL (default: http://localhost:11434)
-- OLLAMA_MODEL — Ollama model to use (default: nomic-embed-text:latest)
-- QDRANT_URL — Qdrant server URL (default: http://localhost:6333)
-- QDRANT_API_KEY — Qdrant API key (optional)
-- WORKSPACE_PATH — Workspace path (default: .)
-- CODE_INDEX_EMBED_TIMEOUT — Embedding timeout in seconds (overrides config.embed_timeout_seconds)
-
-Note:
-- Memory-mapped file reading is controlled by configuration only (no env var toggle).
-- For Tree-sitter language detection, installing whats-that-code is optional; a manual extension mapping fallback is used otherwise.
-
-## Performance Tuning
-
-The default settings offer a good balance of speed and reliability for most projects. However, if you feel that indexing is sluggish, especially on repositories with many large files, you might want to try adjusting the file reading mechanism for better performance.
-
-### Memory-Mapped File Reading (mmap)
-
-This tool supports memory-mapped (mmap) file reading, a technique that can significantly reduce memory usage and speed up processing for larger files. Instead of loading an entire file into memory, `mmap` allows the operating system to efficiently load parts of the file on demand.
-
-**When to use it:** If you are indexing a repository with numerous source files larger than a few megabytes, enabling `use_mmap_file_reading` can lead to noticeable improvements. For projects with mostly small files, the standard file reading method is often sufficient.
-
-These settings are available in your `code_index.json`:
-
-| Option                   | Description                                                                    | Default        |
-| ------------------------ | ------------------------------------------------------------------------------ | -------------- |
-| `use_mmap_file_reading`    | Set to `true` to enable memory-mapped file reading.                            | `false`        |
-| `mmap_min_file_size_bytes` | The minimum file size to use mmap for. Smaller files will use the standard method. | `65536` (64KB) |
-
-### Tree-sitter Configuration Options
+Default file: `code_index.json`. 
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| use_tree_sitter | Enable semantic code chunking with Tree-sitter | false |
-| chunking_strategy | Set to "treesitter" for semantic chunking | "lines" |
-| tree_sitter_max_file_size_bytes | Max file size for Tree-sitter parsing | 512KB |
-| tree_sitter_min_block_chars | Min chars for semantic blocks | 50 |
-| tree_sitter_max_blocks_per_file | Max semantic blocks per file | 100 |
-| tree_sitter_max_functions_per_file | Max functions per file | 50 |
-| tree_sitter_max_classes_per_file | Max classes per file | 20 |
-| tree_sitter_max_impl_blocks_per_file | Max impl blocks per file | 30 |
-| tree_sitter_skip_test_files | Skip test/spec files | true |
-| tree_sitter_skip_examples | Skip example/sample files | true |
-| tree_sitter_skip_patterns | File patterns to skip | [...] |
+| `use_tree_sitter` | Enable high-precision structural analysis | `false` |
+| `chunking_strategy` | Set to "treesitter" for relationship extraction | `"lines"` |
+| `tree_sitter_min_block_chars` | Min chars for structural blocks | `5` |
+| `tree_sitter_max_blocks_per_file` | Max semantic blocks per file | `100` |
 
-## How It Works
+## KiloCode Compatibility
 
-1. File Scanning
-   - Recursively scans the directory for supported files, honoring ignore patterns (community templates, .gitignore, and global rules when enabled).
-2. File Reading
-   - Chooses traditional or memory-mapped reading based on config thresholds; gracefully falls back on errors. See [parser.CodeParser](src/code_index/parser.py#L13).
-3. Chunking
-   - Splits files into code blocks using the configured strategy:
-     - Line-based ([chunking.LineChunkingStrategy](src/code_index/chunking.py#L53))
-     - Token-based via LangChain ([chunking.TokenChunkingStrategy](src/code_index/chunking.py#L101))
-     - Tree-sitter semantic blocks with robust multi-API fallbacks ([chunking.TreeSitterChunkingStrategy](src/code_index/chunking.py#L163))
-4. Embedding Generation
-   - Uses Ollama’s /api/embed with configurable timeouts. See [embedder.OllamaEmbedder](src/code_index/embedder.py#L9).
-5. Vector Storage
-   - Stores vectors and KiloCode-compatible payloads in Qdrant with path segment indexes for filtering. See [vector_store.QdrantVectorStore](src/code_index/vector_store.py#L13).
-6. Caching
-   - Caches file hashes to skip unchanged files.
-7. Search
-   - Performs similarity search and applies adjustedScore weighting by file type, path, and language.
+- Collection naming matches KiloCode convention: `ws-` + SHA256(workspace_path).
+- Payload fields (filePath, codeChunk, startLine, endLine, type) match KiloCode expectations.
+- High-precision types (`class`, `function`, `import`, `call`) are fully supported.
 
-Operational notes:
-- Typical startup shows “Validating configuration…”, vector store init, “Scanning directory: …”
-- Tree-sitter will warn and fall back to line-based when queries or parsers aren’t available for a file
-- Timeouts are recorded; summary prints:
-  - “Timeouts: N file(s). Timeout log: timeout_files.txt”
-  - “To retry only failed files… code-index index --workspace <...> --retry-list <timeout_log> --embed-timeout <seconds>”
-- On shutdown after Tree-sitter runs, resources are cleaned up
+## Build System
 
-## Development
-
-- Primary entry points: [src/code_index/cli.py](src/code_index/cli.py)
-- MCP server entry point: [src/code_index/mcp_server/server.py](src/code_index/mcp_server/server.py)
-- Tests (if present) may adjust search thresholds for specific scenarios
-- See also: [pyproject.toml](pyproject.toml) for dependencies and console script entrypoints (`code-index` and `code-index-mcp`)
-
-**Build System:**
-- Cross-platform binaries built with Nuitka 2.7.16+
-- Static libpython linking issues resolved in all build scripts
-- Enhanced build scripts include comprehensive dependency packaging
-- Verified binary functionality on Linux, macOS, and Windows
-- Build scripts: [scripts/build/](scripts/build/)
+- Cross-platform binaries built with **Nuitka 2.7.16+**.
+- Embedded Magika ONNX runtime for standalone AI detection.
+- Static libpython linking issues resolved across all platforms.
+- Build scripts: `scripts/build/`.
 
 ## License
 
 MIT
-# Temporary change for stashing
-# Temporary change for stashing

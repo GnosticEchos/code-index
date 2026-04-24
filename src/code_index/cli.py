@@ -6,7 +6,7 @@ import sys
 import json
 import logging
 import click
-from typing import List, Set
+from typing import List, Set, Optional
 
 from code_index.collections_commands import list_collections, collection_info, delete_collection, prune_collections, clear_all_collections
 from code_index.errors import ErrorHandler
@@ -22,14 +22,51 @@ command_context = CommandContext(error_handler)
 logger = logging.getLogger(__name__)
 
 
-@click.group()
+def helptree_options(f):
+    """Decorator to add HelpTree options to any command or group."""
+    f = click.option('--help-tree', is_flag=True, help='Display the recursive command tree (HelpTree protocol)')(f)
+    f = click.option('--help-tree-json', is_flag=True, help='Display the recursive command tree as JSON metadata')(f)
+    return f
+
+def handle_helptree_invocation(ctx, cmd):
+    """Shared logic to handle HelpTree requests at any level of the command hierarchy."""
+    help_tree = ctx.params.get('help_tree')
+    help_tree_json = ctx.params.get('help_tree_json')
+    
+    if help_tree or help_tree_json:
+        from code_index.ui.helptree_handler import HelpTreeHandler
+        # The 'cli' group is our root for introspection
+        handler = HelpTreeHandler(cli)
+        
+        # Determine the path to the current command
+        path = ctx.command_path.split()[1:] # Skip the binary name 'code-index'
+        
+        # Generate the full map but let the handler handle sub-path rendering
+        cmd_map = handler.generate_map(ctx)
+        
+        if help_tree_json:
+            handler.render_json(cmd_map, path)
+        else:
+            handler.render_ansi(cmd_map, path)
+        sys.exit(0)
+
+
+@click.group(invoke_without_command=True)
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging (INFO level)')
 @click.option('--debug', is_flag=True, help='Enable debug logging (DEBUG level)')
 @click.option('--log-treesitter', is_flag=True, default=False, help='Enable detailed Tree-sitter logging')
 @click.option('--log-embedding', is_flag=True, default=False, help='Enable detailed embedding logging')
+@helptree_options
 @click.pass_context
-def cli(ctx, verbose: bool, debug: bool, log_treesitter: bool, log_embedding: bool):
+def cli(ctx, verbose: bool, debug: bool, log_treesitter: bool, log_embedding: bool, help_tree: bool, help_tree_json: bool):
     """Standalone code index tool."""
+    handle_helptree_invocation(ctx, cli)
+
+    # Standard help behavior if no command and not requesting help-tree
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+        sys.exit(0)
+
     # Initialize global logging once; default WARNING
     import logging as _logging
     level = _logging.DEBUG if debug else (_logging.INFO if verbose else _logging.WARNING)
@@ -58,19 +95,15 @@ def cli(ctx, verbose: bool, debug: bool, log_treesitter: bool, log_embedding: bo
         ctx.obj["logging_components"]["code_index.embedding"] = logging.DEBUG
 
 
-@cli.group()
-def collections():
-    """Manage collections with smart workspace mapping.
-    
-    Features:
-    - List collections with human-readable workspace paths
-    - View detailed collection information and statistics
-    - Delete collections with metadata cleanup
-    - Prune old collections with smart retention policies
-    - Clear all collections (global reset) with cache cleanup
-    - KiloCode-compatible collection naming and structure
-    """
-    pass
+@cli.group(invoke_without_command=True)
+@helptree_options
+@click.pass_context
+def collections(ctx, help_tree, help_tree_json):
+    """Manage collections with smart workspace mapping."""
+    handle_helptree_invocation(ctx, collections)
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+        sys.exit(0)
 
 
 # Register collection commands
@@ -134,16 +167,7 @@ def _load_exclude_list(workspace_path: str, exclude_files_path: str | None) -> S
 def index(ctx, workspace: str, config: str, workspacelist: str | None, embed_timeout: int | None, retry_list: str | None, timeout_log: str | None,
           ignore_config: str | None, ignore_override_pattern: str | None, auto_ignore_detection: bool,
           use_tree_sitter: bool, chunking_strategy: str | None, no_progress: bool, progress: bool):
-    """Index code files in workspace with enhanced features.
-    
-    Features:
-    - Smart collection management with metadata storage
-    - Intelligent ignore pattern system with GitHub templates
-    - Semantic code chunking with Tree-sitter (when enabled)
-    - KiloCode compatibility for seamless tool integration
-    - Configurable file type weighting and advanced settings
-    - Batch workspace processing via workspace list files
-    """
+    """Index code files in workspace with enhanced features."""
     logging_overrides = dict(ctx.obj.get("logging_components", {})) if ctx and ctx.obj else {}
 
     use_progress_ui = False if no_progress else True
@@ -468,3 +492,6 @@ def search(workspace: str, config: str, min_score: float, max_results: int, json
         snippet = create_code_snippet(match.code_chunk, preview_chars)
         print(f"   Preview:\n{snippet}")
 
+
+if __name__ == "__main__":
+    cli()

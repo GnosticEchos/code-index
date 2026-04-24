@@ -45,7 +45,7 @@ def _resolve_canonical_id_for_delete(collection_manager: CollectionManager, coll
     return None
 
 
-@click.command()
+@click.command(name='list')
 @click.option('--detailed', is_flag=True, help='Show detailed information')
 def list_collections(detailed: bool):
     """List all collections."""
@@ -68,10 +68,8 @@ def list_collections(detailed: bool):
             points = collection.get("points_count", 0)
             workspace = collection.get("workspace_path", "Unknown")
             
-            # Formatting dimension for tests: they expect 'text:768,img:512'
             dims = collection.get("dimensions", {}) or {}
             if len(dims) > 1:
-                # Sort reverse to get 'text' before 'img' for test matching
                 pairs = [f"{k}:{v}" for k, v in sorted(dims.items(), reverse=True)]
                 dim_display = ",".join(pairs)
             else:
@@ -88,7 +86,6 @@ def list_collections(detailed: bool):
             if detailed:
                 print(f"{name:<30} {points:<8} {dim_display:<18} {model:<24} {workspace}")
             else:
-                # Truncate long workspace paths
                 ws = workspace
                 if len(ws) > 50:
                     ws = ws[:47] + "..."
@@ -99,7 +96,7 @@ def list_collections(detailed: bool):
         sys.exit(1)
 
 
-@click.command()
+@click.command(name='info')
 @click.argument('collection_name')
 def collection_info(collection_name: str):
     """Show detailed information about a collection."""
@@ -114,7 +111,6 @@ def collection_info(collection_name: str):
         print(f"Points: {info['points_count']}")
         print(f"Vectors: {info['vectors_count']}")
         
-        # Try to get workspace path from metadata
         try:
             scroll_res = collection_manager.client.scroll(
                 collection_name="code_index_metadata",
@@ -138,23 +134,18 @@ def collection_info(collection_name: str):
         except Exception:
             pass
 
-        # Print dimensions
         dim = info.get("dimension")
         dims = info.get("dimensions", {}) or {}
         
         if len(dims) > 1:
-            # Multi-vector display - sort reverse for 'text' then 'img'
             for name, size in sorted(dims.items(), reverse=True):
                 print(f"Vector {name}: {size}")
         elif len(dims) == 1:
-            # Single named vector
             val = next(iter(dims.values()))
             print(f"Dimension: {val}")
         elif dim and dim != 0:
-            # Primary dimension fallback
             print(f"Dimension: {dim}")
 
-        # Print model identifier
         print(f"Model: {info.get('model_identifier', 'unknown') or 'unknown'}")
         
     except Exception as e:
@@ -162,22 +153,16 @@ def collection_info(collection_name: str):
         sys.exit(1)
 
 
-@click.command()
+@click.command(name='delete')
 @click.argument('collection_name')
 @click.option('--yes', '-y', is_flag=True, help='Confirm deletion non-interactively; skip confirmation prompt')
 def delete_collection(collection_name: str, yes: bool = False):
-    """Delete a collection.
-
-    Note: Also removes the local cache entry (cache_{canonical-id}.json) when the canonical id can be resolved.
-    """
+    """Delete a collection."""
     try:
         cfg = Config()
         collection_manager = CollectionManager(cfg)
-
-        # Resolve canonical id before deletion to avoid relying on post-delete state
         canonical_id = _resolve_canonical_id_for_delete(collection_manager, collection_name)
 
-        # Confirm deletion
         if not yes:
             try:
                 click.confirm(
@@ -201,7 +186,6 @@ def delete_collection(collection_name: str, yes: bool = False):
         collection_manager.delete_collection(collection_name)
         print(f"Collection '{collection_name}' deleted successfully.")
 
-        # Cache cleanup
         if canonical_id:
             try:
                 removed = delete_collection_cache(canonical_id, cfg)
@@ -216,7 +200,7 @@ def delete_collection(collection_name: str, yes: bool = False):
         sys.exit(1)
 
 
-@click.command()
+@click.command(name='prune')
 @click.option('--older-than', type=int, default=30, help='Prune collections older than specified days')
 def prune_collections(older_than: int):
     """Prune old collections."""
@@ -252,10 +236,10 @@ def _extract_collection_names(obj) -> list[str]:
     return sorted(names)
 
 
-@click.command()
+@click.command(name='clear-all')
 @click.option('--yes', '-y', 'yes', is_flag=True, help='Skip confirmation prompt')
-@click.option('--dry-run', is_flag=True, help='Show intended collections to delete, then exit without deleting or clearing cache')
-@click.option('--keep-metadata', is_flag=True, help='Do not delete code_index_metadata (default is to delete it)')
+@click.option('--dry-run', is_flag=True, help='Show intended collections to delete')
+@click.option('--keep-metadata', is_flag=True, help='Do not delete code_index_metadata')
 def clear_all_collections(yes: bool, dry_run: bool, keep_metadata: bool):
     """Delete all Qdrant collections and clear local cache files."""
     try:
@@ -323,5 +307,3 @@ def clear_all_collections(yes: bool, dry_run: bool, keep_metadata: bool):
 
     print(f"Collections: found {total_found}, deleted {deleted}, already absent {already_absent}, failed {failed}.")
     print(f"Cache: removed {removed_cache} file(s) from application cache directory.")
-    logger.info(f"Collections summary — found={total_found} deleted={deleted} already_absent={already_absent} failed={failed}")
-    logger.info(f"Cache cleanup summary — removed={removed_cache} file(s)")

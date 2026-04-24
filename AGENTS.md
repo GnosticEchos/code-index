@@ -2,39 +2,42 @@
 
 This file provides guidance to agents when working with code in this repository.
 
+## Intelligence Mandates (2024-2025 Architecture)
+- **Universal Structural Intelligence**: Every code chunk must be relationship-native. Use the 908-record `UniversalSchemaService` to extract `class`, `function`, `import`, and `call` types.
+- **Magika Gatekeeper**: Use `MagikaDetector` for AI-driven content identification before applying Tree-sitter parsers.
+- **Structural Integrity**: `TreeSitterBlockExtractor` uses modern v0.23.x bindings. Always pass an explicit `Language` object to `RelationshipBlockExtractor`.
+
 ## Critical Environment Rules
 - **Python 3.13 only** — 3.14 unsupported by Nuitka (linking issues with `_Py_TriggerGC`)
 - **`uv` is mandatory** — never use `pip` or `venv` directly; use `uv run` / `uv pip`
-- Nuitka builds require `--lto=no --clang` for Python 3.13+ stability
+- **ABI Constraint**: Pin `tree-sitter-language-pack` to 1.6.2 for Python 3.13 compatibility.
+
+## High-Precision Extraction
+- **Unified Schema**: `RelationshipBlockExtractor` categorizes code into 4 classes:
+  - `class`: Structural definitions (Structs, Enums, Interfaces, Modules)
+  - `function`: Callable logic (Methods, Procedures, Signatures)
+  - `import`: Dependency links (Cross-file imports, requires)
+  - `call`: Execution links (Method calls, qualified calls)
+- **Version-Aware Querying**: Use `tree_sitter.QueryCursor(query).captures(node)` which returns a dict of `{capture_name: [nodes]}`.
 
 ## Commands
 - Install: `uv pip install -e .`
 - Test all: `uv run pytest tests/ -v`
-- Test single: `uv run pytest tests/test_basic.py::test_config -v`
-- Lint: `black --check .` / `flake8` / `mypy`
-- Build binaries: `uv run python scripts/build/build_cross_platform.py`
+- Test single: `uv run pytest tests/test_treesitter_block_extractor_new.py -v`
+- Build binaries: `make build-all` (Builds Linux, macOS, and Windows)
 
 ## Non-Obvious Architecture
-- CLI and MCP server **share logic** via [`CommandContext`](src/code_index/services/shared/command_context.py) — never duplicate business logic between them
-- MCP server uses [`MCPErrorHandlerAdapter`](src/code_index/mcp_server/server.py:36) to bridge MCP errors to core [`ErrorHandler`](src/code_index/errors.py)
-- Services use CQRS: commands in `services/command/`, queries in `services/query/`, shared in `services/shared/`
-- [`ConfigurationService`](src/code_index/config_service.py) loads config from 5 prioritized sources (CLI > workspace > env > file > defaults)
-- `pythonpath` in [`pytest.ini`](pytest.ini:39) adds both `.venv` site-packages AND `src/` — imports use `code_index.*` not `src.code_index.*`
+- **CQRS**: Commands in `services/command/`, queries in `services/query/`.
+- **Progress Protocol**: `ProgressManager` enforces a singleton overall bar. File paths must swap in-place to prevent "Double Bar" regression.
+- **Universal Forge**: 908 relationship queries live in `src/code_index/queries/queries_minimal.jsonl`.
+- **Extraction Result**: `ExtractionResult` must include `high_precision` metadata flag when relationship extraction succeeds.
 
 ## Coding Gotchas
-- **NEVER** use `print()` for errors in service layers — use [`ErrorHandler`](src/code_index/errors.py) and [`logging_utils.py`](src/code_index/logging_utils.py)
-- Rich TUI components in `src/code_index/ui/` for progress display — not tqdm in services
-- Services accept [`IndexingDependencies`](src/code_index/services/shared/indexing_dependencies.py) or [`CommandContext`](src/code_index/services/shared/command_context.py) — inject mocks for tests
-- Constants live in [`constants.py`](src/code_index/constants.py) — don't hardcode timeouts, batch sizes, or thresholds
-- Entry points: CLI = `code_index.cli:cli`, MCP = `code_index.mcp_server.server:sync_main`
-- `asyncio_mode = auto` in pytest.ini — async tests need no explicit decorator
+- **NEVER** increment `total_extractions` on cache hits in `TreeSitterBlockExtractor`.
+- **ABI Safety**: Avoid `_Py_` internal symbols; stay within the public Python C-API for Nuitka stability.
+- **Mmap Safety**: `MmapFileProcessor` must handle `PermissionError` and `ValueError` fallbacks gracefully.
 
-## Service Size Limits
-- Simple services/helpers: ~200 lines
-- Core services (parsers, executors): 400-650 lines max
-- Hard rule: < 20 methods per class, no mixed responsibilities
-
-## Code Style (non-obvious)
-- Black 88-char line length, target `py313`
-- Flake8: `max-complexity = 18`, ignores `E203, E501, W503, B950`
-- Type hints required; use `from __future__ import annotations` for forward refs
+## Code Style
+- Black 88-char line length, target `py313`.
+- Type hints required; use `from __future__ import annotations` for forward refs.
+- Documentation: Maintain 1:1 parity between CLI and MCP tool descriptions.
