@@ -30,7 +30,6 @@ This guide covers common issues, error messages, and solutions when using the Co
    uv pip install -e .
    
    # Check for missing optional dependencies
-   pip install langchain-text-splitters  # For token chunking
    pip install pygments                  # For auto-extensions
    ```
 

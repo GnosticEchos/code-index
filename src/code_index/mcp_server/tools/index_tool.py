@@ -820,8 +820,6 @@ async def _execute_indexing(
                 strategy_name = getattr(operation_config, "chunking_strategy", "lines") or "lines"
                 if strategy_name == "treesitter":
                     chunking_impl = chunking_module.TreeSitterChunkingStrategy(operation_config)
-                elif strategy_name == "tokens":
-                    chunking_impl = chunking_module.TokenChunkingStrategy(operation_config)
                 else:
                     chunking_impl = chunking_module.LineChunkingStrategy(operation_config)
 

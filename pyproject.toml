@@ -26,7 +26,6 @@ dependencies = [
     "tqdm>=4.67.3",
     "tree-sitter==0.25.2",
     "tree-sitter-language-pack==1.6.2",
-    "langchain-text-splitters>=0.3.11",
     "pygments>=2.20.0",
     "fastmcp>=3.2.4",
     "whats-that-code",
@@ -41,7 +40,7 @@ dependencies = [
     "urllib3>=2.6.3",
     "pydantic>=2.13.3",
     "pydantic-core>=2.46.3",
-    "pydantic-settings>=2.14.0"
+    "pydantic-settings>=2.14.0",
 ]
 
 [project.scripts]
@@ -61,6 +60,17 @@ dev = [
 [tool.black]
 line-length = 88
 target-version = ['py313']
+
+[tool.nuitka]
+# Optimized flags for Intelligence Binaries
+standalone = true
+onefile = true
+python-flag = ["no_asserts", "no_docstrings"]
+nofollow-import-to = ["*.tests", "*.pytest", "pytest", "tests"]
+enable-plugin = ["anti-bloat"]
+# Avoid including setuptools in the final binary
+noinclude-setuptools-mode = "nofollow"
+noinclude-pytest-mode = "nofollow"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

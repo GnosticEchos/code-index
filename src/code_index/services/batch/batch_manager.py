@@ -14,7 +14,6 @@ from ...scanner import DirectoryScanner
 from ...chunking import (
     ChunkingStrategy,
     LineChunkingStrategy,
-    TokenChunkingStrategy,
     TreeSitterChunkingStrategy,
 )
 from ...errors import ErrorHandler
@@ -105,8 +104,6 @@ class BatchManager:
         
         if strategy_name == "treesitter":
             return TreeSitterChunkingStrategy(self.config)
-        elif strategy_name == "tokens":
-            return TokenChunkingStrategy(self.config)
         else:
             return LineChunkingStrategy(self.config)
     

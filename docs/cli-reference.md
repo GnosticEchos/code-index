@@ -384,8 +384,6 @@ Exit codes
 - Implementations:
   - [LineChunkingStrategy](src/code_index/chunking.py:53):
     - Internal defaults: min_block_chars=50, max_block_chars=1000; splits by accumulated line length with tolerance.
-  - [TokenChunkingStrategy](src/code_index/chunking.py:101):
-    - Uses a token-based splitter from langchain-text-splitters with Config.token_chunk_size (default 1000) and Config.token_chunk_overlap (default 200). Falls back to line-based if the package is unavailable.
   - [TreeSitterChunkingStrategy](src/code_index/chunking.py:163):
     - Honors Config.tree_sitter_max_file_size_bytes (default 512KB) and various per-file limits (max blocks, functions, classes, impl blocks).
     - Skips tests/examples by default; configurable via config.

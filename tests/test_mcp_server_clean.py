@@ -249,7 +249,8 @@ class TestCodeIndexMCPServer:
         server = CodeIndexMCPServer(temp_config_file)
         
         # Should not raise any exceptions
-        server._cleanup_server_resources()
+        import asyncio
+        asyncio.run(server._cleanup_server_resources())
 
 
 class TestServerIntegration:

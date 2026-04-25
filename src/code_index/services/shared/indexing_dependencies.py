@@ -26,7 +26,6 @@ from ...scanner import DirectoryScanner
 from ...chunking import (
     ChunkingStrategy,
     LineChunkingStrategy,
-    TokenChunkingStrategy,
     TreeSitterChunkingStrategy,
 )
 from ...errors import ErrorHandler

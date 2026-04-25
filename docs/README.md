@@ -12,7 +12,6 @@ A standalone code indexing tool that uses Ollama for embeddings and Qdrant for v
 - File change detection to avoid reprocessing
 - Configurable Ollama and Qdrant endpoints
 - Config-first embedding length (required via config.embedding_length)
-- Token-based chunking option using LangChain TokenTextSplitter with approximate line mapping
 - Auto-extensions discovery via Pygments (augment supported extensions)
 - Configurable embed timeout (config/env/CLI), timeout logging, and retry-list processing
 - Exclude arbitrary files with a newline-separated path list
@@ -165,15 +164,6 @@ MIT
   - If missing, initialization fails with a clear error.
 - File: [config.py](../src/code_index/config.py#L1)
 - Enforcement: [QdrantVectorStore.initialize](../src/code_index/vector_store.py#L80)
-
-### Token-based Chunking
-- Enable LangChain-based token chunking via config:
-  - `"chunking_strategy": "tokens"`
-  - `"token_chunk_size": 1000`
-  - `"token_chunk_overlap": 200`
-- Approximate line mapping is preserved for UI display.
-- Fallback: If langchain-text-splitters is unavailable, tool falls back to line-based with a warning.
-- File: [parser.py](../src/code_index/parser.py#L1)
 
 ### Auto-extensions (Pygments)
 - When `"auto_extensions": true`, extensions from Pygments lexers are merged into your configured list.

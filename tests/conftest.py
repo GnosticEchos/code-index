@@ -259,13 +259,11 @@ def mock_indexing_components():
                 
                 # Mock chunking strategies
                 with patch('src.code_index.chunking.LineChunkingStrategy') as mock_line_chunking:
-                    with patch('src.code_index.chunking.TokenChunkingStrategy') as mock_token_chunking:
-                        with patch('src.code_index.chunking.TreeSitterChunkingStrategy') as mock_tree_chunking:
-                            mocks['line_chunking'] = mock_line_chunking.return_value
-                            mocks['token_chunking'] = mock_token_chunking.return_value
-                            mocks['tree_chunking'] = mock_tree_chunking.return_value
-                            
-                            yield mocks
+                    with patch('src.code_index.chunking.TreeSitterChunkingStrategy') as mock_tree_chunking:
+                        mocks['line_chunking'] = mock_line_chunking.return_value
+                        mocks['tree_chunking'] = mock_tree_chunking.return_value
+                        
+                        yield mocks
 
 
 @pytest.fixture

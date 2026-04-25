@@ -92,9 +92,6 @@ class IndexingOrchestrator:
             if strategy_name == "treesitter":
                 from ...chunking import TreeSitterChunkingStrategy
                 chunking_strategy = TreeSitterChunkingStrategy(config)
-            elif strategy_name == "tokens":
-                from ...chunking import TokenChunkingStrategy
-                chunking_strategy = TokenChunkingStrategy(config)
             else:
                 from ...chunking import LineChunkingStrategy
                 chunking_strategy = LineChunkingStrategy(config)

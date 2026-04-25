@@ -1,8 +1,34 @@
 """Main MCP server implementation leveraging shared command context."""
 
+# Nuitka Project Directives for Intelligence MCP Server
+# nuitka-project: --product-name=CodeIndexMCP
+# nuitka-project: --product-version=0.1.0
+# nuitka-project: --file-version=0.1.0
+# nuitka-project: --onefile
+# nuitka-project-if: {OS} == "Windows":
+#    nuitka-project: --windows-console-mode=force
+# nuitka-project-else:
+# nuitka-project: --include-data-dir={MAIN_DIRECTORY}/../queries=code_index/queries
+# nuitka-project: --include-package-data=code_index:queries/*.jsonl
+# nuitka-project: --include-package-data=code_index:queries/*.json
+# nuitka-project: --nofollow-import-to=torch
+# nuitka-project: --nofollow-import-to=sympy
+# nuitka-project: --nofollow-import-to=pytest
+# nuitka-project: --nofollow-import-to=tests
+# nuitka-project: --noinclude-setuptools-mode=nofollow
+# nuitka-project: --noinclude-pytest-mode=nofollow
+
 import asyncio
+
 import os
 import sys
+
+# Fork Bomb Protection for Standalone Binaries
+if "__compiled__" in globals():
+    if "NUITKA_LAUNCH_TOKEN" in os.environ:
+       sys.exit("Error, launch token must not be present or else fork bomb suspected.")
+    os.environ["NUITKA_LAUNCH_TOKEN"] = "1"
+
 import logging
 from typing import Optional
 from contextlib import asynccontextmanager
