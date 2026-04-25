@@ -52,6 +52,7 @@ def build_cli_binary():
         "--include-package=magika",
         "--include-package=rich",
         "--include-package=charset_normalizer",
+        "--include-package=zstandard",
 
         # Embed Magika ONNX model and Universal Relationship Schema
         "--include-package-data=magika",
