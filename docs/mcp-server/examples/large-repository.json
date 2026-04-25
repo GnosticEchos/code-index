@@ -10,9 +10,10 @@
   "auto_extensions": false,
   "exclude_files_path": "large_repo_ignore.txt",
   
-  "chunking_strategy": "tokens",
-  "token_chunk_size": 600,
-  "token_chunk_overlap": 100,
+  "chunking_strategy": "treesitter",
+  "use_tree_sitter": true,
+  "tree_sitter_max_blocks_per_file": 100,
+  "tree_sitter_skip_test_files": true,
   "tree_sitter_max_file_size_bytes": 131072,
   
   "batch_segment_threshold": 20,
