@@ -38,7 +38,7 @@ Once added, Code Index will automatically process `.my_custom_ext` files. If it 
 
 For structural intelligence, Code Index uses Tree-sitter v0.23.x bindings combined with a custom **908-record Universal Relationship Schema**.
 
-We maintain specific S-expression queries (`src/code_index/queries/queries_minimal.jsonl`) for parsing the structural boundaries of over 200 languages. 
+We maintain specific S-expression queries (`src/code_index/queries/queries_minimal.jsonl`) for parsing the structural boundaries of over 200 languages. These queries are derived from the comprehensive [tree-sitter-language-pack](https://github.com/kreuzberg-dev/tree-sitter-language-pack) repository, which provides a unified grammar collection and query definitions across the entire Tree-sitter ecosystem.
 
 When you run with `--use-tree-sitter --chunking-strategy treesitter`, the engine looks up the detected language in this schema and dynamically extracts:
 *   `class` definitions (Structs, Enums, Traits, Interfaces)
