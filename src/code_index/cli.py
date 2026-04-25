@@ -61,13 +61,27 @@ def handle_helptree_invocation(ctx, cmd):
     
     if help_tree or help_tree_json:
         from code_index.ui.helptree_handler import HelpTreeHandler
-        # The 'cli' group is our root for introspection
-        handler = HelpTreeHandler(cli)
+        # Use the current command/group as the root for introspection
+        handler = HelpTreeHandler(cmd)
         
-        # Determine the path to the current command
-        path = ctx.command_path.split()[1:] # Skip the binary name 'code-index'
+        # Build path from Click's command path, skipping non-command tokens
+        # Click's command_path separates commands with spaces
+        full_path = ctx.command_path.split()
+        # Remove the binary name (first token) and any flags like '-m'
+        path = []
+        skip_next = False
+        for token in full_path[1:]:  # Skip binary name
+            if skip_next:
+                skip_next = False
+                continue
+            if token.startswith('-'):
+                # Flag - skip it and possibly the next token (its argument)
+                if token in ('-m', '--module'):
+                    skip_next = True
+                continue
+            path.append(token)
         
-        # Generate the full map but let the handler handle sub-path rendering
+        # Generate map rooted at current command
         cmd_map = handler.generate_map(ctx)
         
         if help_tree_json:
@@ -176,6 +190,7 @@ def _load_exclude_list(workspace_path: str, exclude_files_path: str | None) -> S
 
 
 @cli.command()
+@helptree_options
 @click.pass_context
 @click.option('--workspace', default='.', help='Workspace path')
 @click.option('--config', default='code_index.json', help='Configuration file')
@@ -190,10 +205,11 @@ def _load_exclude_list(workspace_path: str, exclude_files_path: str | None) -> S
 @click.option('--chunking-strategy', type=click.Choice(['lines', 'tokens', 'treesitter']), default=None, help='Chunking strategy: lines (default), tokens, or treesitter')
 @click.option('--no-progress', is_flag=True, help='Disable progress UI (enabled by default)')
 @click.option('--progress', is_flag=True, help='Force enable progress UI (default behaviour)')
-def index(ctx, workspace: str, config: str, workspacelist: str | None, embed_timeout: int | None, retry_list: str | None, timeout_log: str | None,
+def index(ctx, help_tree: bool, help_tree_json: bool, workspace: str, config: str, workspacelist: str | None, embed_timeout: int | None, retry_list: str | None, timeout_log: str | None,
           ignore_config: str | None, ignore_override_pattern: str | None, auto_ignore_detection: bool,
           use_tree_sitter: bool, chunking_strategy: str | None, no_progress: bool, progress: bool):
     """Index code files in workspace with enhanced features."""
+    handle_helptree_invocation(ctx, index)
     logging_overrides = dict(ctx.obj.get("logging_components", {})) if ctx and ctx.obj else {}
 
     use_progress_ui = False if no_progress else True
@@ -411,14 +427,18 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
 
 
 @cli.command()
+@helptree_options
+@click.pass_context
 @click.option('--workspace', default='.', help='Workspace path')
 @click.option('--config', default='code_index.json', help='Configuration file')
 @click.option('--min-score', type=float, default=None, help='Minimum similarity score (0.0-1.0)')
 @click.option('--max-results', type=int, default=None, help='Maximum number of results')
 @click.option('--json', 'json_output', is_flag=True, help='Output results as JSON')
 @click.argument('query')
-def search(workspace: str, config: str, min_score: float, max_results: int, json_output: bool, query: str):
+def search(ctx, help_tree: bool, help_tree_json: bool, workspace: str, config: str, min_score: float, max_results: int, json_output: bool, query: str):
     """Search indexed code using semantic similarity."""
+    ctx = click.get_current_context()
+    handle_helptree_invocation(ctx, search)
     cli_overrides = build_search_overrides(
         min_score=min_score,
         max_results=max_results,

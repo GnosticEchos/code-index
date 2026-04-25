@@ -1,4 +1,6 @@
 import json
+import os
+import sys
 import click
 from typing import Dict, Any, List, Optional
 from rich.console import Console
@@ -101,7 +103,11 @@ class HelpTreeHandler:
         # Sub-tree
         self._write_rich_tree(target_map, "")
         
-        console.print(f"\nUse `code-index {' '.join(path or [])} <COMMAND> --help` for full details.")
+        # Use the CLI binary name
+        prog_name = "code-index"
+        full_path = " ".join(path or [])
+        suffix = f" {full_path}".rstrip()
+        console.print(f"\nUse `{prog_name}{suffix} <COMMAND> --help` for full details.")
 
     def _write_rich_tree(self, cmd_info: Dict[str, Any], prefix: str):
         subcommands = cmd_info.get("commands", [])
