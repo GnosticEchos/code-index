@@ -51,23 +51,34 @@ def build_cli_binary():
         "--include-package=fastmcp",
         "--include-package=magika",
         "--include-package=rich",
-        
+        "--include-package=charset_normalizer",
+
         # Embed Magika ONNX model and Universal Relationship Schema
         "--include-package-data=magika",
         "--include-data-dir=src/code_index/queries=code_index/queries",
-        
+
         # Proven Nuitka Optimization Suite
-        "--enable-plugin=numpy",
         "--clang",
         "--lto=no", # Disabled for stability across Python minor versions
         "--prefer-source-code",
-        
+
         # Onefile UX: Fast extraction to local cache
         '--onefile-tempdir-spec={CACHE_DIR}/nuitka/code-index',
-        
-        # Exclude noise
+
+        # Aggressive Bloat Exclusion (Structural elimination of unused modules)
+        "--nofollow-import-to=chardet",
+        "--nofollow-import-to=torch",
+        "--nofollow-import-to=sympy",
+        "--noinclude-custom-mode=chardet:error",
+        "--noinclude-custom-mode=torch:error",
+        "--noinclude-custom-mode=sympy:error",
         "--nofollow-import-to=pytest",
         "--nofollow-import-to=tests",
+        "--noinclude-setuptools-mode=nofollow",
+        "--noinclude-pytest-mode=nofollow",
+        
+        # Silence options-nanny and ensure torch is disabled
+        "--module-parameter=torch-disable-jit=yes",
         
         "src/bin/cli_entry.py"
     ]

@@ -2,7 +2,13 @@
 File processing utilities for the code index tool.
 """
 import os
-import chardet
+try:
+    import charset_normalizer as chardet
+except ImportError:
+    try:
+        import chardet
+    except ImportError:
+        chardet = None
 import time
 import logging
 import mmap
