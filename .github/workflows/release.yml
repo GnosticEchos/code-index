@@ -1,0 +1,313 @@
+name: Build and Release Cross-Platform Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: false
+        default: 'prerelease'
+        type: choice
+        options:
+          - prerelease
+          - draft
+
+env:
+  UV_VERSION: '0.4.21'
+  PYTHON_VERSION: '3.13'
+
+jobs:
+  build-linux:
+    name: Build Linux Binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: 'uv.lock'
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Rust (for Nuitka)
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          uv sync --all-extras --dev
+          uv pip install nuitka==2.4
+
+      - name: Install system dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            lld \
+            patchelf \
+            python3-dev
+
+      - name: Build CLI (${{ matrix.target }})
+        shell: bash
+        env:
+          UV_SYSTEM_PYTHON: 0
+        run: |
+          .venv/bin/python scripts/build/build_cli.py
+
+      - name: Build MCP Server (${{ matrix.target }})
+        shell: bash
+        env:
+          UV_SYSTEM_PYTHON: 0
+        run: |
+          .venv/bin/python scripts/build/build_mcp.py
+
+      - name: Rename binaries for platform
+        shell: bash
+        run: |
+          mv dist/code-index dist/code-index-linux-${{ matrix.target }}
+          mv dist/code-index-mcp dist/code-index-mcp-linux-${{ matrix.target }}
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.target }}-binaries
+          path: |
+            dist/code-index-linux-${{ matrix.target }}
+            dist/code-index-mcp-linux-${{ matrix.target }}
+          retention-days: 1
+
+  build-windows:
+    name: Build Windows Binaries
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [x86_64]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: 'uv.lock'
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "17.0"
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          uv sync --all-extras --dev
+          uv pip install nuitka==2.4
+
+      - name: Build CLI
+        shell: cmd
+        run: |
+          .venv\Scripts\python scripts\build\build_cli.py
+
+      - name: Build MCP Server
+        shell: cmd
+        run: |
+          .venv\Scripts\python scripts\build\build_mcp.py
+
+      - name: Rename binaries
+        shell: bash
+        run: |
+          mv dist/code-index.exe dist/code-index-windows-${{ matrix.target }}.exe
+          mv dist/code-index-mcp.exe dist/code-index-mcp-windows-${{ matrix.target }}.exe
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.target }}-binaries
+          path: |
+            dist/code-index-windows-${{ matrix.target }}.exe
+            dist/code-index-mcp-windows-${{ matrix.target }}.exe
+          retention-days: 1
+
+  build-macos:
+    name: Build macOS Binaries
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64, arm64]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: 'uv.lock'
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          uv sync --all-extras --dev
+          uv pip install nuitka==2.4
+
+      - name: Build CLI (${{ matrix.target }})
+        shell: bash
+        env:
+          ARCH: ${{ matrix.target }}
+        run: |
+          .venv/bin/python scripts/build/build_cli.py
+
+      - name: Build MCP Server (${{ matrix.target }})
+        shell: bash
+        env:
+          ARCH: ${{ matrix.target }}
+        run: |
+          .venv/bin/python scripts/build/build_mcp.py
+
+      - name: Rename binaries
+        shell: bash
+        run: |
+          mv dist/code-index dist/code-index-macos-${{ matrix.target }}
+          mv dist/code-index-mcp dist/code-index-mcp-macos-${{ matrix.target }}
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.target }}-binaries
+          path: |
+            dist/code-index-macos-${{ matrix.target }}
+            dist/code-index-mcp-macos-${{ matrix.target }}
+          retention-days: 1
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Display artifact structure
+        shell: bash
+        run: |
+          find release-artifacts -type f | sort
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/linux-x86_64-binaries/code-index-linux-x86_64
+            release-artifacts/linux-x86_64-binaries/code-index-mcp-linux-x86_64
+            release-artifacts/linux-aarch64-binaries/code-index-linux-aarch64
+            release-artifacts/linux-aarch64-binaries/code-index-mcp-linux-aarch64
+            release-artifacts/windows-x86_64-binaries/code-index-windows-x86_64.exe
+            release-artifacts/windows-x86_64-binaries/code-index-mcp-windows-x86_64.exe
+            release-artifacts/macos-x86_64-binaries/code-index-macos-x86_64
+            release-artifacts/macos-x86_64-binaries/code-index-mcp-macos-x86_64
+            release-artifacts/macos-arm64-binaries/code-index-macos-arm64
+            release-artifacts/macos-arm64-binaries/code-index-mcp-macos-arm64
+          draft: ${{ github.event.inputs.release_type == 'draft' || false }}
+          prerelease: ${{ github.event.inputs.release_type == 'prerelease' || false }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  checksums:
+    name: Generate Checksums
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Generate SHA256 checksums
+        shell: bash
+        run: |
+          cd release-artifacts
+          find . -type f \( -name "code-index*" -o -name "code-index-mcp*" \) \
+            -exec sha256sum {} \; | sed 's|./||' | sort > ../checksums.txt
+          cat ../checksums.txt
+
+      - name: Upload checksums to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  homebrew-tap:
+    name: Update Homebrew Tap
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: get_version
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update Homebrew formula
+        uses: grinvin/homebrew-tap-update@v1
+        with:
+          tap: your-tap/code-index
+          formula: code-index
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          tag: ${{ steps.get_version.outputs.version }}
+          url: |
+            https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/code-index-linux-x86_64
+            https://github.com/${{ github.repository }}/releases/download/v${{ steps.get_version.outputs.version }}/code-index-mcp-linux-x86_64

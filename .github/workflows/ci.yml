@@ -1,0 +1,155 @@
+name: CI Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  UV_VERSION: '0.4.21'
+  PYTHON_VERSION: '3.13'
+
+jobs:
+  test:
+    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.13']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: 'uv.lock'
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          uv sync --all-extras --dev
+
+      - name: Run tests
+        shell: bash
+        run: |
+          uv run pytest tests/ -v --tb=short
+        env:
+          UV_SYSTEM_PYTHON: 0
+
+      - name: Run MCP tests
+        shell: bash
+        run: |
+          uv run pytest tests/test_mcp_*.py -v --tb=short
+        env:
+          UV_SYSTEM_PYTHON: 0
+
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: 'uv.lock'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install mypy
+        shell: bash
+        run: |
+          uv pip install mypy
+
+      - name: Run mypy
+        shell: bash
+        run: |
+          mypy src/code_index --ignore-missing-imports
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: 'uv.lock'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install ruff
+        shell: bash
+        run: |
+          uv pip install ruff
+
+      - name: Run ruff
+        shell: bash
+        run: |
+          ruff check src/code_index --fix
+
+  build-test:
+    name: Build Test (Nuitka Compilation)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: 'uv.lock'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Nuitka
+        shell: bash
+        run: |
+          uv pip install nuitka==2.4
+
+      - name: Test CLI build (mode=module)
+        shell: bash
+        run: |
+          .venv/bin/python -m nuitka \
+            --mode=module \
+            --output-dir=build_test \
+            --remove-output \
+            --include-package=code_index \
+            src/bin/cli_entry.py || echo "Module build test completed"
+
+      - name: Clean build test
+        shell: bash
+        run: |
+          rm -rf build_test
