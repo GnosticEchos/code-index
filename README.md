@@ -57,28 +57,35 @@ uv pip install -e .
 The CLI is perfect for scripting, CI/CD, or just aggressively re-indexing your project after a massive refactor.
 
 ### 1. Indexing
-Point it at a directory and watch it go.
+Point it at a directory and watch it go. We recommend always passing your config file explicitly.
 
 ```bash
 # Basic line-by-line chunking (fastest)
-code-index index --workspace ./my-project
+code-index index --workspace ./my-project --config code_index.json
 
-# Semantic chunking (smartest)
-code-index index --workspace ./my-project --use-tree-sitter
+# Semantic chunking (smartest, highly recommended)
+code-index index --workspace ~/kanban_frontend/clones/context-hub \
+  --config rust_optimized_config.json \
+  --use-tree-sitter --chunking-strategy treesitter
 
 # Batch process a whole list of workspaces
-code-index index --workspacelist ./repos.txt
+code-index index --workspacelist ./repos.txt --config code_index.json
 ```
 
 ### 2. Searching
-Find the code you wrote 6 months ago and completely forgot about.
+Find the code you wrote 6 months ago and completely forgot about. Always specify the workspace and config to ensure the embeddings map correctly.
 
 ```bash
-# Natural language search
-code-index search "how do we validate JWT tokens?"
+# Natural language semantic search
+code-index search "haskell signatures and data types in HelpTree.hs" \
+  --workspace ~/Projects/HelpTree \
+  --config rust_optimized_config.json
 
 # Be picky (higher score = stricter match)
-code-index search "database connection pool" --min-score 0.7
+code-index search "database connection pool" \
+  --workspace ./my-project \
+  --config code_index.json \
+  --min-score 0.7
 ```
 
 ### 3. Collection Management
@@ -94,6 +101,18 @@ code-index collections delete ws-abc123def456
 # The Nuclear Option (deletes ALL collections, requires confirmation)
 code-index collections clear-all
 ```
+
+---
+
+## 🌍 Supported Languages (200+)
+
+Most indexing tools stop at Python, JavaScript, and maybe Rust. Code Index supports **over 200 programming languages** natively.
+
+Because we use **Magika** for AI-driven detection and a 908-record **Universal Relationship Schema** for Tree-sitter parsing, Code Index can structurally map everything from `C++` and `Go` to obscure configuration formats, database schema dialects (like `Surql`), and functional languages like `Haskell` or `OCaml`.
+
+**Missing a language?** Code Index can automatically augment its support using Pygments lexers, or you can manually define new rules.
+
+👉 **[Read the full guide on extending language support](docs/language-support.md)**
 
 ---
 
