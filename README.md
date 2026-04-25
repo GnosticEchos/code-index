@@ -1,85 +1,186 @@
-# Code Index Tool
+# Code Index 🧠🔍
 
-A high-precision Universal Structural Intelligence engine for codebase indexing and semantic search. It combines deep structural analysis with AI-driven content identification to create a relationship-native map of any codebase.
+A fast, slightly-too-smart codebase indexing tool and semantic search engine. It reads your code, figures out what language it is (even if you forgot the extension), chops it up into meaningful pieces, and stuffs it into a vector database so your AI assistants can actually find things.
 
-- **Universal Relationship Schema**: Surgical S-expression queries (908 records) for 200+ languages, identifying `class`, `function`, `import`, and `call` relationships.
-- **AI Gatekeeper (Magika)**: Google's Magika Deep Learning model identifies files by structural patterns in the first 2KB, ensuring precise language routing.
-- **High-Precision Search**: Semantic search weighted by structural importance, file type, and path.
-- **Unified MCP Server**: Full Model Context Protocol server exposing indexing, search, and collection management tools to AI assistants.
-- **Cross-Platform Binaries**: Standalone 37MB executables for Linux, macOS, and Windows with embedded Magika ONNX runtime.
+Under the hood, it combines **Google's Magika** for AI-driven file identification with **Tree-sitter** for surgical code parsing, all backed by **Ollama** and **Qdrant**.
 
-## Core Intelligence Features
+It's available as a standalone CLI or as a full Model Context Protocol (MCP) server.
 
-### 1. Universal Relationship Schema
-Unlike generic chunking, Code Index understands the *nature* of code. It uses the Relationship-Native Query Forge to extract:
-- **`class`**: Structural types (Structs, Enums, Interfaces, Modules).
-- **`function`**: Callable logic (Methods, Procedures, Signatures).
-- **`import`**: Dependency links (Cross-file imports, requires).
-- **`call`**: Execution links (Method calls, qualified calls).
+---
 
-### 2. Magika AI Identification
-Integrated Google's Magika model to provide 99%+ accuracy in file identification.
-- **Intelligence**: Identifies content types by structural patterns rather than just extensions.
-- **Tiered Detection**: `Magika (AI) -> Extension Map -> Generic Text` fallback.
-- **Performance**: High-speed ONNX-based detection with minimal overhead.
+## 🌟 Why Code Index?
 
-### 3. Structural Chunking (Tree-sitter)
-Uses modern Tree-sitter bindings (v0.23.x) to perform surgical extraction of code symbols.
-- **Version-Aware**: Dual-API support for both dictionary-based and list-based capture returns.
-- **Relationship-Native**: Every chunk is tagged with its relationship class (e.g., `type: function, name: validate`).
+Because grepping through 10,000 files for "that one authentication middleware" is soul-crushing.
 
-## MCP Server
+- **It Actually Understands Code**: Instead of blindly chopping files every 500 characters, it uses Tree-sitter (with 908 custom queries across 200+ languages) to extract complete `classes`, `functions`, `imports`, and `calls`.
+- **AI Gatekeeper**: We integrated Google's Magika Deep Learning model. It looks at the first 2KB of a file and *knows* what language it is, even if it's named `Dockerfile.backup.old`.
+- **Bring Your Own Models**: Uses your local Ollama instance for embeddings, keeping your codebase completely private.
+- **Zero Dependencies (Mostly)**: We compile 37MB standalone binaries for Linux, macOS, and Windows. No fighting with Python virtual environments unless you really want to.
+- **KiloCode Compatible**: Produces collections that KiloCode can use directly.
 
-This tool includes a complete **Model Context Protocol (MCP) server** that provides AI assistants with powerful code indexing and search capabilities.
+---
 
-### 🛠️ MCP Tools Overview
+## 🛠️ Prerequisites
 
-| Category          | Tool                  | Description                                |
-|-------------------|------------------------|--------------------------------------------|
-| 📊 **Indexing**   | `index`                | Index code files with high-precision structural analysis |
-| 🔍 **Search**     | `search`               | Semantic search on relationship-native chunks |
-| 📋 **Management** | `collections`          | Manage vector collections with workspace mapping |
+Before you start indexing the universe, you need two things running:
+1. **[Ollama](https://ollama.com/)**: For generating embeddings (default expects `nomic-embed-text:latest` on `http://localhost:11434`).
+2. **[Qdrant](https://qdrant.tech/)**: For storing the vectors (default expects `http://localhost:6333`).
 
-## Quick Start
+---
+
+## 🚀 Installation
+
+### Option A: The Easy Way (Binaries)
+Grab the standalone binary for your OS from the releases page (or build it yourself via `make build-all`). 
+*It has Magika, Tree-sitter, and everything else jammed inside.*
 
 ```bash
-# Install package and dependencies
-uv pip install -e .
-
-# Index your codebase with Structural Intelligence
-code-index index --use-tree-sitter
-
-# Search relationship-native chunks
-code-index search "authentication logic"
-
-# Start MCP server for AI assistant integration
-uv run code-index-mcp
+chmod +x code-index
+./code-index --help
 ```
 
-## Configuration
+### Option B: The Developer Way (From Source)
+You'll need Python 3.13+ and `uv` (because pip is so 2023).
 
-Default file: `code_index.json`. 
+```bash
+git clone <repository-url>
+cd code_index
+uv venv
+source .venv/bin/activate
+uv pip install -e .
+```
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `use_tree_sitter` | Enable high-precision structural analysis | `false` |
-| `chunking_strategy` | Set to "treesitter" for relationship extraction | `"lines"` |
-| `tree_sitter_min_block_chars` | Min chars for structural blocks | `5` |
-| `tree_sitter_max_blocks_per_file` | Max semantic blocks per file | `100` |
+---
 
-## KiloCode Compatibility
+## 💻 Usage: Command Line Interface
 
-- Collection naming matches KiloCode convention: `ws-` + SHA256(workspace_path).
-- Payload fields (filePath, codeChunk, startLine, endLine, type) match KiloCode expectations.
-- High-precision types (`class`, `function`, `import`, `call`) are fully supported.
+The CLI is perfect for scripting, CI/CD, or just aggressively re-indexing your project after a massive refactor.
 
-## Build System
+### 1. Indexing
+Point it at a directory and watch it go.
 
-- Cross-platform binaries built with **Nuitka 2.7.16+**.
-- Embedded Magika ONNX runtime for standalone AI detection.
-- Static libpython linking issues resolved across all platforms.
-- Build scripts: `scripts/build/`.
+```bash
+# Basic line-by-line chunking (fastest)
+code-index index --workspace ./my-project
 
-## License
+# Semantic chunking (smartest)
+code-index index --workspace ./my-project --use-tree-sitter
 
-MIT
+# Batch process a whole list of workspaces
+code-index index --workspacelist ./repos.txt
+```
+
+### 2. Searching
+Find the code you wrote 6 months ago and completely forgot about.
+
+```bash
+# Natural language search
+code-index search "how do we validate JWT tokens?"
+
+# Be picky (higher score = stricter match)
+code-index search "database connection pool" --min-score 0.7
+```
+
+### 3. Collection Management
+Clean up your vector database before it consumes your entire hard drive.
+
+```bash
+# List everything we've indexed
+code-index collections list
+
+# Nuke a specific workspace's collection
+code-index collections delete ws-abc123def456
+
+# The Nuclear Option (deletes ALL collections, requires confirmation)
+code-index collections clear-all
+```
+
+---
+
+## 🤖 Usage: MCP Server
+
+Code Index includes a full **Model Context Protocol (MCP)** server. This allows AI assistants (like Claude Desktop or Cursor) to dynamically index and search your codebases themselves.
+
+### Exposing the Server to your AI
+Add this to your MCP client's configuration file.
+
+**If using the compiled binary:**
+```json
+{
+  "mcpServers": {
+    "code_index": {
+      "command": "/absolute/path/to/code-index-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+**If running from source:**
+```json
+{
+  "mcpServers": {
+    "code_index": {
+      "command": "uv",
+      "args": [
+        "--directory", "/absolute/path/to/code_index",
+        "run", "code-index-mcp"
+      ]
+    }
+  }
+}
+```
+
+Once connected, your AI gets three shiny new tools: `index`, `search`, and `collections`. You can literally say: *"Hey AI, please index the frontend folder using tree-sitter, then search it for the login component."*
+
+---
+
+## ⚙️ Configuration
+
+By default, Code Index looks for a `code_index.json` file in your workspace or the current directory. If it doesn't find one, it uses sensible defaults.
+
+Here is a fully loaded example configuration:
+
+```json
+{
+  "ollama_base_url": "http://localhost:11434",
+  "ollama_model": "nomic-embed-text:latest",
+  "qdrant_url": "http://localhost:6333",
+  
+  "workspace_path": ".",
+  "extensions": [".rs", ".ts", ".vue", ".surql", ".js", ".py"],
+  
+  "embedding_length": 768,
+  "chunking_strategy": "treesitter",
+  "use_tree_sitter": true,
+  
+  "search_min_score": 0.4,
+  "search_max_results": 50,
+  
+  "tree_sitter_min_block_chars": 50,
+  "tree_sitter_skip_test_files": true,
+  
+  "auto_ignore_detection": true,
+  "skip_dot_files": true
+}
+```
+
+> **Pro Tip**: Make sure `embedding_length` exactly matches the output dimension of your chosen `ollama_model`. If you switch from `nomic-embed-text` (768) to a massive Qwen model (e.g., 1024), you must update the length, or Qdrant will throw a tantrum.
+
+---
+
+## 🏗️ Building the Binaries
+
+Want to compile the 37MB standalone executables yourself? We use Nuitka (v4.0.8+) for that. The build scripts aggressively prune bloat (like `torch` and `sympy`) to keep the binaries lean while retaining the ONNX-backed Magika AI.
+
+```bash
+# Build both CLI and MCP binaries (Linux, macOS, Windows compatible)
+make build-all
+```
+The finished binaries will be waiting for you in the `dist/` directory.
+
+---
+
+## 📜 License
+
+MIT License. Do whatever you want with it, just don't blame us if it achieves sentience.
