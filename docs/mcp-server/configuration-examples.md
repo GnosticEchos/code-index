@@ -81,7 +81,7 @@ A full configuration with all available options:
   
   "search_min_score": 0.4,
   "search_max_results": 50,
-  "search_snippet_preview_chars": 160,
+  "search_snippet_preview_chars": 500,
   "search_file_type_weights": {
     ".ts": 1.30,
     ".tsx": 1.25,
@@ -100,20 +100,20 @@ A full configuration with all available options:
     ".spec.ts": 0.30
   },
   "search_path_boosts": [
-    {"pattern": "src/", "boost": 1.30},
-    {"pattern": "lib/", "boost": 1.25},
-    {"pattern": "core/", "boost": 1.35},
-    {"pattern": "utils/", "boost": 1.15},
-    {"pattern": "components/", "boost": 1.20},
-    {"pattern": "services/", "boost": 1.25},
-    {"pattern": "api/", "boost": 1.30},
-    {"pattern": "docs/", "boost": 0.85},
-    {"pattern": "test/", "boost": 0.40},
-    {"pattern": "tests/", "boost": 0.40},
-    {"pattern": "spec/", "boost": 0.35},
-    {"pattern": "examples/", "boost": 0.60},
-    {"pattern": "node_modules/", "boost": 0.10},
-    {"pattern": "vendor/", "boost": 0.10}
+    {"pattern": "src/", "weight": 1.30},
+    {"pattern": "lib/", "weight": 1.25},
+    {"pattern": "core/", "weight": 1.35},
+    {"pattern": "utils/", "weight": 1.15},
+    {"pattern": "components/", "weight": 1.20},
+    {"pattern": "services/", "weight": 1.25},
+    {"pattern": "api/", "weight": 1.30},
+    {"pattern": "docs/", "weight": 0.85},
+    {"pattern": "test/", "weight": 0.40},
+    {"pattern": "tests/", "weight": 0.40},
+    {"pattern": "spec/", "weight": 0.35},
+    {"pattern": "examples/", "weight": 0.60},
+    {"pattern": "node_modules/", "weight": 0.10},
+    {"pattern": "vendor/", "weight": 0.10}
   ],
   "search_language_boosts": {
     "typescript": 1.25,
@@ -319,19 +319,19 @@ Optimized for Python codebases with scientific/data science libraries:
     ".conftest.py": 0.40
   },
   "search_path_boosts": [
-    {"pattern": "src/", "boost": 1.40},
-    {"pattern": "lib/", "boost": 1.30},
-    {"pattern": "core/", "boost": 1.50},
-    {"pattern": "utils/", "boost": 1.20},
-    {"pattern": "models/", "boost": 1.35},
-    {"pattern": "services/", "boost": 1.30},
-    {"pattern": "api/", "boost": 1.25},
-    {"pattern": "tests/", "boost": 0.30},
-    {"pattern": "test/", "boost": 0.30},
-    {"pattern": "docs/", "boost": 0.80},
-    {"pattern": "examples/", "boost": 0.60},
-    {"pattern": "__pycache__/", "boost": 0.05},
-    {"pattern": ".pytest_cache/", "boost": 0.05}
+    {"pattern": "src/", "weight": 1.40},
+    {"pattern": "lib/", "weight": 1.30},
+    {"pattern": "core/", "weight": 1.50},
+    {"pattern": "utils/", "weight": 1.20},
+    {"pattern": "models/", "weight": 1.35},
+    {"pattern": "services/", "weight": 1.30},
+    {"pattern": "api/", "weight": 1.25},
+    {"pattern": "tests/", "weight": 0.30},
+    {"pattern": "test/", "weight": 0.30},
+    {"pattern": "docs/", "weight": 0.80},
+    {"pattern": "examples/", "weight": 0.60},
+    {"pattern": "__pycache__/", "weight": 0.05},
+    {"pattern": ".pytest_cache/", "weight": 0.05}
   ],
   "search_language_boosts": {
     "python": 1.40
@@ -422,30 +422,54 @@ Optimized for modern JavaScript/TypeScript applications:
     ".stories.ts": 0.30
   },
   "search_path_boosts": [
-    {"pattern": "src/", "boost": 1.50},
-    {"pattern": "lib/", "boost": 1.30},
-    {"pattern": "components/", "boost": 1.45},
-    {"pattern": "pages/", "boost": 1.35},
-    {"pattern": "utils/", "boost": 1.25},
-    {"pattern": "services/", "boost": 1.30},
-    {"pattern": "api/", "boost": 1.40},
-    {"pattern": "hooks/", "boost": 1.25},
-    {"pattern": "store/", "boost": 1.30},
-    {"pattern": "types/", "boost": 1.20},
-    {"pattern": "test/", "boost": 0.25},
-    {"pattern": "tests/", "boost": 0.25},
-    {"pattern": "__tests__/", "boost": 0.25},
-    {"pattern": "stories/", "boost": 0.35},
-    {"pattern": "docs/", "boost": 0.80},
-    {"pattern": "node_modules/", "boost": 0.05},
-    {"pattern": "dist/", "boost": 0.05},
-    {"pattern": "build/", "boost": 0.05}
+    {"pattern": "src/", "weight": 1.50},
+    {"pattern": "lib/", "weight": 1.30},
+    {"pattern": "components/", "weight": 1.45},
+    {"pattern": "pages/", "weight": 1.35},
+    {"pattern": "utils/", "weight": 1.25},
+    {"pattern": "services/", "weight": 1.30},
+    {"pattern": "api/", "weight": 1.40},
+    {"pattern": "hooks/", "weight": 1.25},
+    {"pattern": "store/", "weight": 1.30},
+    {"pattern": "types/", "weight": 1.20},
+    {"pattern": "test/", "weight": 0.25},
+    {"pattern": "tests/", "weight": 0.25},
+    {"pattern": "__tests__/", "weight": 0.25},
+    {"pattern": "stories/", "weight": 0.35},
+    {"pattern": "docs/", "weight": 0.80},
+    {"pattern": "node_modules/", "weight": 0.05},
+    {"pattern": "dist/", "weight": 0.05},
+    {"pattern": "build/", "weight": 0.05}
   ],
-  "search_language_boosts": {
-    "typescript": 1.50,
-    "javascript": 1.30,
-    "vue": 1.40
-  }
+  "search_path_boosts": [
+    {"pattern": "src/", "weight": 1.3},
+    {"pattern": "test/", "weight": 0.4}
+  ]
+}
+```
+
+#### Step 5: Enable Semantic Chunking
+
+```json
+{
+  "embedding_length": 768,
+  "chunking_strategy": "treesitter",
+  "use_tree_sitter": true,
+  "tree_sitter_max_file_size_bytes": 524288,
+  "tree_sitter_max_blocks_per_file": 100,
+  "extensions": [".py", ".js", ".ts", ".rs"],
+  "max_file_size_bytes": 524288,
+  "batch_segment_threshold": 30,
+  "search_file_type_weights": {
+    ".ts": 1.5,
+    ".js": 1.3,
+    ".py": 1.4,
+    ".rs": 1.2
+  },
+  "search_path_boosts": [
+    {"pattern": "src/", "weight": 1.3},
+    {"pattern": "test/", "weight": 0.4}
+  ]
 }
 ```
 
@@ -509,18 +533,18 @@ Optimized for Rust codebases:
     "mod.rs": 1.50
   },
   "search_path_boosts": [
-    {"pattern": "src/", "boost": 1.60},
-    {"pattern": "lib/", "boost": 1.40},
-    {"pattern": "core/", "boost": 1.50},
-    {"pattern": "utils/", "boost": 1.25},
-    {"pattern": "modules/", "boost": 1.35},
-    {"pattern": "services/", "boost": 1.30},
-    {"pattern": "api/", "boost": 1.35},
-    {"pattern": "tests/", "boost": 0.40},
-    {"pattern": "benches/", "boost": 0.30},
-    {"pattern": "examples/", "boost": 0.60},
-    {"pattern": "docs/", "boost": 0.80},
-    {"pattern": "target/", "boost": 0.05}
+    {"pattern": "src/", "weight": 1.60},
+    {"pattern": "lib/", "weight": 1.40},
+    {"pattern": "core/", "weight": 1.50},
+    {"pattern": "utils/", "weight": 1.25},
+    {"pattern": "modules/", "weight": 1.35},
+    {"pattern": "services/", "weight": 1.30},
+    {"pattern": "api/", "weight": 1.35},
+    {"pattern": "tests/", "weight": 0.40},
+    {"pattern": "benches/", "weight": 0.30},
+    {"pattern": "examples/", "weight": 0.60},
+    {"pattern": "docs/", "weight": 0.80},
+    {"pattern": "target/", "weight": 0.05}
   ],
   "search_language_boosts": {
     "rust": 1.50
@@ -576,18 +600,18 @@ Optimized for Go codebases:
     "main.go": 1.60
   },
   "search_path_boosts": [
-    {"pattern": "cmd/", "boost": 1.40},
-    {"pattern": "pkg/", "boost": 1.35},
-    {"pattern": "internal/", "boost": 1.45},
-    {"pattern": "api/", "boost": 1.35},
-    {"pattern": "service/", "boost": 1.30},
-    {"pattern": "handler/", "boost": 1.25},
-    {"pattern": "model/", "boost": 1.30},
-    {"pattern": "util/", "boost": 1.20},
-    {"pattern": "test/", "boost": 0.35},
-    {"pattern": "testdata/", "boost": 0.25},
-    {"pattern": "vendor/", "boost": 0.10},
-    {"pattern": "docs/", "boost": 0.80}
+    {"pattern": "cmd/", "weight": 1.40},
+    {"pattern": "pkg/", "weight": 1.35},
+    {"pattern": "internal/", "weight": 1.45},
+    {"pattern": "api/", "weight": 1.35},
+    {"pattern": "service/", "weight": 1.30},
+    {"pattern": "handler/", "weight": 1.25},
+    {"pattern": "model/", "weight": 1.30},
+    {"pattern": "util/", "weight": 1.20},
+    {"pattern": "test/", "weight": 0.35},
+    {"pattern": "testdata/", "weight": 0.25},
+    {"pattern": "vendor/", "weight": 0.10},
+    {"pattern": "docs/", "weight": 0.80}
   ],
   "search_language_boosts": {
     "go": 1.40
@@ -772,17 +796,17 @@ export CODE_INDEX_EMBED_TIMEOUT="120"
   "extensions": [".py", ".js", ".ts", ".rs"],
   "max_file_size_bytes": 524288,
   "batch_segment_threshold": 40,
-  "search_file_type_weights": {
-    ".ts": 1.5,
-    ".js": 1.3,
-    ".py": 1.4,
-    ".rs": 1.2
-  },
-  "search_path_boosts": [
-    {"pattern": "src/", "boost": 1.3},
-    {"pattern": "test/", "boost": 0.4}
-  ]
-}
+   "search_file_type_weights": {
+     ".ts": 1.5,
+     ".js": 1.3,
+     ".py": 1.4,
+     ".rs": 1.2
+   },
+   "search_path_boosts": [
+     {"pattern": "src/", "weight": 1.3},
+     {"pattern": "test/", "weight": 0.4}
+   ]
+ }
 ```
 
 #### Step 5: Enable Semantic Chunking
@@ -804,8 +828,8 @@ export CODE_INDEX_EMBED_TIMEOUT="120"
     ".rs": 1.2
   },
   "search_path_boosts": [
-    {"pattern": "src/", "boost": 1.3},
-    {"pattern": "test/", "boost": 0.4}
+    {"pattern": "src/", "weight": 1.3},
+    {"pattern": "test/", "weight": 0.4}
   ]
 }
 ```

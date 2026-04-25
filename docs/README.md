@@ -124,17 +124,20 @@ You can also set configuration via environment variables:
 
 ## How It Works
 
-1. **File Scanning**: The tool recursively scans the specified directory for supported files, respecting .gitignore patterns.
+1. **File Scanning**: The tool recursively scans the specified directory for supported files, respecting .gitignore patterns and ignore rules.
 
-2. **Code Parsing**: Files are parsed into meaningful code blocks. For now, a simple line-based chunking approach is used, but this could be enhanced with tree-sitter parsing in the future.
+2. **Code Parsing**: Files are parsed into meaningful code blocks using one of three chunking strategies:
+   - **Lines**: Simple line-based splitting (fast, default)
+   - **Tokens**: Token-aware splitting with overlap (balanced)
+   - **Tree-sitter**: Semantic code structure parsing using Tree-sitter (most accurate)
 
 3. **Embedding Generation**: Ollama is used to generate vector embeddings for each code block.
 
-4. **Vector Storage**: Embeddings are stored in Qdrant with metadata about the file path, line numbers, and content.
+4. **Vector Storage**: Embeddings are stored in Qdrant with metadata about file path, line numbers, and content.
 
-5. **Caching**: File hashes are cached to avoid reprocessing unchanged files.
+5. **Caching**: File hashes are cached to avoid reprocessing unchanged files; retry-list支持 selective reprocessing.
 
-6. **Search**: Semantic search is performed by generating an embedding for the query and finding similar vectors in Qdrant.
+6. **Search**: Semantic search is performed by generating an embedding for the query and finding similar vectors in Qdrant, with results weighted by file type, path, and language boosts.
 
 ## Example Workflow
 
@@ -168,14 +171,14 @@ MIT
 ### Auto-extensions (Pygments)
 - When `"auto_extensions": true`, extensions from Pygments lexers are merged into your configured list.
 - If Pygments is missing, a non-fatal warning is logged and configured extensions are used unchanged.
-- Files: [utils.py](../src/code_index/utils.py#L78), [scanner.py](../src/code_index/scanner.py#L1)
+- Files: [utils.py](../src/code_index/utils.py#L78), [indexing/file_processor.py](../src/code_index/indexing/file_processor.py#L1)
 
 ### Exclude File List
 - Exclude arbitrary files using a newline-separated list (relative to workspace):
   - `"exclude_files_path": "ignore_files.txt"`
 - Absolute paths inside the file are normalized to relative paths.
 - Comments beginning with `#` and blank lines are ignored.
-- File: [scanner.py](../src/code_index/scanner.py#L1)
+- File: [indexing/file_processor.py](../src/code_index/indexing/file_processor.py#L1)
 
 ### Timeout, Retry-list, and Logging
 - Configure embedding timeout by:

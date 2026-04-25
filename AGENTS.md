@@ -5,7 +5,7 @@ This file provides guidance to agents when working with code in this repository.
 ## Intelligence Mandates (2024-2025 Architecture)
 - **Universal Structural Intelligence**: Every code chunk must be relationship-native. Use the 908-record `UniversalSchemaService` to extract `class`, `function`, `import`, and `call` types.
 - **Magika Gatekeeper**: Use `MagikaDetector` for AI-driven content identification before applying Tree-sitter parsers.
-- **Structural Integrity**: `TreeSitterBlockExtractor` uses modern v0.23.x bindings. Always pass an explicit `Language` object to `RelationshipBlockExtractor`.
+- **Structural Integrity**: `TreeSitterBlockExtractor` uses modern v0.25.x bindings. Always pass an explicit `Language` object to `RelationshipBlockExtractor`.
 
 ## Critical Environment Rules
 - **Python 3.13 only** — 3.14 unsupported by Nuitka (linking issues with `_Py_TriggerGC`)

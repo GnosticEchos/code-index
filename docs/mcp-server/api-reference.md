@@ -36,13 +36,11 @@ async def index(
     embed_timeout: Optional[int] = None,
     chunking_strategy: Optional[str] = None,
     use_tree_sitter: Optional[bool] = None,
-    **config_overrides
+    subcommand: str = "index"
 ) -> Dict[str, Any]
 ```
 
 ### Parameters
-
-#### Core Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -52,43 +50,54 @@ async def index(
 | `embed_timeout` | `int` | `None` | Override embedding timeout in seconds |
 | `chunking_strategy` | `str` | `None` | Chunking method: "lines", "tokens", or "treesitter" |
 | `use_tree_sitter` | `bool` | `None` | Force Tree-sitter chunking regardless of strategy |
-
-#### Configuration Override Parameters
-
-All configuration parameters can be overridden for individual operations:
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `embedding_length` | `int` | Vector dimension (must match model) |
-| `batch_segment_threshold` | `int` | Number of segments per batch |
-| `max_file_size_bytes` | `int` | Maximum file size to process |
-| `tree_sitter_max_file_size_bytes` | `int` | Maximum file size for Tree-sitter |
-| `tree_sitter_max_blocks_per_file` | `int` | Maximum blocks per file for Tree-sitter |
-| `tree_sitter_skip_test_files` | `bool` | Skip test files in Tree-sitter mode |
-| `token_chunk_size` | `int` | Token chunk size for token strategy |
-| `token_chunk_overlap` | `int` | Token overlap for token strategy |
-| `extensions` | `List[str]` | File extensions to process |
-| `auto_extensions` | `bool` | Auto-detect extensions via Pygments |
-| `exclude_files_path` | `str` | Path to file exclusion list |
-| `timeout_log_path` | `str` | Path to timeout log file |
+| `subcommand` | `str` | `"index"` | Subcommand: "index" (full indexing) or "estimate" (estimation only) |
 
 ### Return Value
+
+**When `subcommand="index"` (default):**
 
 ```python
 {
     "success": bool,
-    "files_processed": int,
-    "files_skipped": int,
-    "total_segments": int,
-    "processing_time_seconds": float,
-    "collection_name": str,
-    "workspace_path": str,
-    "timeout_files": List[str],
-    "warnings": List[str],
-    "error": bool,           # Only present if error occurred
-    "error_type": str,       # Only present if error occurred
-    "message": str,          # Only present if error occurred
-    "actionable_guidance": List[str]  # Only present if error occurred
+    "message": str,
+    "processed_files": int,
+    "total_blocks": int,
+    "timeout_files": list[str],
+    "timeout_count": int,
+    "processing_time": float,
+    "workspaces_processed": int,
+    "workspace_results": list[dict],
+    "retry_guidance": list[str],
+    "warnings": list[str],
+    "estimation": {
+        "total_estimated_time_seconds": float,
+        "warning_level": str,
+        "workspaces_analyzed": int,
+        "cli_alternative": str | None,
+        "workspace_estimations": list[dict]
+    },
+    "user_guidance": list[str],
+    "parameter_validation": dict,
+    "indexing_results": dict
+}
+```
+
+**When `subcommand="estimate"`:**
+
+```python
+{
+    "success": bool,
+    "subcommand": str,  # Always "estimate"
+    "estimation": {
+        "total_estimated_time_seconds": float,
+        "warning_level": str,
+        "workspaces_analyzed": int,
+        "cli_alternative": str | None,
+        "workspace_estimations": list[dict]
+    },
+    "warnings": list[str],
+    "user_guidance": list[str],
+    "parameter_validation": dict
 }
 ```
 
@@ -171,7 +180,7 @@ async def search(
     min_score: Optional[float] = None,
     max_results: Optional[int] = None,
     **search_overrides
-) -> List[Dict[str, Any]]
+) -> Dict[str, Any]
 ```
 
 ### Parameters
@@ -199,21 +208,47 @@ async def search(
 
 ### Return Value
 
+**Successful search:**
+
 ```python
-[
-    {
-        "filePath": str,
-        "startLine": int,
-        "endLine": int,
-        "type": str,
-        "score": float,
-        "adjustedScore": float,
-        "snippet": str,
-        "language": str,
-        "fileSize": int
-    },
-    # ... more results
-]
+{
+    "results": [
+        {
+            "filePath": str,
+            "startLine": int,
+            "endLine": int,
+            "type": str,
+            "score": float,
+            "adjustedScore": float,
+            "snippet": str
+        },
+        # ... more results
+    ],
+    "status": "success",
+    "result_count": int
+}
+```
+
+**No results matched query:**
+
+```python
+{
+    "results": [],
+    "status": "no_results",
+    "message": "Search completed but no results matched the query.",
+    "query": str
+}
+```
+
+**Workspace not indexed:**
+
+```python
+{
+    "results": [],
+    "status": "not_indexed",
+    "message": "Workspace is not indexed. Call the index tool first with this workspace path.",
+    "workspace": str
+}
 ```
 
 ### Usage Examples
@@ -251,9 +286,9 @@ results = search(
 results = search(
     query="API endpoints",
     search_path_boosts=[
-        {"pattern": "src/", "boost": 1.5},
-        {"pattern": "api/", "boost": 2.0},
-        {"pattern": "test/", "boost": 0.3}
+        {"pattern": "src/", "weight": 1.5},
+        {"pattern": "api/", "weight": 2.0},
+        {"pattern": "test/", "weight": 0.3}
     ]
 )
 
@@ -283,17 +318,25 @@ results = search(
 
 ### Search Result Fields
 
+Each result in the `results` array contains:
+
 | Field | Type | Description |
 |-------|------|-------------|
 | `filePath` | `str` | Relative path to the file |
 | `startLine` | `int` | Starting line number of the code block |
 | `endLine` | `int` | Ending line number of the code block |
-| `type` | `str` | Type of code block (function, class, etc.) |
+| `type` | `str` | Type of code block (function, class, method, etc.) |
 | `score` | `float` | Raw similarity score from vector search |
-| `adjustedScore` | `float` | Score after applying weights and boosts |
-| `snippet` | `str` | Code snippet preview |
-| `language` | `str` | Detected programming language |
-| `fileSize` | `int` | File size in bytes |
+| `adjustedScore` | `float` | Score after applying file type, path, and language weights |
+| `snippet` | `str` | Code snippet preview (length from `search_snippet_preview_chars`) |
+
+**Top-level response fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `results` | `List[Dict]` | Array of search result objects (may be empty) |
+| `status` | `str` | `"success"` if results found, `"no_results"` if none matched, `"not_indexed"` if workspace not indexed |
+| `result_count` | `int` | Number of results returned (may be less than total found if limited by `max_results`) |
 
 ## Collections Tool
 
@@ -334,21 +377,27 @@ result = collections(subcommand="list")
 result = collections(subcommand="list", detailed=True)
 ```
 
-**Return Value**:
+**Return Value:**
+
 ```python
 {
-    "collections": [
-        {
-            "name": str,
-            "points": int,
-            "workspace_path": str,
-            "created_date": str,
-            "indexed_date": str,
-            "status": str
-        }
-    ],
-    "total_collections": int,
-    "total_points": int
+    "success": bool,
+    "message": str,
+    "data": {
+        "collections": [
+            {
+                "name": str,
+                "points_count": int,
+                "workspace_path": str,
+                "dimensions": dict,
+                "model_identifier": str,
+                "vectors_count": int,  # Only if detailed=True
+                "status": str  # Only if detailed=True
+            }
+        ],
+        "total_count": int,
+        "detailed": bool
+    }
 }
 ```
 
@@ -363,25 +412,23 @@ result = collections(
 )
 ```
 
-**Return Value**:
+**Return Value:**
+
 ```python
 {
-    "collection_name": str,
-    "workspace_path": str,
-    "points": int,
-    "vectors": int,
-    "status": str,
-    "created_date": str,
-    "indexed_date": str,
-    "config": {
-        "embedding_length": int,
-        "model": str,
-        "chunking_strategy": str
-    },
-    "statistics": {
-        "files_indexed": int,
-        "total_segments": int,
-        "average_score": float
+    "success": bool,
+    "message": str,
+    "data": {
+        "collection": {
+            "name": str,
+            "status": str,
+            "points_count": int,
+            "vectors_count": int,
+            "workspace_path": str,
+            "dimensions": dict,
+            "model_identifier": str,
+            "config": str  # JSON string of collection configuration
+        }
     }
 }
 ```
@@ -405,13 +452,19 @@ result = collections(
 )
 ```
 
-**Return Value**:
+**Return Value:**
+
 ```python
 {
-    "deleted": bool,
-    "collection_name": str,
-    "cache_cleaned": bool,
-    "message": str
+    "success": bool,
+    "message": str,
+    "data": {
+        "collection_name": str,
+        "points_deleted": int,
+        "workspace_path": str,
+        "cache_files_removed": int,
+        "canonical_id": str | None
+    }
 }
 ```
 
@@ -434,13 +487,18 @@ result = collections(
 )
 ```
 
-**Return Value**:
+**Return Value:**
+
 ```python
 {
-    "pruned_collections": List[str],
-    "total_pruned": int,
-    "total_points_removed": int,
-    "message": str
+    "success": bool,
+    "message": str,
+    "data": {
+        "older_than_days": int,
+        "collections_pruned": list[str],
+        "total_pruned": int
+    },
+    "warnings": list[str]  # May include warnings about implementation limitations
 }
 ```
 
@@ -456,13 +514,21 @@ result = collections(subcommand="clear-all")
 result = collections(subcommand="clear-all", yes=True)
 ```
 
-**Return Value**:
+**Return Value:**
+
 ```python
 {
-    "deleted_collections": List[str],
-    "total_deleted": int,
-    "cache_cleared": bool,
-    "message": str
+    "success": bool,
+    "message": str,
+    "data": {
+        "total_collections": int,
+        "total_points": int,
+        "deleted_collections": list[str],
+        "success_count": int,
+        "failure_count": int,
+        "cache_files_removed": int,
+        "failed_deletions": list[dict]  # Only if failures occurred
+    }
 }
 ```
 
@@ -487,10 +553,11 @@ result = collections(subcommand="clear-all", yes=True)
 {
   "extensions": [".py", ".js", ".ts", ".rs", ".go", ".java"],
   "max_file_size_bytes": 1048576,
-  "auto_extensions": false,
   "exclude_files_path": null
 }
 ```
+
+**Note:** `auto_extensions` belongs to the Chunking configuration section, not File Processing.
 
 ### Chunking Configuration
 
@@ -499,6 +566,7 @@ result = collections(subcommand="clear-all", yes=True)
   "chunking_strategy": "lines",
   "token_chunk_size": 1000,
   "token_chunk_overlap": 200,
+  "auto_extensions": false,
   "use_tree_sitter": false,
   "tree_sitter_max_file_size_bytes": 524288,
   "tree_sitter_max_blocks_per_file": 100,
@@ -522,7 +590,7 @@ result = collections(subcommand="clear-all", yes=True)
 {
   "search_min_score": 0.4,
   "search_max_results": 50,
-  "search_snippet_preview_chars": 160,
+  "search_snippet_preview_chars": 500,
   "search_file_type_weights": {
     ".ts": 1.25,
     ".js": 1.20,
@@ -530,8 +598,8 @@ result = collections(subcommand="clear-all", yes=True)
     ".md": 0.80
   },
   "search_path_boosts": [
-    {"pattern": "src/", "boost": 1.25},
-    {"pattern": "test/", "boost": 0.70}
+    {"pattern": "src/", "weight": 1.25},
+    {"pattern": "test/", "weight": 0.70}
   ],
   "search_language_boosts": {
     "typescript": 1.20,

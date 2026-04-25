@@ -1,10 +1,9 @@
 # Code Index CLI Reference
 
-This document provides a complete, authoritative reference for the Code Index command-line interface. It complements the top-level [README.md](../README.md) by detailing every command, option, default, and behavior as implemented in [src/code_index/cli.py](src/code_index/cli.py), [src/code_index/collections_commands.py](src/code_index/collections_commands.py), [src/code_index/config.py](src/code_index/config.py), [src/code_index/vector_store.py](src/code_index/vector_store.py), and [src/code_index/chunking.py](src/code_index/chunking.py).
+This document provides a complete, authoritative reference for the Code Index command-line interface. It complements the top-level [README.md](../README.md) by detailing every command, option, default, and behavior as implemented in [src/code_index/cli.py](src/code_index/cli.py), [src/code_index/config.py](src/code_index/config.py), [src/code_index/vector_store.py](src/code_index/vector_store.py), and [src/code_index/chunking.py](src/code_index/chunking.py).
 
 Sources of truth:
 - [src/code_index/cli.py](src/code_index/cli.py)
-- [src/code_index/collections_commands.py](src/code_index/collections_commands.py)
 - [src/code_index/config.py](src/code_index/config.py)
 - [src/code_index/vector_store.py](src/code_index/vector_store.py)
 - [src/code_index/chunking.py](src/code_index/chunking.py)
@@ -31,7 +30,7 @@ Sources of truth:
 
 ## index
 
-Defined by [index()](src/code_index/cli.py:154).
+Defined by [index()](src/code_index/cli.py:208).
 
 Synopsis
 
@@ -42,8 +41,8 @@ Description
 Index code files in a workspace, create/update the Qdrant collection, and write semantic vectors and payloads. Supports Tree-sitter chunking, batch workspace processing, and robust timeout/retry handling.
 
 Important:
-- Configuration must specify embedding_length before first run; see [QdrantVectorStore.initialize()](src/code_index/vector_store.py:128).
-- The configuration file is auto-created with defaults on first run if missing; see [Config.from_file()](src/code_index/config.py:130) and [Config.save()](src/code_index/config.py:150).
+- Configuration must specify embedding_length before first run; see [QdrantVectorStore.initialize()](src/code_index/vector_store.py:260).
+- The configuration file is auto-created with defaults on first run if missing; see [Config.from_file()](src/code_index/config.py:432) and [Config.save()](src/code_index/config.py:443).
 
 Options
 
@@ -70,7 +69,7 @@ Options
 - --timeout-log FILE
   - Type: string (path)
   - Default: None (uses Config.timeout_log_path if not provided; default 'timeout_files.txt')
-  - When timeouts occur (embedding/upsert), unique file relpaths are written; see [_write_timeout_log()](src/code_index/cli.py:100).
+  - When timeouts occur (embedding/upsert), unique file relpaths are written; see [_write_timeout_log()](src/code_index/cli.py:170).
 - --ignore-config FILE
   - Type: string (path)
   - Default: None
@@ -109,8 +108,8 @@ Behavior and side effects
   - Batches of size Config.batch_segment_threshold (default 60).
   - HTTP read timeouts add file to timed_out_files; batch aborts and the file is not cached so it can be retried.
 - Vector store operations:
-  - Initializes Qdrant; if Config.embedding_length is missing/invalid, initialization fails fast; see [QdrantVectorStore.initialize()](src/code_index/vector_store.py:128).
-  - For each file: delete prior points for that file then upsert new points with payload fields filePath, codeChunk, startLine, endLine, type; pathSegments index is maintained for efficient filtering; see [upsert_points()](src/code_index/vector_store.py:254).
+  - Initializes Qdrant; if Config.embedding_length is missing/invalid, initialization fails fast; see [QdrantVectorStore.initialize()](src/code_index/vector_store.py:260).
+  - For each file: delete prior points for that file then upsert new points with payload fields filePath, codeChunk, startLine, endLine, type; pathSegments index is maintained for efficient filtering; see [upsert_points()](src/code_index/vector_store.py:397).
 - Caching:
   - Per-file hash cache prevents re-embedding unchanged files, except for files in --retry-list which bypass the cache.
 - Timeout log:
@@ -152,7 +151,7 @@ Notes/Pitfalls
 
 ## search
 
-Defined by [search()](src/code_index/cli.py:471).
+Defined by [search()](src/code_index/cli.py:438).
 
 Synopsis
 
@@ -179,14 +178,14 @@ Options
 - --json
   - Type: flag
   - Default: False
-  - Output results as JSON array with fields: filePath, startLine, endLine, type, score, adjustedScore, snippet (preview length Config.search_snippet_preview_chars; default 160).
+  - Output results as JSON array with fields: filePath, startLine, endLine, type, score, adjustedScore, snippet (preview length Config.search_snippet_preview_chars; default 500).
 
 Behavior and side effects
 
 - Loads/creates config as with index.
-- Validates embedding configuration via [OllamaEmbedder.validate_configuration()](src/code_index/cli.py:262) before embedding.
-- Generates query embedding then queries Qdrant with score_threshold and limit derived from Config and any CLI overrides; see [QdrantVectorStore.search()](src/code_index/vector_store.py:300).
-- Results are post-processed with file/path/language multipliers and sorted by adjustedScore; see [QdrantVectorStore._filetype_weight()](src/code_index/vector_store.py:206), [QdrantVectorStore._path_weight()](src/code_index/vector_store.py:214), [QdrantVectorStore._language_weight()](src/code_index/vector_store.py:231).
+- Validates embedding configuration via [OllamaEmbedder.validate_configuration()](src/code_index/embedder.py:75) before embedding.
+- Generates query embedding then queries Qdrant with score_threshold and limit derived from Config and any CLI overrides; see [QdrantVectorStore.search()](src/code_index/vector_store.py:449).
+- Results are post-processed with file/path/language multipliers and sorted by adjustedScore; see [QdrantVectorStore._filetype_weight()](src/code_index/vector_store.py:349), [QdrantVectorStore._path_weight()](src/code_index/vector_store.py:357), [QdrantVectorStore._language_weight()](src/code_index/vector_store.py:374).
 
 Exit codes and error conditions
 

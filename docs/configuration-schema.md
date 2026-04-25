@@ -260,7 +260,7 @@ Configuration for search behavior, scoring, and result limits.
 | `search_path_boosts` | array[object] | See below | No | Path-based score boosts |
 | `search_language_boosts` | object | See below | No | Language-based score boosts |
 | `search_exclude_patterns` | array[string] | `[]` | No | Patterns to exclude from search |
-| `search_snippet_preview_chars` | integer | `160` | No | Characters to show in result snippets |
+| `search_snippet_preview_chars` | integer | `500` | No | Characters to show in result snippets |
 | `search_cache_enabled` | boolean | `false` | No | Enable search result caching |
 | `search_cache_max_entries` | integer | `128` | No | Maximum cached search results |
 | `search_cache_ttl_seconds` | integer | `null` | No | Cache TTL in seconds (null = no expiry) |
@@ -614,7 +614,7 @@ Complete configuration with all options specified:
       "rust": 1.10
     },
     "search_exclude_patterns": [],
-    "search_snippet_preview_chars": 160,
+    "search_snippet_preview_chars": 500,
     "search_cache_enabled": false,
     "search_cache_max_entries": 128,
     "search_cache_ttl_seconds": null
@@ -754,7 +754,7 @@ For validation purposes, here is the complete JSON Schema:
         },
         "search_language_boosts": {"type": "object", "additionalProperties": {"type": "number"}},
         "search_exclude_patterns": {"type": "array", "items": {"type": "string"}, "default": []},
-        "search_snippet_preview_chars": {"type": "integer", "minimum": 50, "maximum": 1000, "default": 160},
+        "search_snippet_preview_chars": {"type": "integer", "minimum": 50, "maximum": 1000, "default": 500},
         "search_cache_enabled": {"type": "boolean", "default": false},
         "search_cache_max_entries": {"type": "integer", "minimum": 1, "maximum": 10000, "default": 128},
         "search_cache_ttl_seconds": {"type": ["integer", "null"]}
@@ -806,8 +806,7 @@ Configuration values are resolved in the following priority order (highest to lo
 1. **CLI Arguments** - Direct command-line overrides
 2. **Environment Variables** - Variables like `WORKSPACE_PATH`, `OLLAMA_MODEL`
 3. **Workspace Configuration** - `code_index.json` in the workspace root
-4. **User Configuration** - `~/.config/code-index/config.json`
-5. **Default Values** - Built-in defaults defined in `src/code_index/config.py`
+4. **Default Values** - Built-in defaults defined in `src/code_index/config.py`
 
 ---
 

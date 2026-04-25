@@ -196,10 +196,10 @@ The MCP server uses the same configuration system as the CLI tool. Create a `cod
     ".md": 0.80
   },
   "search_path_boosts": [
-    {"pattern": "src/", "boost": 1.25},
-    {"pattern": "lib/", "boost": 1.20},
-    {"pattern": "docs/", "boost": 0.85},
-    {"pattern": "test/", "boost": 0.70}
+    {"pattern": "src/", "weight": 1.25},
+    {"pattern": "lib/", "weight": 1.20},
+    {"pattern": "docs/", "weight": 0.85},
+    {"pattern": "test/", "weight": 0.70}
   ]
 }
 ```
@@ -381,7 +381,7 @@ result = index(workspace="/path/to/project")
 if result.get("error"):
     print(f"Indexing failed: {result['message']}")
 else:
-    print(f"Indexed {result['files_processed']} files")
+    print(f"Indexed {result['processed_files']} files")
 
 # 2. Search for code
 results = search(query="authentication middleware")
@@ -393,7 +393,7 @@ for result in results:
 # 3. Manage collections
 collections_list = collections(subcommand="list")
 for collection in collections_list["collections"]:
-    print(f"Collection: {collection['name']} ({collection['points']} points)")
+    print(f"Collection: {collection['name']} ({collection['points_count']} points)")
 ```
 
 ### Advanced Configuration
