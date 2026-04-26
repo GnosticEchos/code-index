@@ -213,7 +213,6 @@ class TreeSitterBlockExtractor:
 
     def _basic_line_chunking(self, content: str, file_path: str, file_hash: str) -> List[CodeBlock]:
         """Fallback strategy: split plain text into fixed-size line chunks."""
-        from ..treesitter.block_parser import basic_line_chunking
         fallback_chunk_size = getattr(self.config, "fallback_chunk_size", 5)
         return basic_line_chunking(
             content, file_path, file_hash,

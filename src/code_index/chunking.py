@@ -6,7 +6,7 @@ from typing import List, Dict, Any
 
 from .config import Config
 from .models import CodeBlock
-from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from .errors import ErrorHandler
 from .utils import split_content
 
 # Tree-sitter Error Classes

@@ -1,10 +1,7 @@
 import json
-import os
-import sys
 import click
 from typing import Dict, Any, List, Optional
 from rich.console import Console
-from rich.tree import Tree
 from rich.text import Text
 
 console = Console()

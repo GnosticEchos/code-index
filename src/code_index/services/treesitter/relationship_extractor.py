@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Any
 from ...models import CodeBlock
 from ..query.universal_schema_service import UniversalSchemaService
 

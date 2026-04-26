@@ -32,7 +32,7 @@ if "__compiled__" in globals():
 import json
 import logging
 import click
-from typing import List, Set, Optional
+from typing import List, Set
 
 from code_index.collections_commands import list_collections, collection_info, delete_collection, prune_collections, clear_all_collections
 from code_index.errors import ErrorHandler
