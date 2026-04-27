@@ -1,5 +1,6 @@
 import sys
 import os
+import pytest
 
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -7,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from code_index.config import Config
 from code_index.embedder import OllamaEmbedder
 
+@pytest.mark.skip(reason="Requires running Ollama instance - manual integration test only")
 def test_embedding():
     """Test if the embedding service is working."""
     print("=== Testing Embedding Service ===")

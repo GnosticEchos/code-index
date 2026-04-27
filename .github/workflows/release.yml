@@ -55,7 +55,7 @@ jobs:
         shell: bash
         run: |
           uv sync --all-extras --dev
-          uv pip install nuitka==2.4
+          uv pip install --system nuitka==4.0.8
 
       - name: Install system dependencies
         shell: bash
@@ -125,11 +125,11 @@ jobs:
         with:
           version: "17.0"
 
-      - name: Install build dependencies
-        shell: pwsh
+       - name: Install build dependencies
+        shell: bash
         run: |
           uv sync --all-extras --dev
-          uv pip install nuitka==2.4
+          uv pip install --system nuitka==4.0.8
 
       - name: Build CLI
         shell: cmd
@@ -184,7 +184,7 @@ jobs:
         shell: bash
         run: |
           uv sync --all-extras --dev
-          uv pip install nuitka==2.4
+          uv pip install --system nuitka==4.0.8
 
       - name: Build CLI (${{ matrix.target }})
         shell: bash
