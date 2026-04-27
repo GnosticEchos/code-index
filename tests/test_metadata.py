@@ -4,14 +4,19 @@ Test script to verify metadata storage functionality.
 """
 import os
 import sys
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from code_index.config import Config
 from code_index.vector_store import QdrantVectorStore
 
 
+@pytest.mark.integration
 def test_metadata_storage():
     """Test that metadata storage works correctly."""
+    # Requires running Qdrant service
+    pytest.skip("Requires running Qdrant instance")
     print("=== Testing Metadata Storage ===")
     
     # Load config

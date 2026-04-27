@@ -43,14 +43,14 @@ jobs:
       - name: Run tests
         shell: bash
         run: |
-          uv run pytest tests/ -v --tb=short
+          uv run pytest tests/ -v --tb=short -m "not integration"
         env:
           UV_SYSTEM_PYTHON: 0
 
       - name: Run MCP tests
         shell: bash
         run: |
-          uv run pytest tests/test_mcp_*.py -v --tb=short
+          uv run pytest tests/test_mcp_*.py -v --tb=short -m "not integration"
         env:
           UV_SYSTEM_PYTHON: 0
 
