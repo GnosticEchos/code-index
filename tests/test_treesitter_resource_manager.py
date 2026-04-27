@@ -10,11 +10,10 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from code_index.config import Config
-from code_index import TreeSitterError
 from code_index.services import TreeSitterResourceManager
-from code_index.chunking import TreeSitterError
 from code_index.errors import ErrorHandler
 
+from code_index.chunking import TreeSitterError
 
 class TestTreeSitterResourceManager:
     """Test suite for TreeSitterResourceManager."""
@@ -136,8 +135,8 @@ class TestTreeSitterResourceManager:
 
             with patch.object(self.resource_manager, '_get_language_path', return_value='/path/to/lang.so'):
                 # Acquire resources for multiple languages
-                resources1 = self.resource_manager.acquire_resources('python')
-                resources2 = self.resource_manager.acquire_resources('javascript')
+                self.resource_manager.acquire_resources('python')
+                self.resource_manager.acquire_resources('javascript')
 
                 # Cleanup all
                 self.resource_manager.cleanup_all()
@@ -342,7 +341,7 @@ class TestTreeSitterResourceManager:
                 mock_parser.return_value = mock_parser_instance
 
                 with patch.object(self.resource_manager, '_get_language_path', return_value='/path/to/lang.so'):
-                    resources = self.resource_manager.acquire_resources('python')
+                    self.resource_manager.acquire_resources('python')
 
                     # Check that timing was recorded
                     assert 'python' in self.resource_manager.resource_usage['performance']

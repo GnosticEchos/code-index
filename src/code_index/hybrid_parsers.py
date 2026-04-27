@@ -201,7 +201,7 @@ class ConfigFileParser(BaseFallbackParser):
                 key_value_count += 1
                 
         # Heuristic: config files usually have sections or key-value pairs
-        return section_count > 0 or (key_value_count > len([l for l in lines if l.strip() and not l.startswith('#') and not l.startswith(';')]) * 0.3)
+        return section_count > 0 or (key_value_count > len([line for line in lines if line.strip() and not line.startswith('#') and not line.startswith(';')]) * 0.3)
         
     def parse(self, content: str, file_path: str, file_hash: str) -> ParserResult:
         """Parse configuration file content."""
@@ -389,7 +389,7 @@ class HybridParserManager:
                 operation="parse_with_fallback",
                 file_path=file_path
             )
-            error_response = self.error_handler.handle_error(
+            self.error_handler.handle_error(
                 e, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM
             )
             

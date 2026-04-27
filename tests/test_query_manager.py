@@ -225,7 +225,7 @@ class TestTreeSitterQueryManager:
         time.sleep(1.1)
 
         # Query should be considered expired
-        cache_info = query_manager.get_cache_info()
+        query_manager.get_cache_info()
         # Note: This test might be flaky due to timing, but tests the mechanism
 
     def test_debug_logging(self, query_manager):

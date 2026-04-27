@@ -357,12 +357,6 @@ def get_queries_for_language(language_key: str) -> Optional[str]:
             (construct_query) @construct
             (describe_query) @describe
         ''',
-        'sparql': '''
-            (select_query) @select
-            (ask_query) @ask
-            (construct_query) @construct
-            (describe_query) @describe
-        ''',
         'sql': '''
             (statement (select)) @select
             (statement (insert)) @insert

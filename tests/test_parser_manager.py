@@ -423,7 +423,6 @@ class TestParserResourceMonitor:
 
     def test_reset_baseline(self, resource_monitor):
         """Test baseline memory reset."""
-        initial_usage = resource_monitor.get_memory_usage()
 
         # Reset baseline
         resource_monitor.reset()

@@ -164,7 +164,7 @@ fn main() {
         for file_path in self.test_files.values():
             try:
                 os.unlink(file_path)
-            except:
+            except Exception:
                 pass
     
     def test_query_method_detection(self):
@@ -298,7 +298,7 @@ fn main() {
                     import hashlib
                     file_hash = hashlib.sha256(code.encode()).hexdigest()
                     
-                    blocks = chunker.coordinator.chunk_text(code, file_path, file_hash)
+                    chunker.coordinator.chunk_text(code, file_path, file_hash)
                     should_process = chunker.coordinator.should_process_file(file_path)
                     status = 'success' if should_process == expected_result else 'failed'
                     
@@ -502,7 +502,7 @@ fn main() {
             if case_name != 'non_existent':
                 try:
                     os.unlink(file_path)
-                except:
+                except Exception:
                     pass
         
         self.test_results.extend(results)
@@ -646,7 +646,7 @@ fn main() {
             
             # Generate and save report
             report = self.generate_report()
-            report_path = self.save_results()
+            self.save_results()
             
             # Print final status
             report_summary = report['summary']
@@ -670,7 +670,7 @@ def main():
     parser.add_argument("--output", "-o", default="treesitter_improvements_report.json",
                        help="Output report file path")
     
-    args = parser.parse_args()
+    parser.parse_args()
     
     print("🔍 Comprehensive Tree-sitter Improvements Validation")
     print("=" * 60)

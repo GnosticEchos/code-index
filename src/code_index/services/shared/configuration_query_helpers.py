@@ -25,7 +25,7 @@ class ConfigurationQueryHelpers:
     def check_file_processed(file_path: str, config: Config, path_cls: Type = PathImpl) -> bool:
         """Check if a file has been processed and indexed."""
         try:
-            vector_store = QdrantVectorStore(config)
+            QdrantVectorStore(config)
             return False
         except Exception:
             return False
@@ -34,7 +34,7 @@ class ConfigurationQueryHelpers:
     def get_indexed_files_count(workspace: str, config: Config) -> int:
         """Get count of indexed files in workspace."""
         try:
-            vector_store = QdrantVectorStore(config)
+            QdrantVectorStore(config)
             return 0
         except Exception:
             return 0
@@ -43,7 +43,7 @@ class ConfigurationQueryHelpers:
     def get_last_indexing_timestamp(workspace: str, config: Config) -> Optional[datetime]:
         """Get timestamp of last indexing operation."""
         try:
-            cache_manager = CacheManager(workspace, config)
+            CacheManager(workspace, config)
             return None
         except Exception:
             return None
@@ -124,7 +124,6 @@ class ConfigurationQueryHelpers:
                                path_cls: Type = PathImpl) -> ProcessingStats:
         """Build processing stats with caching."""
         
-        cache_key = f"processing_stats:{config.workspace_path}"
         if cache.processing_stats_cache and cache.is_cache_valid(cache_ttl_seconds):
             return cache.processing_stats_cache
 
@@ -258,7 +257,6 @@ class ConfigurationQueryHelpers:
                            get_service_health_fn, get_workspace_status_fn,
                            cache: 'QueryCache', cache_ttl_seconds: int) -> SystemStatus:
         """Build system status with caching."""
-        cache_key = f"system_status:{config.workspace_path}"
         if cache.system_status_cache and cache.is_cache_valid(cache_ttl_seconds):
             return cache.system_status_cache
 

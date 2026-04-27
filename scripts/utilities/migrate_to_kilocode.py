@@ -230,7 +230,7 @@ def main():
 
     # Sanity check that source exists
     try:
-        info = client.get_collection(src)
+        info = client.get_collection(src)  # noqa: F841 - sanity check
     except Exception as e:
         print(f"Error: Source collection '{src}' not found or not accessible at {args.qdrant}: {e}")
         sys.exit(1)

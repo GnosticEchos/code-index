@@ -47,13 +47,13 @@ class SearchValidationService:
                 component="search_validation_service",
                 operation="validate_search_config"
             )
-            error_response = self.error_handler.handle_error(
+            self.error_handler.handle_error(
                 e, error_context, ErrorCategory.CONFIGURATION, ErrorSeverity.MEDIUM
             )
             return ValidationResult(
                 service="search_validation_service",
                 valid=False,
-                error=error_response.message,
+                error=str(e),
                 details={},
                 response_time_ms=int((time.time() - start_time) * 1000),
                 actionable_guidance=["Check search configuration"]

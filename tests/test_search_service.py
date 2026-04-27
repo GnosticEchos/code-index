@@ -698,7 +698,7 @@ class TestSearchResult:
         assert summary["matches_returned"] == 2
         assert summary["execution_time_seconds"] == 0.5
         assert summary["search_method"] == "text"
-        assert summary["successful"] == False  # Has errors
+        assert not summary["successful"]  # Has errors
         assert summary["errors"] == 1
         assert summary["warnings"] == 1
         assert summary["top_score"] == 0.8

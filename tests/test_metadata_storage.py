@@ -82,7 +82,7 @@ def test_metadata_storage():
         
         # Test collections list command
         print("\nTesting collections list...")
-        result = os.system(f"cd {os.getcwd()} && source .venv/bin/activate && python -m code_index.cli collections list > /tmp/test_collections.txt 2>&1")
+        os.system(f"cd {os.getcwd()} && source .venv/bin/activate && python -m code_index.cli collections list > /tmp/test_collections.txt 2>&1")
         
         with open("/tmp/test_collections.txt", "r") as f:
             output = f.read()
@@ -99,7 +99,7 @@ def test_metadata_storage():
         # Clean up
         try:
             vector_store.delete_collection()
-        except:
+        except Exception:
             pass
         shutil.rmtree(test_dir, ignore_errors=True)
 

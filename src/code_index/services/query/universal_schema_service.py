@@ -50,7 +50,8 @@ class UniversalSchemaService:
             count = 0
             with open(self.minimal_queries_path, "r") as f:
                 for line in f:
-                    if not line.strip(): continue
+                    if not line.strip():
+                        continue
                     record = json.loads(line)
                     lang = record.get("language")
                     cat = record.get("capture")

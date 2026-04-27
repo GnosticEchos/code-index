@@ -46,7 +46,7 @@ def test_is_path_safe_valid():
     
     # Valid path within workspace
     is_safe = path_utils.is_path_safe("/test/workspace/file.py")
-    assert is_safe == True
+    assert is_safe
 
 
 def test_is_path_safe_invalid():
@@ -56,7 +56,7 @@ def test_is_path_safe_invalid():
     
     # Path outside workspace
     is_safe = path_utils.is_path_safe("/etc/passwd")
-    assert is_safe == False
+    assert not is_safe
 
 
 def test_is_path_safe_with_none():
@@ -66,7 +66,7 @@ def test_is_path_safe_with_none():
     
     # None path should be considered unsafe
     is_safe = path_utils.is_path_safe(None)
-    assert is_safe == False
+    assert not is_safe
 
 
 def test_make_path_relative():
@@ -214,15 +214,15 @@ def test_is_subpath():
     
     # Path within workspace
     is_subpath = path_utils.is_subpath("/test/workspace/subdir/file.py")
-    assert is_subpath == True
+    assert is_subpath
     
     # Path outside workspace
     is_subpath = path_utils.is_subpath("/etc/passwd")
-    assert is_subpath == False
+    assert not is_subpath
     
     # Workspace root itself
     is_subpath = path_utils.is_subpath("/test/workspace")
-    assert is_subpath == True
+    assert is_subpath
 
 
 def test_is_subpath_with_none():
@@ -232,7 +232,7 @@ def test_is_subpath_with_none():
     
     # None path should return False
     is_subpath = path_utils.is_subpath(None)
-    assert is_subpath == False
+    assert not is_subpath
 
 
 def test_get_workspace_relative_path():

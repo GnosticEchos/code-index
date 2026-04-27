@@ -164,8 +164,6 @@ class ProgressReporter:
             self.logger.warning("update_batch_progress called without starting batch operation")
             return
         
-        current_time = time.time()
-        
         # Update batch info
         self.batch_info.current_batch = batch_num
         self.batch_info.items_in_current_batch = items_in_batch

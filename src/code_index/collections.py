@@ -164,14 +164,16 @@ class CollectionManager:
             if not dimensions:
                 try:
                     def _try_get(obj, key):
-                        if hasattr(obj, key): 
-                             val = getattr(obj, key)
-                             if val is not None: return val
-                        if isinstance(obj, dict): return obj.get(key)
+                        if hasattr(obj, key):
+                            val = getattr(obj, key)
+                            if val is not None:
+                                return val
+                        if isinstance(obj, dict):
+                            return obj.get(key)
                         return None
 
                     # Navigate to params
-                    collection_config = _try_get(info, 'config')
+                    collection_config = _try_get(info, "config")
                     params = _try_get(collection_config, 'params') if collection_config else (info.get('config', {}).get('params', {}) if isinstance(info, dict) else {})
                     
                     # 1) Try 'vectors' key for named vectors (e.g., {'text': {'size': 768}})
@@ -182,7 +184,8 @@ class CollectionManager:
                             v_size = _try_get(vv, 'size')
                             if v_size:
                                 dimensions[vk] = v_size
-                                if not dimension or vk == 'text': dimension = v_size
+                                if not dimension or vk == "text":
+                                    dimension = v_size
                     
                     # 2) Try 'size' directly for default vector
                     if not dimensions:
@@ -248,18 +251,23 @@ class CollectionManager:
 
     def canonicalize_model(self, model_name: str) -> str:
         """Standardize model names for consistent identification."""
-        if not model_name: return "unknown"
+        if not model_name:
+            return "unknown"
         m = model_name.lower()
-        
+
         # Preserve known model identifiers with versions as-is to satisfy tests
         if "nomic-embed-text" in m and "v1.5" in m:
-             return "nomic-embed-text:v1.5"
-             
-        if "nomic" in m: return "nomic-embed-text"
-        if "qwen" in m: return "qwen-embeddings"
-        if "llama" in m: return "llama-embeddings"
-        if "bge" in m: return "bge-embeddings"
-        
+            return "nomic-embed-text:v1.5"
+
+        if "nomic" in m:
+            return "nomic-embed-text"
+        if "qwen" in m:
+            return "qwen-embeddings"
+        if "llama" in m:
+            return "llama-embeddings"
+        if "bge" in m:
+            return "bge-embeddings"
+
         # Strip version tags for other models (e.g., 'xxx:latest' -> 'xxx')
         if ":" in model_name:
             return model_name.split(":")[0]

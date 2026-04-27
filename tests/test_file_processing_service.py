@@ -267,7 +267,7 @@ def test_process_files_batch_with_progress_callback():
         progress_callback = Mock()
         
         with patch.object(service, 'load_file_with_encoding', return_value="test content"):
-            results = service.process_files_batch(files, progress_callback=progress_callback)
+            service.process_files_batch(files, progress_callback=progress_callback)
             
             # Check that progress callback was called
             assert progress_callback.call_count == 3
@@ -315,7 +315,7 @@ def test_validate_file_path_valid():
     
     try:
         # Valid file path should return True
-        assert service.validate_file_path(temp_file) == True
+        assert service.validate_file_path(temp_file)
     finally:
         os.unlink(temp_file)
 
@@ -326,7 +326,7 @@ def test_validate_file_path_invalid():
     service = FileProcessingService(error_handler)
     
     # Invalid file path should return False
-    assert service.validate_file_path("/nonexistent/file.txt") == False
+    assert not service.validate_file_path("/nonexistent/file.txt")
 
 
 def test_validate_file_path_permission_error():
@@ -334,11 +334,11 @@ def test_validate_file_path_permission_error():
     error_handler = ErrorHandler("test")
     service = FileProcessingService(error_handler)
     
-    with patch.object(service, 'error_handler') as mock_error_handler:
+    with patch.object(service, 'error_handler'):
         # Mock os.path.exists to raise PermissionError
         with patch('code_index.file_processing.os.path.exists', side_effect=PermissionError("Permission denied")):
             result = service.validate_file_path("/restricted/file.txt")
-            assert result == False
+            assert not result
 
 
 def test_file_processing_service_repr():

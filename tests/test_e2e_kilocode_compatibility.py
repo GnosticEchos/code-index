@@ -148,7 +148,7 @@ if __name__ == "__main__":
         # Clean up
         try:
             vector_store.delete_collection()
-        except:
+        except Exception:
             pass
         shutil.rmtree(test_dir, ignore_errors=True)
 

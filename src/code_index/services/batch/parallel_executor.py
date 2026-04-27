@@ -177,7 +177,6 @@ class ParallelExecutor:
     
     def _wrap_batch(self, process_func: Callable, batch: List[str]) -> List:
         """Wrap batch processing function."""
-        start_time = time.time()
         try:
             results = process_func(batch)
             return results

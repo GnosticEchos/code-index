@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from tests.utilities.test_data_generator import TestDataGenerator
 from tests.utilities.service_mocks import ServiceMocks
 
-from src.code_index.services import CommandContext, IndexingService, SearchService, IndexDependencies, SearchDependencies, CollectionDependencies
+from src.code_index.services import CommandContext, IndexDependencies, SearchDependencies, CollectionDependencies
 from src.code_index.config import Config
 from src.code_index.mcp_server.tools import index_tool, search_tool, collections_tool
 from src.code_index.services.core.indexing_service import IndexingService

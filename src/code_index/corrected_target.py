@@ -12,7 +12,6 @@ import os
 from pathlib import Path
 
 from code_index.config import Config
-from code_index.scanner import DirectoryScanner
 from code_index.parser import CodeParser
 from code_index.chunking import TreeSitterChunkingStrategy
 from code_index.errors import ErrorHandler
@@ -73,7 +72,6 @@ class CorrectedIndexer:
         print(f"   chunking_strategy: {cfg.chunking_strategy}")
         
         # Initialize components
-        scanner = DirectoryScanner(cfg)
         chunking_strategy = TreeSitterChunkingStrategy(cfg)
         parser = CodeParser(cfg, chunking_strategy)
         

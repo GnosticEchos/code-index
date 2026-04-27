@@ -154,7 +154,7 @@ def batch_indexer(workspace_list, workspace, config, embed_timeout, concurrent, 
     if successful == len(workspaces) and os.path.exists("batch_failed_workspaces.txt"):
         try:
             os.remove("batch_failed_workspaces.txt")
-        except:
+        except Exception:
             pass
     
     # Summary

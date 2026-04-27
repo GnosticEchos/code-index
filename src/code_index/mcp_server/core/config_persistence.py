@@ -345,7 +345,7 @@ class ConfigPersistence:
             config_dict = {}.copy()
         else:
             from ...config import Config
-            default_config = Config()
+            Config()
             config_dict = {}.copy()
         
         # Apply template overrides

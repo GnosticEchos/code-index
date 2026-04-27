@@ -119,11 +119,12 @@ class IndexingDependencies:
     def _create_chunking_strategy(self, config: Config) -> ChunkingStrategy:
         """Create chunking strategy based on configuration."""
         strategy_name = getattr(config, "chunking_strategy", "lines")
-        
+
         if strategy_name == "treesitter":
             return TreeSitterChunkingStrategy(config)
         elif strategy_name == "tokens":
-            return TokenChunkingStrategy(config)
+            # Token-based chunking uses line-based approach with token-aware sizing
+            return LineChunkingStrategy(config)
         else:
             return LineChunkingStrategy(config)
     

@@ -166,7 +166,6 @@ class ServiceValidator:
         try:
             base_url = config.ollama_base_url.rstrip("/")
             model = config.ollama_model
-            timeout = int(getattr(config, "embed_timeout_seconds", 60) or 60)
 
             # Step 1: Check basic connectivity
             tags_url = f"{base_url}/api/tags"

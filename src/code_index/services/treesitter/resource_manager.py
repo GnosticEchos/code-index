@@ -242,8 +242,10 @@ class TreeSitterResourceManager:
     
     def ensure_tree_sitter_version(self, required_version: str = "0.20.0") -> bool:
         try:
-            import tree_sitter
-            current_version = getattr(tree_sitter, '__version__', 'unknown')
+            import importlib.util
+            if importlib.util.find_spec("tree_sitter") is None:
+                from ...chunking import TreeSitterError
+                raise ImportError("Tree-sitter package not installed")
             import inspect
             frame = inspect.currentframe()
             try:

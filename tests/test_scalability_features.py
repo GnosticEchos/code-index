@@ -95,7 +95,7 @@ class TestLargeFileHandling:
                     temp_file, mock_processor, chunk_size=64*1024
                 )
 
-                assert results['success'] == True
+                assert results['success']
                 assert results['chunks_processed'] > 1
                 assert len(processed_chunks) == results['chunks_processed']
             else:
@@ -136,7 +136,7 @@ class TestLargeFileHandling:
                     temp_file, mock_processor, max_memory_usage_mb=50
                 )
 
-                assert results['success'] == True
+                assert results['success']
                 assert 'memory_usage_mb' in results
                 assert results['strategy_used'] in ['streaming_chunked', 'chunked_processing', 'standard_loading']
             else:
@@ -276,12 +276,12 @@ class TestHybridParserSystem:
         file_path = "test.txt"
         
         # Test can_parse
-        assert parser.can_parse(file_path, content) == True
+        assert parser.can_parse(file_path, content)
         
         # Test parsing
         result = parser.parse(content, file_path, "hash123")
         
-        assert result.success == True
+        assert result.success
         assert len(result.blocks) > 0
         assert all(isinstance(block, CodeBlock) for block in result.blocks)
         
@@ -307,12 +307,12 @@ key4 = value4"""
         file_path = "test.ini"
         
         # Test can_parse
-        assert parser.can_parse(file_path, content) == True
+        assert parser.can_parse(file_path, content)
         
         # Test parsing
         result = parser.parse(content, file_path, "hash123")
         
-        assert result.success == True
+        assert result.success
         assert len(result.blocks) >= 2  # Should have at least 2 sections
         assert any(block.type == "config_section" for block in result.blocks)
         
@@ -328,7 +328,7 @@ key4 = value4"""
         for file_path, content, expected_parser in test_cases:
             result = self.hybrid_manager.parse_with_fallback(content, file_path, "hash123")
             
-            assert result.success == True
+            assert result.success
             assert len(result.blocks) > 0
             assert result.metadata["fallback_parser_used"] == expected_parser
             
@@ -340,7 +340,7 @@ key4 = value4"""
         
         result = self.hybrid_manager.parse_with_fallback(content, file_path, "hash123")
         
-        assert result.success == False
+        assert not result.success
         assert result.error_message == "No suitable fallback parser found"
         assert len(result.blocks) == 0
         
@@ -395,7 +395,7 @@ class TestBlockExtractorWithFallback:
         )
         
         assert isinstance(result, ExtractionResult)
-        assert result.success == True
+        assert result.success
         assert len(result.blocks) > 0
         assert result.metadata["extraction_method"] in ["fallback_parser", "basic_chunking"]
         
@@ -466,8 +466,8 @@ class TestPerformanceMonitoring:
     def test_parser_performance_tracking(self):
         """Test that parser performance configuration is set up correctly."""
         # Verify the configuration is set up correctly
-        assert self.config.enable_performance_monitoring == True
-        assert self.config.parser_performance_monitoring == True
+        assert self.config.enable_performance_monitoring
+        assert self.config.parser_performance_monitoring
         assert hasattr(self.config, 'performance_stats_interval')
         assert hasattr(self.config, 'parser_timeout_seconds')
 

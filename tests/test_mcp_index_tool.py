@@ -19,7 +19,8 @@ from src.code_index.mcp_server.tools.index_tool import (
     _execute_indexing
 )
 from src.code_index.config import Config
-from src.code_index.services import IndexDependencies; from src.code_index.services.shared.command_context import IndexDependencies as IndexDependencies
+
+from src.code_index.services.shared.command_context import IndexDependencies
 
 
 class TestIndexToolValidator:

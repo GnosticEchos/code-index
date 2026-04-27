@@ -13,7 +13,7 @@ from pathlib import Path
 def detect_platform():
     """Detect the current platform."""
     system = platform.system()
-    machine = platform.machine()
+    # machine = platform.machine()  # noqa: F841 - unused but kept for future use
 
     if system == "Windows":
         return "windows"
@@ -123,7 +123,13 @@ def show_build_summary():
         print("🍎 macOS binaries:")
         for bin in sorted(macos_bins):
             size = bin.stat().st_size / (1024 * 1024)  # Size in MB
-            print(".1f")
+            print(f"  {bin.name}: {size:.1f} MB")
+        for bin in sorted(macos_bins):
+            size = bin.stat().st_size / (1024 * 1024)  # Size in MB
+            print(f"  {bin.name}: {size:.1f} MB")
+        for bin in sorted(macos_bins):
+            size = bin.stat().st_size / (1024 * 1024)  # Size in MB
+            print(f"  {bin.name}: {size:.1f} MB")
 
 def main():
     """Main cross-platform build function."""

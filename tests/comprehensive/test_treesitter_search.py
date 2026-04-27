@@ -38,8 +38,8 @@ class TreeSitterSearchTester:
         
         try:
             # Test Tree-sitter imports
-            import tree_sitter_language_pack as tsl
-            from tree_sitter import Parser, Query
+            import tree_sitter_language_pack as tsl  # noqa: F401
+            from tree_sitter import Parser, Query  # noqa: F401
             print("✅ Tree-sitter packages are installed")
             
             # Test language detection
@@ -289,7 +289,6 @@ def helper_function():
         line_strategy = LineChunkingStrategy(self.config)
         tree_sitter_strategy = TreeSitterChunkingStrategy(self.config)
         
-        file_path = "test.py"
         file_hash = "test_hash"
         
         # Create a temporary file for chunking
@@ -367,7 +366,6 @@ def helper_function():
         """Generate a summary report."""
         chunking_results = results.get("chunking_test", {})
         search_results = results.get("search_quality", {})
-        comparison_results = results.get("strategy_comparison", {})
         
         # Calculate chunking success rate
         chunking_success = sum(1 for r in chunking_results.values() if r.get("success", False))

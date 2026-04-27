@@ -37,11 +37,11 @@ class TestQueryCache:
         cache.last_cache_update = datetime.now()
 
         # Cache should be valid within TTL
-        assert cache.is_cache_valid(60) == True
+        assert cache.is_cache_valid(60)
 
         # Cache should be invalid after TTL
         cache.last_cache_update = datetime.now() - timedelta(seconds=120)
-        assert cache.is_cache_valid(60) == False
+        assert not cache.is_cache_valid(60)
 
     def test_cache_invalidation(self):
         """Test cache invalidation."""
@@ -157,7 +157,7 @@ class TestConfigurationService:
             result = service.get_file_status("/nonexistent/file.py", config)
 
             assert isinstance(result, FileStatus)
-            assert result.is_processed == False
+            assert not result.is_processed
             assert "File not found" in result.error_message
 
     def test_get_processing_stats_success(self, service, config):
@@ -217,7 +217,7 @@ class TestConfigurationService:
 
             assert isinstance(result, WorkspaceStatus)
             assert result.workspace_path == config.workspace_path
-            assert result.is_valid == True
+            assert result.is_valid
             assert result.total_files == 5
             assert len(result.errors) == 0 or len(result.warnings) > 0 or len(result.errors) == 1  # May have warnings or minor errors but no critical errors
 
@@ -226,7 +226,7 @@ class TestConfigurationService:
         result = service.get_workspace_status("/nonexistent/workspace", config)
 
         assert isinstance(result, WorkspaceStatus)
-        assert result.is_valid == False
+        assert not result.is_valid
         assert len(result.errors) > 0
         assert "not a directory" in result.errors[0]
 
@@ -245,7 +245,7 @@ class TestConfigurationService:
 
             assert isinstance(result, ServiceHealth)
             assert result.service_name == "code_index_system"
-            assert result.is_healthy == True
+            assert result.is_healthy
             assert result.error_message is None
             assert result.response_time_ms is not None
 
@@ -263,7 +263,7 @@ class TestConfigurationService:
             result = service.get_service_health(config)
 
             assert isinstance(result, ServiceHealth)
-            assert result.is_healthy == False
+            assert not result.is_healthy
             assert "Connection refused" in result.error_message
 
     def test_get_system_status_healthy(self, service, config):
@@ -308,7 +308,7 @@ class TestConfigurationService:
         """Test cache functionality and performance optimization."""
         # Test cache info
         cache_info = service.get_cache_info()
-        assert cache_info["cache_enabled"] == True
+        assert cache_info["cache_enabled"]
         assert cache_info["cache_ttl_seconds"] == 30
         assert cache_info["max_cache_size"] == 1000
 
@@ -327,7 +327,7 @@ class TestConfigurationService:
             result = service.get_file_status("/test/file.py", config)
 
             assert isinstance(result, FileStatus)
-            assert result.is_processed == False
+            assert not result.is_processed
             assert "File system error" in str(result.metadata.get("query_error", ""))
 
     def test_error_handling_processing_stats(self, service, config):
@@ -372,14 +372,10 @@ class TestConfigurationService:
             mock_vs.return_value = mock_vs_instance
 
             # First call - should not be cached
-            start_time = time.time()
             result1 = service.get_file_status("/test/file.py", config)
-            first_call_time = time.time() - start_time
 
             # Second call - should use cache
-            start_time = time.time()
             result2 = service.get_file_status("/test/file.py", config)
-            second_call_time = time.time() - start_time
 
             # Results should be identical
             assert result1.file_path == result2.file_path
@@ -427,7 +423,6 @@ class TestConfigurationService:
         # They should not modify any state or perform command operations
 
         # Test that queries don't modify cache timestamps inappropriately
-        initial_cache_time = service.cache.last_cache_update
 
         # Perform a query
         service.get_file_status("/test/file.py", config)

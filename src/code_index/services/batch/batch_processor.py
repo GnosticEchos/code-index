@@ -667,7 +667,6 @@ class TreeSitterBatchProcessor:
         Returns:
             BatchProcessingResult with processing results
         """
-        start_time = time.time()
         
         try:
             files = []

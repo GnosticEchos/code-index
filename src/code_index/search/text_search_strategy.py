@@ -45,7 +45,7 @@ class TextSearchStrategy:
                 component="text_search_strategy",
                 operation="search"
             )
-            error_response = self.error_handler.handle_error(
+            self.error_handler.handle_error(
                 e, error_context, ErrorCategory.SEARCH, ErrorSeverity.MEDIUM
             )
             return []

@@ -62,7 +62,7 @@ class PathUtils:
             return str(normalized).replace('\\', '/')
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             # Return original path if normalization fails
             return path or ""
 
@@ -103,7 +103,7 @@ class PathUtils:
  
         except Exception as e:
             # Surface the error so callers/tests can handle it explicitly
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.MEDIUM)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.MEDIUM)
             raise e
 
     def calculate_relative_path(self, absolute_path: str, base_path: str) -> str:
@@ -143,7 +143,7 @@ class PathUtils:
                 return normalized_absolute
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             # Return absolute path as fallback
             return absolute_path
 
@@ -192,7 +192,7 @@ class PathUtils:
             return True, None
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             return False, str(e)
 
     def is_path_within_workspace(self, path: str, workspace_root: str) -> bool:
@@ -231,7 +231,7 @@ class PathUtils:
                 return False
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             return False
 
     def get_path_segments(self, path: str, max_segments: int = 5) -> List[str]:
@@ -276,7 +276,7 @@ class PathUtils:
             return segments[:max_segments]
  
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             return []
 
     def find_common_path_prefix(self, paths: List[str]) -> Optional[str]:
@@ -326,7 +326,7 @@ class PathUtils:
             return common_prefix
  
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             return None
 
     def _find_common_prefix(self, path1: str, path2: str) -> Optional[str]:
@@ -419,7 +419,7 @@ class PathUtils:
             return sanitized
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             return path
 
     def join_path(self, *paths: str) -> str:
@@ -447,7 +447,7 @@ class PathUtils:
             return str(joined_path).replace('\\', '/')
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             # Fallback to string joining with forward slashes
             return "/".join(paths).replace('\\', '/')
 
@@ -489,7 +489,7 @@ class PathUtils:
             return True
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             return False
 
     def make_path_relative(self, path: str, base_path: Optional[str] = None) -> Optional[str]:
@@ -536,7 +536,7 @@ class PathUtils:
                 return normalized_path
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             return None
 
     def sanitize_path(self, path: str) -> str:
@@ -600,7 +600,7 @@ class PathUtils:
             return sanitized
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             return path or ""
 
     def validate_and_normalize(self, path: str) -> Optional[str]:
@@ -636,7 +636,7 @@ class PathUtils:
             return normalized
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             return None
 
     def get_relative_path_segments(self, path: str) -> List[str]:
@@ -672,7 +672,7 @@ class PathUtils:
             return self.get_path_segments(path)
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             return []
 
     def is_subpath(self, path: str, parent_path: Optional[str] = None) -> bool:
@@ -716,7 +716,7 @@ class PathUtils:
                 return False
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             return False
 
     def get_workspace_relative_path(self, path: str) -> Optional[str]:
@@ -751,7 +751,7 @@ class PathUtils:
                 return None
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             return None
 
     def resolve_path(self, path: str) -> Optional[str]:
@@ -785,7 +785,7 @@ class PathUtils:
             return str(resolved).replace('\\', '/')
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             return None
 
     def __repr__(self) -> str:
@@ -823,7 +823,7 @@ class PathUtils:
             return path_obj.suffix.lower()
 
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+            self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
             # Fallback to string splitting
             parts = path.split('.')
             return "." + parts[-1].lower() if len(parts) > 1 else ""

@@ -73,11 +73,6 @@ class FileProcessingService:
             PermissionError: If file cannot be read due to permissions
             UnicodeDecodeError: If file cannot be decoded with any encoding
         """
-        error_context = ErrorContext(
-            component="file_processing",
-            operation="load_file_with_encoding",
-            file_path=file_path
-        )
 
         try:
             # Check if file exists
@@ -94,10 +89,8 @@ class FileProcessingService:
                 return self._read_file_with_encoding_detection(file_path, encoding)
 
         except (FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
-            error_response = self.error_handler.handle_file_error(e, error_context, "file_loading")
             raise e
         except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.MEDIUM)
             raise e
 
     def _read_file_with_encoding_detection(self, file_path: str, encoding: Optional[str] = None) -> str:
@@ -318,11 +311,6 @@ class FileProcessingService:
         Yields:
             Dictionary with chunk data, metadata, and progress info
         """
-        error_context = ErrorContext(
-            component="file_processing",
-            operation="load_file_with_chunking",
-            file_path=file_path
-        )
         
         try:
             # Check if file exists
@@ -349,11 +337,9 @@ class FileProcessingService:
                 yield from self._process_file_in_chunks(file_path, file_size, chunk_size, encoding, progress_callback)
                 
         except Exception as e:
-            error_response = self.error_handler.handle_file_error(e, error_context, "chunked_loading")
             yield {
                 "chunk_index": -1,
                 "error": str(e),
-                "error_response": error_response,
                 "success": False
             }
 
@@ -438,11 +424,6 @@ class FileProcessingService:
         Returns:
             Dictionary with processing results and statistics
         """
-        error_context = ErrorContext(
-            component="file_processing",
-            operation="stream_process_large_file",
-            file_path=file_path
-        )
         
         results = {
             "file_path": file_path,
@@ -490,7 +471,6 @@ class FileProcessingService:
                     })
                     
         except Exception as e:
-            error_response = self.error_handler.handle_file_error(e, error_context, "stream_processing")
             results["errors"].append(str(e))
             results["success"] = False
             
@@ -553,11 +533,6 @@ class FileProcessingService:
         Returns:
             Dictionary with processing results and memory usage stats
         """
-        error_context = ErrorContext(
-            component="file_processing",
-            operation="process_file_with_memory_optimization",
-            file_path=file_path
-        )
         
         results = {
             "file_path": file_path,
@@ -608,9 +583,7 @@ class FileProcessingService:
             results["peak_memory_mb"] = max(initial_memory, final_memory) - initial_memory
             
         except Exception as e:
-            error_response = self.error_handler.handle_file_error(e, error_context, "memory_optimized_processing")
             results["error"] = str(e)
-            results["error_response"] = error_response
             
         finally:
             results["processing_time_ms"] = (time.time() - start_time) * 1000
@@ -629,11 +602,6 @@ class FileProcessingService:
             Dictionary with file_path, success status, and result/error info
         """
         for file_path in file_paths:
-            error_context = ErrorContext(
-                component="file_processing",
-                operation=operation,
-                file_path=file_path
-            )
 
             try:
                 # Validate file path
@@ -658,12 +626,10 @@ class FileProcessingService:
                 }
 
             except Exception as e:
-                error_response = self.error_handler.handle_file_error(e, error_context, operation)
                 yield {
                     "file_path": file_path,
                     "success": False,
                     "error": str(e),
-                    "error_response": error_response,
                     "error_type": "processing"
                 }
 
@@ -718,11 +684,6 @@ class FileProcessingService:
         }
 
         for file_path in file_paths:
-            error_context = ErrorContext(
-                component="file_processing",
-                operation="validate_file_paths",
-                file_path=file_path
-            )
 
             try:
                 if self.validate_file_path(file_path):
@@ -733,11 +694,9 @@ class FileProcessingService:
                     results["invalid_count"] += 1
 
             except Exception as e:
-                error_response = self.error_handler.handle_file_error(e, error_context, "path_validation")
                 results["errors"].append({
                     "file_path": file_path,
-                    "error": str(e),
-                    "error_response": error_response
+                    "error": str(e)
                 })
                 results["invalid_count"] += 1
 
@@ -755,13 +714,6 @@ class FileProcessingService:
         Returns:
             Set of normalized relative paths to exclude
         """
-        error_context = ErrorContext(
-            component="file_processing",
-            operation=operation,
-            file_path=exclude_files_path,
-            additional_data={"workspace_path": workspace_path}
-        )
-
         try:
             excluded: Set[str] = set()
             if not exclude_files_path:
@@ -812,8 +764,7 @@ class FileProcessingService:
 
             return excluded
 
-        except Exception as e:
-            error_response = self.error_handler.handle_file_error(e, error_context, operation)
+        except Exception:
             return set()
 
     def load_path_list(self, path_file: str, workspace: str, operation: str = "load_path_list") -> List[str]:
@@ -828,13 +779,6 @@ class FileProcessingService:
         Returns:
             List of normalized relative paths
         """
-        error_context = ErrorContext(
-            component="file_processing",
-            operation=operation,
-            file_path=path_file,
-            additional_data={"workspace": workspace}
-        )
-
         try:
             # Validate file path
             if not self.validate_file_path(path_file):
@@ -871,8 +815,7 @@ class FileProcessingService:
 
             return results
 
-        except Exception as e:
-            error_response = self.error_handler.handle_file_error(e, error_context, operation)
+        except Exception:
             return []
 
     def validate_file_path(self, file_path: str) -> bool:
@@ -941,11 +884,6 @@ class FileProcessingService:
             batch_files = file_paths[i:i + batch_size]
             batch_number = i // batch_size + 1
 
-            error_context = ErrorContext(
-                component="file_processing",
-                operation=operation,
-                additional_data={"batch_number": batch_number, "batch_size": len(batch_files)}
-            )
 
             try:
                 batch_results = list(self.process_file_list(batch_files, operation))
@@ -964,11 +902,9 @@ class FileProcessingService:
                 results["failed_files"] += batch_summary["failed"]
 
             except Exception as e:
-                error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.HIGH)
                 results["errors"].append({
                     "batch_number": batch_number,
                     "error": str(e),
-                    "error_response": error_response,
                     "files": batch_files
                 })
 
@@ -987,8 +923,8 @@ class FileProcessingService:
         """
         error_context = ErrorContext(
             component="file_processing",
-            operation=operation,
-            file_path=workspace_list_file
+            operation="load_workspace_list",
+            additional_data={"operation": operation}
         )
 
         workspaces: List[str] = []
@@ -1030,11 +966,6 @@ class FileProcessingService:
         Returns:
             True if the file is binary, False otherwise
         """
-        error_context = ErrorContext(
-            component="file_processing",
-            operation="is_binary_file",
-            file_path=file_path
-        )
 
         try:
             with open(file_path, "rb") as f:
@@ -1044,12 +975,10 @@ class FileProcessingService:
                 # Check if the chunk contains mostly printable characters
                 printable_chars = sum(1 for byte in chunk if 32 <= byte <= 126 or byte in (9, 10, 13))
                 return printable_chars / len(chunk) < 0.7 if chunk else False
-        except (IOError, OSError) as e:
+        except (IOError, OSError):
             # If we can't read the file, assume it's binary
-            error_response = self.error_handler.handle_file_error(e, error_context, "binary_check")
             return True
-        except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+        except Exception:
             return True
 
     def augment_extensions_with_pygments(self, base_extensions: List[str]) -> List[str]:
@@ -1088,9 +1017,8 @@ class FileProcessingService:
                     if isinstance(pattern, str) and pattern.startswith("*."):
                         ext = pattern[1:].lower()  # ".*" -> ".ext"
                         discovered.add(ext)
-        except Exception as e:
+        except Exception:
             # If anything goes wrong, don't fail hard; just return base list
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.DEPENDENCY, ErrorSeverity.LOW)
             return list(dict.fromkeys([e.lower() for e in base_extensions]))
 
         merged = list(dict.fromkeys([e.lower() for e in (list(base_extensions) + list(discovered))]))
@@ -1108,11 +1036,6 @@ class FileProcessingService:
         """
         import hashlib
         
-        error_context = ErrorContext(
-            component="file_processing",
-            operation="get_file_hash",
-            file_path=file_path
-        )
         
         try:
             hash_sha256 = hashlib.sha256()
@@ -1121,7 +1044,6 @@ class FileProcessingService:
                     hash_sha256.update(chunk)
             return hash_sha256.hexdigest()
         except Exception as e:
-            error_response = self.error_handler.handle_file_error(e, error_context, "hash_calculation")
             raise e
 
     def get_supported_extensions(self) -> List[str]:
@@ -1151,17 +1073,11 @@ class FileProcessingService:
         """
         import os
         
-        error_context = ErrorContext(
-            component="file_processing",
-            operation="is_supported_file",
-            file_path=file_path
-        )
         
         try:
             _, ext = os.path.splitext(file_path.lower())
             return ext in self.get_supported_extensions()
-        except Exception as e:
-            error_response = self.error_handler.handle_file_error(e, error_context, "file_type_check")
+        except Exception:
             return False
 
     def load_gitignore_patterns(self, directory: str) -> Set[str]:
@@ -1176,11 +1092,6 @@ class FileProcessingService:
         """
         import os
         
-        error_context = ErrorContext(
-            component="file_processing",
-            operation="load_gitignore_patterns",
-            additional_data={"directory": directory}
-        )
         
         patterns = set()
         gitignore_path = os.path.join(directory, ".gitignore")
@@ -1191,14 +1102,13 @@ class FileProcessingService:
                         line = line.strip()
                         if line and not line.startswith("#"):
                             patterns.add(line)
-            except (IOError, OSError) as e:
-                error_response = self.error_handler.handle_file_error(e, error_context, "gitignore_loading")
+            except (IOError, OSError):
                 pass
         return patterns
 
     def matches_pattern(self, file_path: str, patterns: Set[str], root_dir: str) -> bool:
         """
-        Check if a file path matches any of the ignore patterns.
+            Check if a file path matches any of the ignore patterns.
 
         Args:
             file_path: Path to the file to check
@@ -1210,14 +1120,7 @@ class FileProcessingService:
         """
         import os
         import fnmatch
-        
-        error_context = ErrorContext(
-            component="file_processing",
-            operation="matches_pattern",
-            file_path=file_path,
-            additional_data={"root_dir": root_dir, "pattern_count": len(patterns)}
-        )
-        
+
         try:
             relative_path = os.path.relpath(file_path, root_dir)
             
@@ -1242,8 +1145,7 @@ class FileProcessingService:
                     if relative_path.startswith(pattern + os.sep):
                         return True
             return False
-        except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+        except Exception:
             return False
 
     def get_file_size(self, file_path: str) -> int:
@@ -1260,19 +1162,12 @@ class FileProcessingService:
             FileNotFoundError: If file doesn't exist
             PermissionError: If file cannot be accessed
         """
-        error_context = ErrorContext(
-            component="file_processing",
-            operation="get_file_size",
-            file_path=file_path
-        )
 
         try:
             return os.path.getsize(file_path)
-        except (FileNotFoundError, PermissionError, OSError) as e:
-            error_response = self.error_handler.handle_file_error(e, error_context, "file_size_check")
+        except (FileNotFoundError, PermissionError, OSError):
             return 0
-        except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+        except Exception:
             return 0
 
     def filter_files_by_criteria(self, file_paths: List[str], criteria: Dict[str, Any]) -> List[str]:
@@ -1291,11 +1186,6 @@ class FileProcessingService:
         Returns:
             List of filtered file paths
         """
-        error_context = ErrorContext(
-            component="file_processing",
-            operation="filter_files_by_criteria",
-            additional_data={"file_count": len(file_paths), "criteria": criteria}
-        )
 
         try:
             filtered_files = []
@@ -1339,15 +1229,13 @@ class FileProcessingService:
 
                     filtered_files.append(abs_path)
 
-                except Exception as e:
+                except Exception:
                     # Log individual file errors but continue processing
-                    error_response = self.error_handler.handle_file_error(e, error_context, "file_filtering")
                     continue
 
             return filtered_files
 
-        except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.MEDIUM)
+        except Exception:
             return []
 
     def normalize_path(self, path: str) -> str:
@@ -1361,14 +1249,8 @@ class FileProcessingService:
             Normalized path with forward slashes
         """
 
-        error_context = ErrorContext(
-            component="file_processing",
-            operation="normalize_path",
-            additional_data={"input_path": path}
-        )
 
         try:
             return str(Path(path).as_posix())
-        except Exception as e:
-            error_response = self.error_handler.handle_error(e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.LOW)
+        except Exception:
             return path

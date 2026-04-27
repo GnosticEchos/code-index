@@ -67,7 +67,7 @@ class UniversalSchemaLoader:
                             self._target_capture_cache[lang] = {}
                         self._target_capture_cache[lang][query] = target
 
-            logger.info(f"Loaded {sum(len(v) for l in self._query_cache.values() for v in l.values())} relationship queries across {len(self._query_cache)} languages.")
+            logger.info(f"Loaded {sum(len(v) for lang in self._query_cache.values() for v in lang.values())} relationship queries across {len(self._query_cache)} languages.")
             return self._query_cache
             
         except Exception as e:

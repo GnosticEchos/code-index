@@ -176,12 +176,12 @@ class TestCodeIndexMCPServer:
         server = CodeIndexMCPServer(temp_config_file)
         server._mcp = mock_fastmcp
         
-# Mock the tool modules with proper context manager handling
-        with patch('src.code_index.mcp_server.tools.index_tool.index') as index_tool, \
-             patch('src.code_index.mcp_server.tools.search_tool.search') as search_tool, \
-             patch('src.code_index.mcp_server.tools.search_tool.create_search_tool_description') as search_tool_description, \
-             patch('src.code_index.mcp_server.tools.collections_tool.collections') as collections_tool, \
-             patch('src.code_index.mcp_server.tools.collections_tool.create_collections_tool_description') as collections_tool_description:
+        # Mock the tool modules with proper context manager handling
+        with patch('src.code_index.mcp_server.tools.index_tool.index'), \
+             patch('src.code_index.mcp_server.tools.search_tool.search'), \
+             patch('src.code_index.mcp_server.tools.search_tool.create_search_tool_description'), \
+             patch('src.code_index.mcp_server.tools.collections_tool.collections'), \
+             patch('src.code_index.mcp_server.tools.collections_tool.create_collections_tool_description'):
             
             # Register tools
             server._register_tools()

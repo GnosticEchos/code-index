@@ -29,7 +29,7 @@ def test_tui_integration():
         
         # Simulate progress updates
         for i in range(total_files):
-            result = tui_interface.update_indexing_progress(
+            tui_interface.update_indexing_progress(
                 overall_task_id=overall_task_id,
                 completed_files=i + 1,
                 total_files=total_files,

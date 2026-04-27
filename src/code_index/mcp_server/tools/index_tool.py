@@ -808,7 +808,6 @@ async def _execute_indexing(
                 parser_module = importlib.import_module("src.code_index.parser")
                 embedder_module = importlib.import_module("src.code_index.embedder")
                 vector_store_module = importlib.import_module("src.code_index.vector_store")
-                cache_module = importlib.import_module("src.code_index.cache")
                 chunking_module = importlib.import_module("src.code_index.chunking")
 
                 # Ensure operation_config reflects current workspace for manual mode components
@@ -827,7 +826,6 @@ async def _execute_indexing(
                 parser = parser_module.CodeParser(operation_config, chunking_impl)
                 embedder_instance = embedder_module.OllamaEmbedder(operation_config)
                 vector_store = vector_store_module.QdrantVectorStore(operation_config)
-                cache_manager = cache_module.CacheManager(workspace_path, operation_config)
             except ImportError as e:
                 raise RuntimeError(f"Failed to import required indexing modules: {e}") from e
             except Exception as setup_error:

@@ -52,7 +52,7 @@ def test_error_response_creation():
         stack_trace="Traceback..."
     )
     
-    assert response.error == True
+    assert response.error
     assert response.error_type == "ValueError"
     assert response.category == ErrorCategory.VALIDATION
     assert response.severity == ErrorSeverity.HIGH
@@ -334,21 +334,21 @@ def test_should_retry():
     context = ErrorContext(component="test", operation="test")
     error = ConnectionError("Connection failed")
     response = handler.handle_error(error, context)
-    assert handler.should_retry(response, 1, 3) == True
+    assert handler.should_retry(response, 1, 3)
     
     # Test file system error (should retry)
     error = FileNotFoundError("File not found")
     response = handler.handle_error(error, context)
-    assert handler.should_retry(response, 1, 3) == True
+    assert handler.should_retry(response, 1, 3)
     
     # Test configuration error (should not retry)
     error = KeyError("config_key")
     response = handler.handle_error(error, context)
-    assert handler.should_retry(response, 1, 3) == False
+    assert not handler.should_retry(response, 1, 3)
     
     # Test critical error (should not retry)
     response.severity = ErrorSeverity.CRITICAL
-    assert handler.should_retry(response, 1, 3) == False
+    assert not handler.should_retry(response, 1, 3)
 
 
 def test_get_retry_delay():

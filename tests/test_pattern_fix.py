@@ -66,7 +66,7 @@ def _improved_matches_pattern(file_path: str, pattern: str) -> bool:
     if '*' in pattern or '?' in pattern:
         try:
             return fnmatch.fnmatch(file_path, pattern)
-        except:
+        except Exception:
             pass
     
     # Handle exact matches

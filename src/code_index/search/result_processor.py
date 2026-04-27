@@ -51,7 +51,7 @@ class SearchResultProcessor:
                 component="result_processor",
                 operation="process_results"
             )
-            error_response = self.error_handler.handle_error(
+            self.error_handler.handle_error(
                 e, error_context, ErrorCategory.SEARCH, ErrorSeverity.MEDIUM
             )
             return []
@@ -72,7 +72,7 @@ class SearchResultProcessor:
                 component="result_processor",
                 operation="format_for_tui"
             )
-            error_response = self.error_handler.handle_error(
+            self.error_handler.handle_error(
                 e, error_context, ErrorCategory.SYSTEM, ErrorSeverity.MEDIUM
             )
             return "Error formatting results"

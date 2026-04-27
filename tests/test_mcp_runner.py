@@ -175,7 +175,7 @@ def run_mcp_tests(test_pattern: str = "test_mcp_*.py", verbose: bool = True) -> 
     
     # Add coverage if available
     try:
-        import pytest_cov
+        import pytest_cov  # noqa: F401
         pytest_args.extend([
             "--cov=src.code_index.mcp_server",
             "--cov-report=term-missing",

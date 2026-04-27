@@ -599,7 +599,6 @@ class SearchService:
 
             # Create a combined validation result
             combined_error = "; ".join(errors) if errors else None
-            combined_warnings = warnings if warnings else None
 
             return ValidationResult(
                 service="search_service",

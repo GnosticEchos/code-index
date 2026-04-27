@@ -11,12 +11,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 def test_imports():
     """Test that all modules can be imported."""
     try:
-        from code_index.config import Config
-        from code_index.cache import CacheManager
-        from code_index.scanner import DirectoryScanner
-        from code_index.parser import CodeParser, CodeBlock
-        from code_index.embedder import OllamaEmbedder
-        from code_index.vector_store import QdrantVectorStore
+        from code_index.config import Config  # noqa: F401
+        from code_index.cache import CacheManager  # noqa: F401
+        from code_index.scanner import DirectoryScanner  # noqa: F401
+        from code_index.parser import CodeParser, CodeBlock  # noqa: F401
+        from code_index.embedder import OllamaEmbedder  # noqa: F401
+        from code_index.vector_store import QdrantVectorStore  # noqa: F401
         print("All modules imported successfully!")
         assert True
     except ImportError as e:
@@ -26,7 +26,7 @@ def test_imports():
 def test_config():
     """Test configuration creation."""
     try:
-        from code_index.config import Config
+        from code_index.config import Config  # noqa: F401
         config = Config()
         print(f"Configuration created: {config}")
         assert True

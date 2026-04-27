@@ -39,7 +39,7 @@ class EmbeddingGenerator:
                 component="embedding_generator",
                 operation="generate_embedding"
             )
-            error_response = self.error_handler.handle_error(
+            self.error_handler.handle_error(
                 e, error_context, ErrorCategory.SEARCH, ErrorSeverity.MEDIUM
             )
             return None
@@ -69,9 +69,9 @@ class EmbeddingGenerator:
                 component="embedding_generator",
                 operation="generate_batch_embeddings"
             )
-            error_response = self.error_handler.handle_error(
+            self.error_handler.handle_error(
                 e, error_context, ErrorCategory.SEARCH, ErrorSeverity.MEDIUM
             )
             return {
-                "error": error_response.message
+                "error": str(e)
             }

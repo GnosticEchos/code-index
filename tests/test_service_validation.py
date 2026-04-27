@@ -199,7 +199,7 @@ class TestServiceValidator:
         """Test successful Qdrant service validation."""
         # Skip test if Qdrant client is not available
         try:
-            from qdrant_client import QdrantClient
+            from qdrant_client import QdrantClient  # noqa: F401
             qdrant_available = True
         except ImportError:
             qdrant_available = False
@@ -230,7 +230,7 @@ class TestServiceValidator:
         """Test Qdrant service validation with connection error."""
         # Skip test if Qdrant client is not available
         try:
-            from qdrant_client import QdrantClient
+            from qdrant_client import QdrantClient  # noqa: F401
             qdrant_available = True
         except ImportError:
             qdrant_available = False

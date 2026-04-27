@@ -5,7 +5,6 @@ This service handles configuration loading from various sources.
 """
 import os
 import json
-import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -294,7 +293,6 @@ class ConfigLoaderService:
 
     def _validate_services(self, config: Config) -> ValidationResult:
         """Validate service connectivity and functionality."""
-        start_time = time.time()
         try:
             from ..service_validation import ServiceValidator
             service_validator = ServiceValidator(self.error_handler)
@@ -330,10 +328,8 @@ class ConfigLoaderService:
                 error=error_response.message
             )
         finally:
-            # Record response time
-            end_time = time.time()
-            # Update validation result with response time
-            # This will be handled by the service validator
+            # Record response time handled by service validator
+            pass
 
     def clear_cache(self) -> None:
         """Clear configuration and validation caches."""

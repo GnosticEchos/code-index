@@ -68,13 +68,13 @@ class WorkspaceService:
                 component="workspace_service",
                 operation="validate_workspace"
             )
-            error_response = self.error_handler.handle_error(
+            self.error_handler.handle_error(
                 e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.MEDIUM
             )
             return ValidationResult(
                 service="workspace_service",
                 valid=False,
-                error=error_response.message,
+                error=str(e),
                 details={},
                 response_time_ms=int((time.time() - start_time) * 1000),
                 actionable_guidance=["Check workspace configuration"]
@@ -108,7 +108,7 @@ class WorkspaceService:
                 component="workspace_service",
                 operation="get_workspace_info"
             )
-            error_response = self.error_handler.handle_error(
+            self.error_handler.handle_error(
                 e, error_context, ErrorCategory.FILE_SYSTEM, ErrorSeverity.MEDIUM
             )
             return {}

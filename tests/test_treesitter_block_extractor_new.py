@@ -2,7 +2,7 @@
 Unit tests for the new TreeSitterBlockExtractor with 2024-2025 best practices.
 """
 from code_index.config import Config
-from code_index.services import TreeSitterBlockExtractor, ExtractionResult
+from code_index.services import TreeSitterBlockExtractor  # noqa: F401
 from code_index.errors import ErrorHandler
 
 
