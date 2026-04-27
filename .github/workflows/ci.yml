@@ -77,7 +77,7 @@ jobs:
       - name: Install mypy
         shell: bash
         run: |
-          uv pip install mypy
+          uv pip install --system mypy
 
       - name: Run mypy
         shell: bash
@@ -107,7 +107,7 @@ jobs:
       - name: Install ruff
         shell: bash
         run: |
-          uv pip install ruff
+          uv pip install --system ruff
 
       - name: Run ruff
         shell: bash
@@ -137,7 +137,7 @@ jobs:
       - name: Install Nuitka
         shell: bash
         run: |
-          uv pip install nuitka==2.4
+          uv pip install --system nuitka==4.0.8
 
       - name: Test CLI build (mode=module)
         shell: bash
