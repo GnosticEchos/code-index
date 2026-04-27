@@ -41,3 +41,8 @@ This file provides guidance to agents when working with code in this repository.
 - Black 88-char line length, target `py313`.
 - Type hints required; use `from __future__ import annotations` for forward refs.
 - Documentation: Maintain 1:1 parity between CLI and MCP tool descriptions.
+
+## Testing
+- Integration tests requiring external services (Ollama/Qdrant) are marked with `@pytest.mark.integration`
+- CI runs exclude integration tests: `pytest -m "not integration"`
+- Integration tests that cannot run in CI are skipped with `@pytest.mark.skip` and clear reason
