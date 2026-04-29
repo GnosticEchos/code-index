@@ -96,6 +96,10 @@ class ResourceMonitor:
         except (ImportError, AttributeError, TypeError):
             return 0
     
+    @property
+    def last_memory_check(self) -> float:
+        return self._last_memory_check
+
     def get_resource_info(self, resources: Dict, processed_languages: set) -> Dict[str, Any]:
         """Get information about managed resources."""
         try:

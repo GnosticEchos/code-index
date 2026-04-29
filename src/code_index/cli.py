@@ -2,6 +2,7 @@
 Command-line interface for the code index tool.
 """
 # Nuitka Project Directives for Intelligence Binaries
+# NOTE: Keep in sync with mcp_server/server.py Nuitka block
 # nuitka-project: --product-name=CodeIndex
 # nuitka-project: --product-version=0.1.0
 # nuitka-project: --file-version=0.1.0
@@ -261,6 +262,63 @@ def index(ctx, help_tree: bool, help_tree_json: bool, workspace: str, config: st
     )
 
 
+def _initialize_tui():
+    """Initialize TUI components for progress display."""
+    try:
+        from code_index.ui.progress_manager import ProgressManager
+        from code_index.ui.file_scroller import FileScroller
+        from code_index.ui.status_panel import StatusPanel
+        progress_manager = ProgressManager()
+        if not progress_manager.enabled:
+            logger.warning("TUI initialization failed, falling back to simple progress display")
+            return None, None, None
+        file_scroller = FileScroller()
+        status_panel = StatusPanel(progress_manager.console)
+        if progress_manager.start_live_display() is None:
+            logger.warning("Failed to start live display, falling back to simple progress display")
+            progress_manager.close()
+            return None, None, None
+        return progress_manager, file_scroller, status_panel
+    except Exception as e:
+        logger.warning(f"TUI initialization failed: {type(e).__name__}: {e}, falling back to simple progress display")
+        return None, None, None
+
+
+def _display_indexing_result(result, timeout_log, cfg, error_handler):
+    """Display indexing results and write timeout log if configured."""
+    if result.is_successful():
+        print(f"Successfully processed {result.processed_files} files with {result.total_blocks} code blocks.")
+    else:
+        print(f"Indexing completed with errors: {len(result.errors)} errors")
+        for error in result.errors[:5]:
+            print(f"  - {error}")
+        if len(result.errors) > 5:
+            print(f"  ... and {len(result.errors) - 5} more errors")
+
+    if result.has_warnings():
+        print(f"Warnings: {len(result.warnings)} warnings")
+        for warning in result.warnings[:3]:
+            print(f"  - {warning}")
+        if len(result.warnings) > 3:
+            print(f"  ... and {len(result.warnings) - 3} more warnings")
+
+    if result.timed_out_files:
+        print(f"Timeouts: {len(result.timed_out_files)} file(s) timed out")
+        if timeout_log:
+            path_utils = PathUtils(error_handler, cfg.workspace_path)
+            candidate = timeout_log if os.path.isabs(timeout_log) else os.path.join(cfg.workspace_path, timeout_log)
+            normalized = path_utils.validate_and_normalize(candidate)
+            if not normalized or not path_utils.is_path_within_workspace(normalized, cfg.workspace_path):
+                print("Timeout log path is outside workspace; skipping write.")
+            else:
+                _write_timeout_log(set(result.timed_out_files), normalized)
+                print(f"Timeout log written to: {normalized}")
+
+    print(f"Processing time: {result.processing_time_seconds:.2f} seconds")
+    print("To retry only failed files with a longer timeout, run: "
+          "code-index index --workspace <...> --retry-list <timeout_log> --embed-timeout <seconds>")
+
+
 def _process_single_workspace(workspace: str, config: str, embed_timeout: int | None, retry_list: str | None,
                                 timeout_log: str | None, ignore_config: str | None, ignore_override_pattern: str | None,
                                 auto_ignore_detection: bool, use_tree_sitter: bool, chunking_strategy: str | None,
@@ -360,23 +418,8 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
 
     try:
         if use_progress_ui:
-            try:
-                from code_index.ui.progress_manager import ProgressManager
-                from code_index.ui.file_scroller import FileScroller
-                from code_index.ui.status_panel import StatusPanel
-                progress_manager = ProgressManager()
-                if not progress_manager.enabled:
-                    tui_failed = True
-                    logger.warning("TUI initialization failed, falling back to simple progress display")
-                else:
-                    file_scroller = FileScroller()
-                    status_panel = StatusPanel(progress_manager.console)
-                    if progress_manager.start_live_display() is None:
-                        tui_failed = True
-                        logger.warning("Failed to start live display, falling back to simple progress display")
-            except Exception as e:
-                tui_failed = True
-                logger.warning(f"TUI initialization failed: {type(e).__name__}: {e}, falling back to simple progress display")
+            progress_manager, file_scroller, status_panel = _initialize_tui()
+            tui_failed = not (progress_manager and progress_manager.enabled)
 
         result = indexing_service.index_workspace(
             workspace,
@@ -388,40 +431,7 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
         if progress_manager:
             progress_manager.close()
 
-    # Display results
-    if result.is_successful():
-        print(f"Successfully processed {result.processed_files} files with {result.total_blocks} code blocks.")
-    else:
-        print(f"Indexing completed with errors: {len(result.errors)} errors")
-        for error in result.errors[:5]:  # Show first 5 errors
-            print(f"  - {error}")
-        if len(result.errors) > 5:
-            print(f"  ... and {len(result.errors) - 5} more errors")
-
-    if result.has_warnings():
-        print(f"Warnings: {len(result.warnings)} warnings")
-        for warning in result.warnings[:3]:  # Show first 3 warnings
-            print(f"  - {warning}")
-        if len(result.warnings) > 3:
-            print(f"  ... and {len(result.warnings) - 3} more warnings")
-
-    if result.timed_out_files:
-        print(f"Timeouts: {len(result.timed_out_files)} file(s) timed out")
-
-        # Write timeout log if specified
-        if timeout_log:
-            path_utils = PathUtils(error_handler, cfg.workspace_path)
-            candidate = timeout_log if os.path.isabs(timeout_log) else os.path.join(cfg.workspace_path, timeout_log)
-            normalized = path_utils.validate_and_normalize(candidate)
-            if not normalized or not path_utils.is_path_within_workspace(normalized, cfg.workspace_path):
-                print("Timeout log path is outside workspace; skipping write.")
-            else:
-                _write_timeout_log(set(result.timed_out_files), normalized)
-                print(f"Timeout log written to: {normalized}")
-
-    print(f"Processing time: {result.processing_time_seconds:.2f} seconds")
-    print("To retry only failed files with a longer timeout, run: "
-          "code-index index --workspace <...> --retry-list <timeout_log> --embed-timeout <seconds>")
+    _display_indexing_result(result, timeout_log, cfg, error_handler)
 
     return result.processed_files, result.total_blocks, len(result.timed_out_files)
 

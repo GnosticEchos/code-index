@@ -1,6 +1,7 @@
 """Main MCP server implementation leveraging shared command context."""
 
 # Nuitka Project Directives for Intelligence MCP Server
+# NOTE: Keep in sync with cli.py Nuitka block
 # nuitka-project: --product-name=CodeIndexMCP
 # nuitka-project: --product-version=0.1.0
 # nuitka-project: --file-version=0.1.0
@@ -43,21 +44,23 @@ from .core.resource_manager import resource_manager
 from ..errors import ErrorResponse, ErrorCategory, ErrorSeverity, IErrorHandler
 
 
-class _ConfigPath(str):
-    """String subclass that preserves both raw and absolute config paths."""
+from dataclasses import dataclass
 
-    def __new__(cls, raw: str, absolute: str):
-        obj = super().__new__(cls, raw)
-        obj.raw = raw
-        obj.absolute = absolute
-        return obj
 
-    def __eq__(self, other):
+@dataclass(eq=False)
+class _ConfigPath:
+    """Dataclass that preserves both raw and absolute config paths."""
+    raw: str
+    absolute: str
+
+    def __eq__(self, other: object) -> bool:
         if isinstance(other, str):
             return other == self.raw or other == self.absolute
-        return super().__eq__(other)
+        if isinstance(other, _ConfigPath):
+            return self.raw == other.raw and self.absolute == other.absolute
+        return NotImplemented
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.absolute)
 
 

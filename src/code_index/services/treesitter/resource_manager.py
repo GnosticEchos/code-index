@@ -36,16 +36,8 @@ class TreeSitterResourceManager:
         self._cleanup = ResourceCleanup(max_resource_age, self.debug_enabled)
         self._monitor = ResourceMonitor(memory_threshold, self.debug_enabled)
         
-        # Expose required attributes
-        self._resources = self._allocator._resources
-        self._resource_refs = self._allocator._resource_refs
-        self._resource_lock = self._allocator._resource_lock
-        self._processed_languages = self._allocator._processed_languages
-        self._language_lock = self._allocator._language_lock
-        self._parsers = self._allocator._parsers
+        # Use public properties on delegate services
         self.performance_metrics = self._monitor.performance_metrics
-        self._last_cleanup = self._cleanup._last_cleanup
-        self._last_memory_check = self._monitor._last_memory_check
         self.memory_cleanup_threshold = memory_threshold
         self.max_memory_usage_percent = getattr(config, "max_memory_usage_percent", MEMORY_THRESHOLD_HIGH)
         self.enable_aggressive_cleanup = getattr(config, "enable_aggressive_cleanup", True)
@@ -84,13 +76,13 @@ class TreeSitterResourceManager:
                                 ErrorSeverity.LOW
                             )
                     # Also remove from _parsers tracking
-                    if language_key in self._parsers:
-                        del self._parsers[language_key]
+                    if language_key in self._allocator.parsers:
+                        del self._allocator.parsers[language_key]
                 if resource_type in ("all", "language") and "language" in resources:
                     released += 1
                     # Also remove from _processed_languages
-                    if language_key in self._processed_languages:
-                        self._processed_languages.discard(language_key)
+                    if language_key in self._allocator.processed_languages:
+                        self._allocator.processed_languages.discard(language_key)
         except Exception as e:
             self.error_handler.handle_error(
                 e,
@@ -101,13 +93,9 @@ class TreeSitterResourceManager:
         return released
     
     def cleanup_all(self) -> Dict[str, int]:
-        self._parsers = self._allocator._parsers
-        self._resources = self._allocator._resources
-        self._resource_refs = self._allocator._resource_refs
-        self._processed_languages = self._allocator._processed_languages
         
         # Delete parsers before clearing
-        for language_key, parser in list(self._allocator._parsers.items()):
+        for language_key, parser in list(self._allocator.parsers.items()):
             try:
                 if hasattr(parser, 'delete'):
                     parser.delete()
@@ -115,12 +103,12 @@ class TreeSitterResourceManager:
                 pass
         
         stats = self._cleanup.cleanup_all()
-        self._allocator._parsers.clear()
-        self._allocator._processed_languages.clear()
+        self._allocator.parsers.clear()
+        self._allocator.processed_languages.clear()
         return stats
     
     def get_resource_info(self) -> Dict[str, Any]:
-        return self._monitor.get_resource_info(self._resources, self._processed_languages)
+        return self._monitor.get_resource_info(self._allocator.resources, self._allocator.processed_languages)
     
     def get_memory_usage(self) -> int:
         """Get memory usage as RSS bytes (for backward compatibility with tests)."""
@@ -164,12 +152,12 @@ class TreeSitterResourceManager:
     
     def get_resource_usage(self) -> Dict[str, Any]:
         usage = self.get_memory_usage_dict()
-        usage["parsers"] = len(self._parsers)
-        usage["languages"] = len(self._processed_languages)
+        usage["parsers"] = len(self._allocator.parsers)
+        usage["languages"] = len(self._allocator.processed_languages)
         usage["performance_metrics"] = dict(self.performance_metrics)
         if not hasattr(self, '_performance'):
             self._performance = {}
-        for lang in self._processed_languages:
+        for lang in self._allocator.processed_languages:
             if lang not in self._performance:
                 self._performance[lang] = {"acquisition_time": 0.5}
         usage["performance"] = self._performance
@@ -204,18 +192,18 @@ class TreeSitterResourceManager:
         return self._get_or_create_parser(language_key)
     
     def _release_parser(self, language_key: str) -> int:
-        if language_key in self._parsers:
-            parser = self._parsers[language_key]
+        if language_key in self._allocator.parsers:
+            parser = self._allocator.parsers[language_key]
             if hasattr(parser, 'delete'):
                 parser.delete()
-            del self._parsers[language_key]
+            del self._allocator.parsers[language_key]
             return 1
         return 0
     
     def _reset_parser(self, language_key: str, parser=None) -> None:
         """Reset/clear a parser for the given language."""
-        if parser is None and language_key in self._parsers:
-            parser = self._parsers.get(language_key)
+        if parser is None and language_key in self._allocator.parsers:
+            parser = self._allocator.parsers.get(language_key)
         
         if parser:
             # Call reset method (as expected by tests)
@@ -235,8 +223,8 @@ class TreeSitterResourceManager:
                     parser.delete()
                 except Exception:
                     pass
-            if language_key in self._parsers:
-                del self._parsers[language_key]
+            if language_key in self._allocator.parsers:
+                del self._allocator.parsers[language_key]
     
     def _release_query(self, language_key: str) -> int:
         return 0
