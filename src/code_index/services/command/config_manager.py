@@ -51,11 +51,6 @@ class TreeSitterConfigurationManager:
             # Use the new dynamic schema service
             queries = self._schema_service.get_all_queries_combined(language_key)
             
-            # Tier 2 Fallback: Internal queries (if schema file is missing)
-            if not queries:
-                from ..treesitter_queries import get_queries_for_language
-                queries = get_queries_for_language(language_key)
-                
             return queries if queries else None
             
         except Exception as e:

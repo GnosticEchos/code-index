@@ -159,3 +159,4 @@ src/code_index.egg-info/
 src/code_index/code_index.egg-info/
 code_index_output*.txt
 kanban_backend_index_output*.txt
+.gitnexus

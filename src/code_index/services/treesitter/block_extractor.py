@@ -10,11 +10,8 @@ import logging
 from typing import List, Optional, Dict, Any, TYPE_CHECKING
 from dataclasses import dataclass
 from ...models import CodeBlock
+from ...utils import split_content
 
-# Import from extracted modules
-from ..treesitter.block_parser import (
-    basic_line_chunking,
-)
 from ..treesitter.block_filter import BlockFilter
 from ..treesitter.relationship_extractor import RelationshipBlockExtractor
 
@@ -213,11 +210,55 @@ class TreeSitterBlockExtractor:
 
     def _basic_line_chunking(self, content: str, file_path: str, file_hash: str) -> List[CodeBlock]:
         """Fallback strategy: split plain text into fixed-size line chunks."""
+        if not content:
+            return []
+        
         fallback_chunk_size = getattr(self.config, "fallback_chunk_size", 5)
-        return basic_line_chunking(
-            content, file_path, file_hash,
-            self.max_block_chars, fallback_chunk_size
-        )
+        chunk_size = max(1, int(fallback_chunk_size))
+        max_block_chars = self.max_block_chars
+        
+        lines = content.splitlines()
+        blocks = []
+        for start in range(0, len(lines), chunk_size):
+            chunk_lines = lines[start:start + chunk_size]
+            if not chunk_lines:
+                continue
+            
+            start_line = start + 1
+            end_line = start + len(chunk_lines)
+            chunk_text = "\n".join(chunk_lines)
+            
+            if len(chunk_text) > max_block_chars:
+                content_chunks = split_content(chunk_text, max_block_chars)
+                parent_id = f"text_chunk_{start_line}_{end_line}"
+                for chunk_idx, chunk_content in enumerate(content_chunks):
+                    chunk_identifier = f"text_chunk_{start_line}_{end_line}_part{chunk_idx + 1}"
+                    blocks.append(CodeBlock(
+                        file_path=file_path,
+                        identifier=chunk_identifier,
+                        type="text_chunk",
+                        start_line=start_line,
+                        end_line=end_line,
+                        content=chunk_content,
+                        file_hash=file_hash,
+                        segment_hash=f"{file_hash}:{start_line}:{end_line}:part{chunk_idx + 1}",
+                        split_index=chunk_idx + 1,
+                        split_total=len(content_chunks),
+                        parent_block_id=parent_id,
+                    ))
+            else:
+                identifier = f"text_chunk_{start_line}_{end_line}"
+                blocks.append(CodeBlock(
+                    file_path=file_path,
+                    identifier=identifier,
+                    type="text_chunk",
+                    start_line=start_line,
+                    end_line=end_line,
+                    content=chunk_text,
+                    file_hash=file_hash,
+                    segment_hash=f"{file_hash}:{start_line}:{end_line}"
+                ))
+        return blocks
 
     def _ensure_parser_manager(self) -> Optional['TreeSitterParserManager']:
         if self.parser_manager is not None:

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from .config import Config
 from .errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
-from .treesitter_queries import get_queries_for_language
+from .services.query.universal_schema_service import UniversalSchemaService
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +96,9 @@ class TreeSitterQueryManager:
             if language in self._language_queries:
                 return self._language_queries[language]
 
-            # Get query from treesitter_queries module
-            query_text = get_queries_for_language(language)
+            # Get query from Universal Schema Service
+            schema_service = UniversalSchemaService()
+            query_text = schema_service.get_all_queries_combined(language)
 
             # Cache the result (including None)
             self._language_queries[language] = query_text
