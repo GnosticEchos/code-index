@@ -160,3 +160,6 @@ src/code_index/code_index.egg-info/
 code_index_output*.txt
 kanban_backend_index_output*.txt
 .gitnexus
+.claude/
+CLAUDE.md
+src/code_index/queries/queries_minimal.jsonl.bak

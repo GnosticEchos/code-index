@@ -114,7 +114,7 @@ class ResourceAllocator:
                 parser.reset = lambda: None
             return parser
         except Exception as e:
-            from ...chunking import TreeSitterError
+            from ..._exceptions import TreeSitterError
             raise TreeSitterError(f"Failed to create parser for {language_key}: {e}")
     
     def reuse(self, language_key: str, resource_type: str) -> Optional[Dict[str, Any]]:

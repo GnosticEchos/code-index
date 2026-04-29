@@ -179,7 +179,7 @@ def _write_timeout_log(paths: Set[str], log_path: str) -> None:
             for path in sorted(paths):
                 f.write(f"{path}\n")
     except OSError as exc:
-        print(f"Failed to write timeout log to {log_path}: {exc}")
+        logger.error(f"Failed to write timeout log to {log_path}: {exc}")
 
 
 def _load_exclude_list(workspace_path: str, exclude_files_path: str | None) -> Set[str]:

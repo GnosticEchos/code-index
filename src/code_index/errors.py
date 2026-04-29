@@ -13,10 +13,17 @@ import logging
 import traceback
 import sys
 from enum import Enum
-from typing import Dict, Any, Optional, List, Callable
+from typing import Protocol, runtime_checkable, Dict, Any, Optional, List, Callable
 from dataclasses import dataclass
 from datetime import datetime
 
+
+
+@runtime_checkable
+class IErrorHandler(Protocol):
+    """Protocol for error handlers used across the codebase."""
+    def handle_error(self, error, context, category=None, severity=None, include_stack_trace=True):
+        ...
 
 class ErrorSeverity(Enum):
     """Error severity levels."""

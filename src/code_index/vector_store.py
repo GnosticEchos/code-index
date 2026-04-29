@@ -5,7 +5,6 @@ import hashlib
 import os
 import time
 from typing import List, Dict, Any, Optional
-from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, MatchValue
 from code_index.config import Config
 from code_index.errors import ErrorContext, ErrorCategory, ErrorSeverity, error_handler
@@ -76,7 +75,6 @@ class QdrantVectorStore:
         Returns:
             ValidationResult with detailed validation status
         """
-        import time
         start_time = time.time()
 
         # Check if Qdrant client is available

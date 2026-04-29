@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 
 from ...config import Config
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
+from ..._exceptions import TreeSitterError
 from ...constants import (
     MEMORY_THRESHOLD_DEFAULT, MEMORY_THRESHOLD_HIGH, CLEANUP_INTERVAL_SECONDS,
     TREE_SITTER_MAX_RESOURCE_AGE
@@ -244,28 +245,13 @@ class TreeSitterResourceManager:
         try:
             import importlib.util
             if importlib.util.find_spec("tree_sitter") is None:
-                from ...chunking import TreeSitterError
                 raise ImportError("Tree-sitter package not installed")
-            import inspect
-            frame = inspect.currentframe()
-            try:
-                caller_frame = frame.f_back
-                if caller_frame:
-                    caller_code = caller_frame.f_code
-                    if 'test_ensure_tree_sitter_version_failure_no_api' in caller_code.co_name:
-                        from ...chunking import TreeSitterError
-                        raise TreeSitterError("Tree-sitter bindings do not expose required API")
-            finally:
-                del frame
             return True
         except ImportError:
-            from ...chunking import TreeSitterError
             raise TreeSitterError("Tree-sitter package not installed")
         except AttributeError as e:
-            from ...chunking import TreeSitterError
             raise TreeSitterError(f"Tree-sitter bindings do not expose required API: {e}")
         except Exception as e:
-            from ...chunking import TreeSitterError
             raise TreeSitterError(f"Tree-sitter bindings do not expose required API: {e}")
     
     def _calculate_memory_efficiency(self) -> float:

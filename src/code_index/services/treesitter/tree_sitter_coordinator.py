@@ -17,21 +17,11 @@ from ...errors import (
     ErrorSeverity,
 )
 
-try:
-    from ...chunking import (
-        TreeSitterError,
-        TreeSitterFileTooLargeError,
-        TreeSitterLanguageError,
-    )
-except ImportError:  # Fallback during partial imports
-    class TreeSitterError(Exception):
-        """Fallback Tree-sitter base error when chunking module unavailable."""
-
-    class TreeSitterLanguageError(TreeSitterError):
-        """Fallback Tree-sitter language error when chunking module unavailable."""
-
-    class TreeSitterFileTooLargeError(TreeSitterError):
-        """Fallback Tree-sitter file size error when chunking module unavailable."""
+from ..._exceptions import (
+    TreeSitterError,
+    TreeSitterFileTooLargeError,
+    TreeSitterLanguageError,
+)
 from ...models import CodeBlock
 
 

@@ -40,7 +40,7 @@ from ..config_service import ConfigurationService
 from ..services.shared.command_context import CommandContext
 from .core.error_handler import error_handler
 from .core.resource_manager import resource_manager
-from ..errors import ErrorResponse, ErrorCategory, ErrorSeverity
+from ..errors import ErrorResponse, ErrorCategory, ErrorSeverity, IErrorHandler
 
 
 class _ConfigPath(str):
@@ -61,7 +61,7 @@ class _ConfigPath(str):
         return hash(self.absolute)
 
 
-class MCPErrorHandlerAdapter:
+class MCPErrorHandlerAdapter(IErrorHandler):
     """Adapter to make MCPErrorHandler compatible with ErrorHandler interface."""
 
     def __init__(self, mcp_error_handler):

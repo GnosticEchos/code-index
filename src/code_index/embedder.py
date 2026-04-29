@@ -1,6 +1,7 @@
 """
 Ollama embedder for the code index tool.
 """
+import time
 import requests
 from typing import List, Dict, Any
 from code_index.config import Config
@@ -79,7 +80,6 @@ class OllamaEmbedder:
         Returns:
             ValidationResult with detailed validation status
         """
-        import time
         start_time = time.time()
 
         try:

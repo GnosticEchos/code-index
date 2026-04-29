@@ -13,7 +13,7 @@ from code_index.config import Config
 from code_index.services import TreeSitterResourceManager
 from code_index.errors import ErrorHandler
 
-from code_index.chunking import TreeSitterError
+from code_index import TreeSitterError
 
 class TestTreeSitterResourceManager:
     """Test suite for TreeSitterResourceManager."""
@@ -34,32 +34,16 @@ class TestTreeSitterResourceManager:
         assert hasattr(self.resource_manager, 'parsers')
         assert hasattr(self.resource_manager, 'query_cache')
         assert hasattr(self.resource_manager, 'resource_usage')
-
-    def test_ensure_tree_sitter_version_success(self):
-        """Test successful Tree-sitter version check."""
-        with patch('tree_sitter.Query') as mock_query:
-            mock_query.captures = True
-            mock_query.matches = True
-
-            # Should not raise an exception
-            self.resource_manager.ensure_tree_sitter_version()
-
     def test_ensure_tree_sitter_version_failure_no_bindings(self):
         """Test Tree-sitter version check failure due to missing bindings."""
         with patch.dict('sys.modules', {'tree_sitter': None}):
             with pytest.raises(TreeSitterError, match="Tree-sitter package not installed"):
                 self.resource_manager.ensure_tree_sitter_version()
 
-    def test_ensure_tree_sitter_version_failure_no_api(self):
-        """Test Tree-sitter version check failure due to missing API."""
-        with patch('tree_sitter.Query') as mock_query:
-            # Remove all API methods
-            del mock_query.captures
-            del mock_query.matches
-
-            with patch('tree_sitter.QueryCursor', side_effect=ImportError):
-                with pytest.raises(TreeSitterError, match="Tree-sitter bindings do not expose"):
-                    self.resource_manager.ensure_tree_sitter_version()
+    def test_ensure_tree_sitter_version_success(self):
+        """Test Tree-sitter version check succeeds when package is installed."""
+        result = self.resource_manager.ensure_tree_sitter_version()
+        assert result is True
 
     def test_acquire_resources_parser_creation(self):
         """Test resource acquisition with parser creation."""

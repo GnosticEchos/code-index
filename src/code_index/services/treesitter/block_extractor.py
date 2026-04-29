@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from ...models import CodeBlock
 from ...utils import split_content
 
+from ...indexing.language_detector import LanguageDetector
 from ..treesitter.block_filter import BlockFilter
 from ..treesitter.relationship_extractor import RelationshipBlockExtractor
 
@@ -272,10 +273,14 @@ class TreeSitterBlockExtractor:
             return None
 
     def _get_language_from_path(self, file_path: str) -> Optional[str]:
-        # Minimal mapping for extension-based fallback if detector unavailable
-        ext = file_path.split('.')[-1].lower() if '.' in file_path else ''
-        mapping = {'py': 'python', 'js': 'javascript', 'ts': 'typescript', 'rs': 'rust', 'go': 'go', 'txt': 'text/plain'}
-        return mapping.get(ext)
+        """Delegate extension-to-language mapping to the canonical LanguageDetector."""
+        try:
+            detector = LanguageDetector(self.config)
+            return detector.detect_language(file_path)
+        except Exception:
+            ext = file_path.split('.')[-1].lower() if '.' in file_path else ''
+            mapping = {'py': 'python', 'js': 'javascript', 'ts': 'typescript', 'rs': 'rust', 'go': 'go', 'txt': 'text/plain'}
+            return mapping.get(ext)
 
     def get_extraction_stats(self) -> Dict[str, Any]:
         """Get extraction statistics (expected by tests)."""

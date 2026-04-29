@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from code_index.chunking import TreeSitterError
+from code_index import TreeSitterError
 from code_index.config import Config
 from code_index.models import CodeBlock
 from code_index.services import TreeSitterChunkCoordinator
