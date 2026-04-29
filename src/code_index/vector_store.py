@@ -25,7 +25,7 @@ class QdrantVectorStore:
     def __init__(self, config: Config):
         """Initialize Qdrant client with configuration."""
         self.workspace_path = os.path.abspath(config.workspace_path)
-        self.collection_name = self._generate_collection_name()
+        self.collection_name = self._collection_name_from_path(config.workspace_path)
 
         # Parse Qdrant URL
         url = config.qdrant_url
@@ -183,77 +183,21 @@ class QdrantVectorStore:
         result = self.validate_configuration()
         result.raise_for_errors()
 
-    def _generate_collection_name(self) -> str:
-        """Generate collection name based on workspace path.
+    def _collection_name_from_path(self, workspace_path: str) -> str:
+        """Derive a human-readable collection name from the workspace path.
 
-        Aligns with Kilo Code extension convention:
-        - Prefix: "ws-"
-        - Hash: sha256(workspace_path) first 16 hex chars
+        Uses the last directory component (folder name), sanitized for Qdrant
+        (alphanumeric, hyphens, underscores only). Falls back to a short hash
+        if the folder name is empty or contains only special characters.
         """
-        workspace_hash = hashlib.sha256(self.workspace_path.encode()).hexdigest()
-        return f"ws-{workspace_hash[:16]}"
+        folder = os.path.basename(os.path.normpath(workspace_path))
+        sanitized = "".join(c if c.isalnum() or c in "-_" else "_" for c in folder).strip("_")
+        if not sanitized or len(sanitized) < 2:
+            short_hash = hashlib.sha256(workspace_path.encode()).hexdigest()[:8]
+            sanitized = f"repo_{short_hash}"
+        return sanitized
 
-    def _init_metadata_collection(self):
-        """Initialize metadata collection for storing workspace information."""
-        try:
-            metadata_collection = "code_index_metadata"
-            collections = self.client.get_collections()
-            collection_names = [
-                collection.name for collection in collections.collections]
 
-            if metadata_collection not in collection_names:
-                self.client.create_collection(
-                    collection_name=metadata_collection,
-                    vectors_config=VectorParams(
-                        size=1,  # Minimal vector size for metadata
-                        distance=Distance.COSINE
-                    )
-                )
-        except Exception:
-            # If we can't create metadata collection, continue without it
-            pass
-
-    def _store_collection_metadata(self):
-        """Store metadata about this collection."""
-        try:
-            # Ensure metadata collection exists first
-            self._init_metadata_collection()
-            
-            metadata_collection = "code_index_metadata"
-            # Store workspace path mapping
-            metadata = {
-                "collection_name": self.collection_name,
-                "workspace_path": self.workspace_path,
-                "created_date": time.time(),
-                "indexed_date": time.time()
-            }
-
-            # Create a simple vector for storage (all zeros)
-            vector = [0.0] * 1
-
-            # Create point with metadata using a proper UUID
-            import uuid
-            point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, self.collection_name))
-            point = PointStruct(
-                id=point_id,
-                vector=vector,
-                payload=metadata
-            )
-
-            self.client.upsert(
-                collection_name=metadata_collection,
-                points=[point]
-            )
-        except Exception as e:
-            # If we can't store metadata, continue without it
-            error_context = ErrorContext(
-                component="vector_store",
-                operation="store_collection_metadata",
-                metadata={"collection_name": self.collection_name}
-            )
-            error_response = error_handler.handle_error(e, error_context, ErrorCategory.DATABASE, ErrorSeverity.LOW)
-            print(f"Warning: {error_response.message}")
-            pass
 
     def initialize(self) -> bool:
         """
@@ -307,27 +251,18 @@ class QdrantVectorStore:
             )
             # Create payload indexes
             self._create_payload_indexes()
-            
-            # Store metadata about this collection
-            self._store_collection_metadata()
             return True
         else:
-            # Collection already exists, but ensure metadata is stored
-            self._store_collection_metadata()
             return False
 
     def _create_payload_indexes(self) -> None:
         """Create payload indexes for efficient filtering."""
         try:
-            # Create indexes for path segments (up to 5 levels deep)
-            for i in range(5):
-                self.client.create_payload_index(
-                    collection_name=self.collection_name,
-                    field_name=f"pathSegments.{i}",
-                    field_schema="keyword"
-                )
-            # Optional: index for embedding model identifier to enable future filtering
-            # This is additive and should not interfere with existing payload schema.
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="workspace_hash",
+                field_schema="keyword"
+            )
             try:
                 self.client.create_payload_index(
                     collection_name=self.collection_name,
@@ -335,10 +270,8 @@ class QdrantVectorStore:
                     field_schema="keyword"
                 )
             except Exception:
-                # If the backend/version does not support this or index already exists, ignore.
                 pass
         except Exception:
-            # Ignore errors if indexes already exist
             pass
 
     # ------------------------------
@@ -405,15 +338,12 @@ class QdrantVectorStore:
         try:
             # Convert to PointStruct objects and add path segments
             point_structs = []
+            workspace_hash = hashlib.sha256(self.workspace_path.encode()).hexdigest()
             for point in points:
                 payload = point.get("payload", {})
-                if payload and "filePath" in payload:
-                    # Add path segments for efficient filtering
-                    file_path = payload["filePath"]
-                    path_segments = file_path.split(os.sep)
-                    payload["pathSegments"] = {
-                        str(i): segment for i, segment in enumerate(path_segments)
-                    }
+                if payload:
+                    payload["workspace_hash"] = workspace_hash
+                    payload["workspace_path"] = self.workspace_path
 
                 point_structs.append(
                     PointStruct(
@@ -447,11 +377,11 @@ class QdrantVectorStore:
     def search(self, query_vector: List[float], directory_prefix: Optional[str] = None,
                min_score: float = 0.4, max_results: int = 50) -> List[Dict[str, Any]]:
         """
-        Search for similar vectors.
+        Search for similar vectors, scoped to the current workspace.
 
         Args:
             query_vector: Vector to search for
-            directory_prefix: Optional directory prefix to filter results
+            directory_prefix: Deprecated, kept for backward compatibility
             min_score: Minimum score threshold
             max_results: Maximum number of results to return
 
@@ -459,24 +389,15 @@ class QdrantVectorStore:
             List of search results
         """
         try:
-            # Build filter if directory prefix is specified
-            search_filter = None
-            if directory_prefix:
-                # Normalize the directory prefix
-                normalized_prefix = os.path.normpath(directory_prefix).strip(os.sep)
-                if normalized_prefix:
-                    # Split into path segments
-                    segments = normalized_prefix.split(os.sep)
-                    if segments:
-                        # Create filter conditions for each segment
-                        must_conditions = [
-                            FieldCondition(
-                                key=f"pathSegments.{i}",
-                                match=MatchValue(value=segment)
-                            )
-                            for i, segment in enumerate(segments)
-                        ]
-                        search_filter = Filter(must=must_conditions)
+            # Build filter scoped to this workspace
+            workspace_hash = hashlib.sha256(self.workspace_path.encode()).hexdigest()
+            must_conditions = [
+                FieldCondition(
+                    key="workspace_hash",
+                    match=MatchValue(value=workspace_hash)
+                )
+            ]
+            search_filter = Filter(must=must_conditions)
 
             # Perform search
             results = self.client.query_points(
@@ -539,22 +460,21 @@ class QdrantVectorStore:
             file_path: Path of the file to delete points for
         """
         try:
-            # Split file path into segments
-            path_segments = file_path.split(os.sep)
-
-            # Create filter conditions for each segment
-            must_conditions = [
-                FieldCondition(
-                    key=f"pathSegments.{i}",
-                    match=MatchValue(value=segment)
-                )
-                for i, segment in enumerate(path_segments)
-            ]
-
-            # Delete points matching the filter
+            workspace_hash = hashlib.sha256(self.workspace_path.encode()).hexdigest()
             self.client.delete(
                 collection_name=self.collection_name,
-                points_selector=Filter(must=must_conditions)
+                points_selector=Filter(
+                    must=[
+                        FieldCondition(
+                            key="workspace_hash",
+                            match=MatchValue(value=workspace_hash)
+                        ),
+                        FieldCondition(
+                            key="filePath",
+                            match=MatchValue(value=file_path)
+                        ),
+                    ]
+                )
             )
         except Exception as e:
             error_context = ErrorContext(

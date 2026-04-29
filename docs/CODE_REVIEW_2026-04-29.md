@@ -114,7 +114,7 @@ Uses `inspect.currentframe().f_back.f_code.co_name` to detect test context. Rena
 
 ## Tier 4: Configuration & Setup
 
-### 11. M4 — `object.__setattr__` anti-pattern
+~~### 11. M4 — `object.__setattr__` anti-pattern~~
 **File:** `src/code_index/config.py:368-378`  
 **Severity:** MEDIUM
 
@@ -172,7 +172,7 @@ Three models hardcoded. New models silently get 768 (fallback). Wrong dimensions
 
 ## Tier 5: Package & Dependency Hygiene
 
-### 16. L9 — Stale duplicate dev dependency groups
+~~### 16. L9 — Stale duplicate dev dependency groups~~
 **File:** `pyproject.toml`  
 **Severity:** LOW
 
@@ -182,7 +182,7 @@ Both `[project.optional-dependencies] dev` and `[dependency-groups] dev` exist. 
 
 ---
 
-### 17. I6 — Duplicate Nuitka directives
+~~### 17. I6 — Duplicate Nuitka directives~~
 **Files:** `src/code_index/cli.py:15-19`, `src/code_index/mcp_server/server.py:14-18`  
 **Severity:** INFO
 
@@ -194,7 +194,7 @@ Identical `# nuitka-project:` directives in two files. If one is updated, the ot
 
 ## Tier 6: Code Organization & Maintainability
 
-### 18. M1 — Overly long CLI function
+~~### 18. M1 — Overly long CLI function~~
 **File:** `src/code_index/cli.py:264-426` (165 lines)  
 **Severity:** MEDIUM
 
@@ -204,7 +204,7 @@ Identical `# nuitka-project:` directives in two files. If one is updated, the ot
 
 ---
 
-### 19. M2 — Overly long search method
+~~### 19. M2 — Overly long search method~~
 **File:** `src/code_index/services/core/search_service.py:59-286` (228 lines)  
 **Severity:** MEDIUM
 
@@ -214,7 +214,7 @@ Identical `# nuitka-project:` directives in two files. If one is updated, the ot
 
 ---
 
-### 20. H5 — Nested LRUCache inside SearchService
+~~### 20. H5 — Nested LRUCache inside SearchService~~
 **File:** `src/code_index/services/core/search_service.py:702-740`  
 **Severity:** HIGH
 
@@ -234,7 +234,7 @@ A tiny inline `{py: python, js: javascript, ...}` dict duplicates `LanguageDetec
 
 ---
 
-### 22. I1 — `_ConfigPath` subclasses `str` with custom `__eq__`
+~~### 22. I1 — `_ConfigPath` subclasses `str` with custom `__eq__`~~
 **File:** `src/code_index/mcp_server/server.py:46-61`  
 **Severity:** INFO
 
@@ -244,7 +244,7 @@ Overriding `__eq__` on a `str` subclass without careful `__hash__` parity can br
 
 ---
 
-### 23. I8 — Direct access to delegate private attributes
+~~### 23. I8 — Direct access to delegate private attributes~~
 **File:** `src/code_index/services/treesitter/resource_manager.py:38-47`  
 **Severity:** INFO
 
@@ -256,7 +256,7 @@ Accesses `_resources`, `_resource_refs`, `_resource_lock`, `_parsers` directly f
 
 ## Tier 7: Performance
 
-### 24. M3 — `deepcopy(config)` on every dependency load
+~~### 24. M3 — `deepcopy(config)` on every dependency load~~
 **File:** `src/code_index/services/shared/command_context.py:145-153`  
 **Severity:** MEDIUM
 
@@ -276,7 +276,7 @@ Every call to `load_*_dependencies()` does `copy.deepcopy(config)` — O(n) copy
 
 ---
 
-### 26. L6 — FileProcessingService created per helper call
+~~### 26. L6 — FileProcessingService created per helper call~~
 **File:** `src/code_index/cli.py:157-168`  
 **Severity:** LOW
 
@@ -388,22 +388,22 @@ Change propagates to:
 ~~| 8 | Tier 3 | CRITICAL | Type mismatch | `mcp_server/server.py:64-101` |~~
 ~~| 9 | Tier 3 | LOW | Bare except | `vector_store.py:349-355` |~~
 ~~| 10 | Tier 3 | INFO | Print vs logger | `cli.py:182` |~~
-| 11 | Tier 4 | MEDIUM | Config pattern | `config.py:368-378` |
+~~| 11 | Tier 4 | MEDIUM | Config pattern | `config.py:368-378` |~~
 ~~| 12 | Tier 4 | HIGH | Dead error guard | `embedder.py:20-31` |~~
 ~~| 13 | Tier 4 | LOW | Hardcoded map | `config.py:147-158` |~~
 ~~| 14 | Tier 4 | LOW | Magic number | `block_extractor.py:216` |~~
 ~~| 15 | Tier 4 | INFO | Nondeterminism | `config.py:106-134` |~~
-| 16 | Tier 5 | LOW | Dep drift | `pyproject.toml` |
-| 17 | Tier 5 | INFO | Drift risk | `cli.py`, `server.py` |
-| 18 | Tier 6 | MEDIUM | Long function | `cli.py:264-426` |
-| 19 | Tier 6 | MEDIUM | Long function | `search_service.py:59-286` |
-| 20 | Tier 6 | HIGH | God class | `search_service.py:702-740` |
+~~| 16 | Tier 5 | LOW | Dep drift | `pyproject.toml` |~~
+~~| 17 | Tier 5 | INFO | Drift risk | `cli.py`, `server.py` |~~
+~~| 18 | Tier 6 | MEDIUM | Long function | `cli.py:264-426` |~~
+~~| 19 | Tier 6 | MEDIUM | Long function | `search_service.py:59-286` |~~
+~~| 20 | Tier 6 | HIGH | God class | `search_service.py:702-740` |~~
 ~~| 21 | Tier 6 | INFO | Duplicate mapping | `block_extractor.py:274-278` |~~
 | 22 | Tier 6 | INFO | `str` subclass | `mcp_server/server.py:46-61` |
-| 23 | Tier 6 | INFO | Encapsulation | `resource_manager.py:38-47` |
-| 24 | Tier 7 | MEDIUM | Deep copy | `command_context.py:145-153` |
+~~| 23 | Tier 6 | INFO | Encapsulation | `resource_manager.py:38-47` |~~
+~~| 24 | Tier 7 | MEDIUM | Deep copy | `command_context.py:145-153` |~~
 ~~| 25 | Tier 7 | LOW | Memory | `file_processor.py:180-187` |~~
-| 26 | Tier 7 | LOW | Redundant init | `cli.py:157-168` |
+~~| 26 | Tier 7 | LOW | Redundant init | `cli.py:157-168` |~~
 ~~| 27 | Tier 7 | LOW | Local import | `embedder.py:82`, `vector_store.py:79` |~~
 ~~| 28 | Tier 8 | HIGH | Semantics | `resource_manager.py:214-238` |~~
 ~~| 29 | Tier 8 | MEDIUM | Substring match | `vector_store.py:383-395` |~~
