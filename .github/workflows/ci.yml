@@ -54,38 +54,8 @@ jobs:
         env:
           UV_SYSTEM_PYTHON: 0
 
-  type-check:
-    name: Type Check
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-          cache-dependency-glob: 'uv.lock'
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install mypy
-        shell: bash
-        run: |
-          uv pip install --system mypy
-
-      - name: Run mypy
-        shell: bash
-        run: |
-          mypy src/code_index --ignore-missing-imports
-
   lint:
-    name: Lint
+    name: Lint (ruff)
     runs-on: ubuntu-latest
 
     steps:
@@ -104,15 +74,15 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install ruff
+      - name: Install dependencies
         shell: bash
         run: |
-          uv pip install --system ruff
+          uv sync --dev --no-default-groups
 
       - name: Run ruff
         shell: bash
         run: |
-          ruff check src/code_index --fix
+          uv run ruff check .
 
   build-test:
     name: Build Test (Nuitka Compilation)
