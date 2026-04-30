@@ -106,7 +106,8 @@ class ResourceAllocator:
             if language is None:
                 language = self._get_language(language_key)
             parser = Parser()
-            parser.set_language(language)  # type: ignore[attr-defined]
+            if hasattr(parser, 'set_language'):
+                parser.set_language(language)  # type: ignore[attr-defined]
             self._parsers[language_key] = parser
             if not hasattr(parser, 'delete'):
                 parser.delete = lambda: None  # type: ignore[attr-defined]
