@@ -80,3 +80,12 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 
+
+[tool.ty]
+exclude = ["tests/**", "scripts/**"]
+
+[tool.ruff.lint]
+per-file-ignores = { "tests/*" = ["F401", "F811"] }
+
+[tool.ruff]
+respect-gitignore = true
