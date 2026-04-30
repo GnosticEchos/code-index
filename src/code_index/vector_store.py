@@ -405,10 +405,29 @@ class QdrantVectorStore:
                 )
             ]
             if filetype_filter:
+                ft = filetype_filter.lower()
+                # Map common language names to file extensions
+                _LANG_TO_EXT = {
+                    "python": "py", "javascript": "js", "typescript": "ts",
+                    "rust": "rs", "golang": "go", "csharp": "cs", "c#": "cs",
+                    "fsharp": "fs", "f#": "fs", "ruby": "rb", "kotlin": "kt",
+                    "java": "java", "swift": "swift", "scala": "scala",
+                    "haskell": "hs", "ocaml": "ml", "elixir": "ex",
+                    "clojure": "clj", "commonlisp": "lisp", "scheme": "scm",
+                    "dart": "dart", "lua": "lua", "julia": "jl",
+                    "perl": "pl", "php": "php", "r": "r", "matlab": "m",
+                    "zig": "zig", "nim": "nim", "crystal": "cr",
+                    "markdown": "md", "yaml": "yaml", "toml": "toml",
+                    "dockerfile": "dockerfile", "makefile": "make",
+                    "cmake": "cmake", "sql": "sql", "html": "html", "css": "css",
+                    "bash": "sh", "shell": "sh", "zsh": "zsh", "fish": "fish",
+                    "powershell": "ps1", "batch": "bat",
+                }
+                resolved = _LANG_TO_EXT.get(ft, ft)
                 must_conditions.append(
                     FieldCondition(
                         key="filetype",
-                        match=MatchValue(value=filetype_filter.lower())
+                        match=MatchValue(value=resolved)
                     )
                 )
             search_filter = Filter(must=must_conditions)

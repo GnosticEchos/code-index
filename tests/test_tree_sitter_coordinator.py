@@ -69,7 +69,7 @@ class _StubBatchProcessor:
 
 @pytest.fixture(autouse=True)
 def _mock_ts_pack():
-    with patch('tree_sitter_language_pack.get_parser') as mock_parser_cls,          patch('tree_sitter_language_pack.get_language') as mock_lang:
+    with patch('tree_sitter_language_pack.get_parser') as mock_parser_cls, patch("tree_sitter_language_pack.get_language") as _:
         mock_parser = mock_parser_cls.return_value
         mock_tree = type('MockTree', (), {'root_node': object()})()
         mock_parser.parse.return_value = mock_tree
