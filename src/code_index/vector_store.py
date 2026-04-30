@@ -263,6 +263,11 @@ class QdrantVectorStore:
                 field_name="workspace_hash",
                 field_schema="keyword"
             )
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="filetype",
+                field_schema="keyword"
+            )
             try:
                 self.client.create_payload_index(
                     collection_name=self.collection_name,
@@ -402,7 +407,7 @@ class QdrantVectorStore:
             if filetype_filter:
                 must_conditions.append(
                     FieldCondition(
-                        key="type",
+                        key="filetype",
                         match=MatchValue(value=filetype_filter.lower())
                     )
                 )

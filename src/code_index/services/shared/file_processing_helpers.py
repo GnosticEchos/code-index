@@ -1,6 +1,7 @@
 """
 Helper functions for FileProcessor to reduce file size.
 """
+import os
 import uuid
 from typing import Dict, Any, List, Optional, Callable
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
@@ -51,8 +52,12 @@ def prepare_vector_points(
             f"{file_path}:{block.start_line}:{block.end_line}:{getattr(block, 'split_index', '')}"
         ))
         
+        _, ext = os.path.splitext(rel_path)
+        filetype = ext.lstrip('.').lower() if ext else ""
+
         payload = {
             "filePath": rel_path,
+            "filetype": filetype,
             "codeChunk": block.content,
             "startLine": block.start_line,
             "endLine": block.end_line,
