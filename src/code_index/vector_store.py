@@ -375,7 +375,8 @@ class QdrantVectorStore:
         return all(field in payload for field in required_fields)
 
     def search(self, query_vector: List[float], directory_prefix: Optional[str] = None,
-               min_score: float = 0.4, max_results: int = 50) -> List[Dict[str, Any]]:
+               min_score: float = 0.4, max_results: int = 50,
+               filetype_filter: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Search for similar vectors, scoped to the current workspace.
 
@@ -384,12 +385,13 @@ class QdrantVectorStore:
             directory_prefix: Deprecated, kept for backward compatibility
             min_score: Minimum score threshold
             max_results: Maximum number of results to return
+            filetype_filter: Optional file type/language to narrow results (e.g. "go", "py")
 
         Returns:
             List of search results
         """
         try:
-            # Build filter scoped to this workspace
+            # Build filter scoped to this workspace, optionally by filetype
             workspace_hash = hashlib.sha256(self.workspace_path.encode()).hexdigest()
             must_conditions = [
                 FieldCondition(
@@ -397,6 +399,13 @@ class QdrantVectorStore:
                     match=MatchValue(value=workspace_hash)
                 )
             ]
+            if filetype_filter:
+                must_conditions.append(
+                    FieldCondition(
+                        key="type",
+                        match=MatchValue(value=filetype_filter.lower())
+                    )
+                )
             search_filter = Filter(must=must_conditions)
 
             # Perform search
@@ -436,7 +445,10 @@ class QdrantVectorStore:
                     continue
                 file_w = self._filetype_weight(fp)
                 path_w = self._path_weight(fp)
-                lang_w = self._language_weight(h["payload"].get("type", ""))
+                if not filetype_filter:
+                    lang_w = self._language_weight(h["payload"].get("type", ""))
+                else:
+                    lang_w = 1.0  # User already narrowed by filetype
                 base = h.get("score", 0.0) or 0.0
                 adjusted = base * file_w * path_w * lang_w
                 h["adjustedScore"] = adjusted

@@ -10,7 +10,7 @@ def test_cli_json_schema_includes_adjusted_score(monkeypatch):
     """Test CLI JSON output schema with service integration."""
 
     # Mock the SearchService to return test data
-    def fake_search_code(self, query, config):
+    def fake_search_code(self, query, config, filetype=None):
         matches = [
             SearchMatch(
                 file_path="src/components/A.vue",

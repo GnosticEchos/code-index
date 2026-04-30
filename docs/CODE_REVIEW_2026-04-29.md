@@ -338,7 +338,7 @@ A payload with `{"filePath": None, "startLine": None}` passes validation, then c
 
 ---
 
-### 32. M6 — Fragile workspace isolation via path prefixes
+~~### 32. M6 — Fragile workspace isolation via path prefixes~~
 **File:** `src/code_index/vector_store.py:449-534`  
 **Severity:** MEDIUM
 
@@ -350,7 +350,7 @@ Workspace isolation relies on path segment prefix filtering + a metadata collect
 
 ## Tier 9: Future Roadmap
 
-### 33. Collection naming strategy
+~~### 33. Collection naming strategy~~
 **File:** `src/code_index/vector_store.py`  
 **Intent:** Replace opaque `ws-{sha256(path)[:16]}` collection names with user-defined names or folder-name defaults.
 
@@ -409,5 +409,5 @@ Change propagates to:
 ~~| 29 | Tier 8 | MEDIUM | Substring match | `vector_store.py:383-395` |~~
 ~~| 30 | Tier 8 | LOW | Type check | `vector_store.py:441-447` |~~
 ~~| 31 | Tier 8 | LOW | Over-broad filter | `file_processor.py:194-196` |~~
-| 32 | Tier 8 | MEDIUM | Isolation | `vector_store.py:449-534` |
-| 33 | Tier 9 | — | Collection naming | `vector_store.py` (future) |
+~~| 32 | Tier 8 | MEDIUM | Isolation | `vector_store.py:449-534` |~~
+~~| 33 | Tier 9 | — | Collection naming | `vector_store.py` (future) |~~

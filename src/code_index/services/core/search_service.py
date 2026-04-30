@@ -170,7 +170,7 @@ class SearchService:
         except (KeyError, TypeError):
             return None
 
-    def search_code(self, query: str, config: Config) -> SearchResult:
+    def search_code(self, query: str, config: Config, filetype: Optional[str] = None) -> SearchResult:
         """
         Execute text-based code search.
 
@@ -217,7 +217,8 @@ class SearchService:
             search_results = vector_store.search(
                 query_vector=query_embedding,
                 min_score=getattr(config, "search_min_score", 0.4),
-                max_results=getattr(config, "search_max_results", 50)
+                max_results=getattr(config, "search_max_results", 50),
+                filetype_filter=filetype
             )
 
             # Convert search results to SearchMatch objects (reassembling split blocks)

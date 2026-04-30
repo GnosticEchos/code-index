@@ -444,8 +444,9 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
 @click.option('--min-score', type=float, default=None, help='Minimum similarity score (0.0-1.0)')
 @click.option('--max-results', type=int, default=None, help='Maximum number of results')
 @click.option('--json', 'json_output', is_flag=True, help='Output results as JSON')
+@click.option('--filetype', '-ft', type=str, default=None, help='Filter by file type/language (e.g. go, py, rs, md, js). Skips language weight boosting.')
 @click.argument('query')
-def search(ctx, help_tree: bool, help_tree_json: bool, workspace: str, config: str, min_score: float, max_results: int, json_output: bool, query: str):
+def search(ctx, help_tree: bool, help_tree_json: bool, workspace: str, config: str, min_score: float, max_results: int, json_output: bool, filetype: str, query: str):
     """Search indexed code using semantic similarity."""
     ctx = click.get_current_context()
     handle_helptree_invocation(ctx, search)
@@ -460,7 +461,7 @@ def search(ctx, help_tree: bool, help_tree_json: bool, workspace: str, config: s
         overrides=cli_overrides,
     )
     
-    result = deps.search_service.search_code(query, deps.config)
+    result = deps.search_service.search_code(query, deps.config, filetype=filetype)
 
     # Display results
     if not result.is_successful():
@@ -470,6 +471,9 @@ def search(ctx, help_tree: bool, help_tree_json: bool, workspace: str, config: s
         if len(result.errors) > 5:
             print(f"  ... and {len(result.errors) - 5} more errors")
         return
+
+    if filetype:
+        print(f"[Filetype filter: {filetype}]")
 
     if not result.has_matches():
         print("No results found.")

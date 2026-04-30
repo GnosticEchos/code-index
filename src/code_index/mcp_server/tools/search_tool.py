@@ -62,6 +62,7 @@ Parameters:
   workspace (str): Path to the workspace to search. Defaults to current directory.
   min_score (float): Minimum similarity score threshold (0.0-1.0). Lower = more results.
   max_results (int): Maximum number of results to return (1-500). Higher may be slower.
+  filetype (str, optional): Filter by file type/language (e.g. "go", "py", "rs"). Skips language weight boosting.
 
 Search Optimization Tips:
   • Use specific technical terms for better matches
@@ -122,7 +123,8 @@ async def search(
     query: str,
     workspace: str = ".",
     min_score: Optional[float] = None,
-    max_results: Optional[int] = None
+    max_results: Optional[int] = None,
+    filetype: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Search tool for MCP server.
@@ -171,6 +173,11 @@ async def search(
             if not isinstance(max_results, int) or max_results <= 0 or max_results > 500:
                 raise ValueError("max_results must be a positive integer between 1 and 500")
 
+        if filetype is not None:
+            if not isinstance(filetype, str) or len(filetype) < 1 or len(filetype) > 30:
+                raise ValueError("filetype must be a non-empty string (e.g. 'go', 'py', 'rs')")
+            filetype = filetype.lower()
+
         logger.info(f"Starting search for query: '{query}' in workspace: {workspace_path}")
 
         config_path = _resolve_config_path(workspace_path)
@@ -202,7 +209,7 @@ async def search(
             }
 
         # Perform search via shared service with validation
-        result = deps.search_service.search_code(query, deps.config)
+        result = deps.search_service.search_code(query, deps.config, filetype=filetype)
 
         if not result.is_successful():
             raise Exception(
