@@ -64,47 +64,35 @@ class TreeSitterChunkCoordinator:
         file_path: str,
         file_hash: str,
     ) -> List[CodeBlock]:
-        """Chunk text into Tree-sitter blocks, applying fallbacks."""
+        """Chunk text into Tree-sitter blocks using tree-sitter-language-pack."""
 
         try:
             self._ensure_services()
-            assert self._file_processor is not None
-            assert self._config_manager is not None
-            assert self._resource_manager is not None
             assert self._block_extractor is not None
 
-            if not self._file_processor.validate_file(file_path):
+            if self._file_processor and not self._file_processor.validate_file(file_path):
                 return self._fallback(text, file_path, file_hash)
 
             language_key = self.get_language_key(file_path)
             if not language_key:
                 return self._fallback(text, file_path, file_hash)
 
-            optimizations = self._config_manager.apply_language_optimizations(
-                file_path, language_key
-            )
+            from tree_sitter_language_pack import parse_string, get_language
 
-            resources = self._resource_manager.acquire_resources(language_key, "parser")
-            parser = resources.get("parser")
-            if not parser:
-                return self._fallback(text, file_path, file_hash)
-
-            tree = parser.parse(bytes(text, "utf8"))
-            root_node = tree.root_node
+            tree = parse_string(language_key, bytes(text, "utf8"))
+            ts_lang = get_language(language_key)
 
             extraction_result = self._block_extractor.extract_blocks_from_root_node(
-                root_node,
+                tree.root_node,
                 text,
                 file_path,
                 file_hash,
                 language_key,
+                ts_lang=ts_lang,
             )
             extraction_result = self._normalize_result(extraction_result)
 
             if extraction_result.success and extraction_result.blocks:
-                max_blocks = optimizations.get("max_blocks", 100)
-                if len(extraction_result.blocks) > max_blocks:
-                    extraction_result.blocks = extraction_result.blocks[:max_blocks]
                 return extraction_result.blocks
 
             return self._fallback(text, file_path, file_hash)
@@ -120,10 +108,7 @@ class TreeSitterChunkCoordinator:
                 file_path=file_path,
             )
             self._error_handler.handle_error(
-                exc,
-                error_context,
-                ErrorCategory.PARSING,
-                ErrorSeverity.MEDIUM,
+                exc, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM,
             )
             return self._fallback(text, file_path, file_hash)
         except Exception as exc:  # noqa: BLE001
@@ -133,10 +118,7 @@ class TreeSitterChunkCoordinator:
                 file_path=file_path,
             )
             self._error_handler.handle_error(
-                exc,
-                error_context,
-                ErrorCategory.PARSING,
-                ErrorSeverity.HIGH,
+                exc, error_context, ErrorCategory.PARSING, ErrorSeverity.HIGH,
             )
             return self._fallback(text, file_path, file_hash)
 

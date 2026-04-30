@@ -1,8 +1,10 @@
 import types
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
+import pytest
 
 import pytest
 
+import tree_sitter_language_pack
 from code_index import TreeSitterError
 from code_index.config import Config
 from code_index.models import CodeBlock
@@ -80,13 +82,19 @@ def fallback():
     return _fallback
 
 
+_PARSE_PATCH = patch('tree_sitter_language_pack.parse_string')
+_LANG_PATCH = patch('tree_sitter_language_pack.get_language')
+_PARSE_PATCH.start()
+_LANG_PATCH.start()
+tree_sitter_language_pack.parse_string.return_value.root_node = object()
+
+
 def _create_coordinator(config, *, file_validator=True, extraction_result=None, error_handler=None, fallback_callable=None):
     error_handler = error_handler or Mock()
 
     file_processor = Mock()
     file_processor.validate_file.return_value = file_validator
 
-    resource_manager = _StubResourceManager(_StubParser())
     result = extraction_result or _StubExtractionResult([
         CodeBlock("test.py", "fn", "function", 1, 3, "content", "hash", "segment")
     ])
@@ -96,10 +104,8 @@ def _create_coordinator(config, *, file_validator=True, extraction_result=None, 
         config,
         error_handler=error_handler,
         file_processor=file_processor,
-        resource_manager=resource_manager,
         block_extractor=block_extractor,
         config_manager=_StubConfigManager(),
-        batch_processor=_StubBatchProcessor(),
         fallback_callable=fallback_callable,
     )
 
