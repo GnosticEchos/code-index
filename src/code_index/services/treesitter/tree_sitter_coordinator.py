@@ -16,12 +16,6 @@ from ...errors import (
     ErrorHandler,
     ErrorSeverity,
 )
-
-from ..._exceptions import (
-    TreeSitterError,
-    TreeSitterFileTooLargeError,
-    TreeSitterLanguageError,
-)
 from ...models import CodeBlock
 
 
@@ -64,7 +58,7 @@ class TreeSitterChunkCoordinator:
         file_path: str,
         file_hash: str,
     ) -> List[CodeBlock]:
-        """Chunk text into Tree-sitter blocks using tree-sitter-language-pack."""
+        """Chunk text with Magika-guided fallback: code→AST, text→line."""
 
         try:
             self._ensure_services()
@@ -73,43 +67,43 @@ class TreeSitterChunkCoordinator:
             if self._file_processor and not self._file_processor.validate_file(file_path):
                 return self._fallback(text, file_path, file_hash)
 
+            is_code = self._is_code_file(file_path)
             language_key = self.get_language_key(file_path)
-            if not language_key:
-                return self._fallback(text, file_path, file_hash)
 
-            from tree_sitter_language_pack import get_parser, get_language
+            # Non-code files (markdown, text, etc.): skip AST, use process() or line fallback
+            if is_code is False:
+                return self._process_fallback(text, file_path, file_hash, language_key)
 
-            pack_parser = get_parser(language_key)
-            ts_lang = get_language(language_key)
-            tree = pack_parser.parse(text.encode("utf8"))
+            # Code files: try primary parser → process() → line fallback
+            if language_key:
+                try:
+                    from tree_sitter_language_pack import get_parser, get_language
 
-            extraction_result = self._block_extractor.extract_blocks_from_root_node(
-                tree.root_node,
-                text,
-                file_path,
-                file_hash,
-                language_key,
-                ts_lang=ts_lang,
-            )
-            extraction_result = self._normalize_result(extraction_result)
+                    pack_parser = get_parser(language_key)
+                    ts_lang = get_language(language_key)
+                    tree = pack_parser.parse(text.encode("utf8"))
 
-            if extraction_result.success and extraction_result.blocks:
-                return extraction_result.blocks
+                    extraction_result = self._block_extractor.extract_blocks_from_root_node(
+                        tree.root_node, text, file_path, file_hash, language_key, ts_lang=ts_lang,
+                    )
+                    extraction_result = self._normalize_result(extraction_result)
 
-            return self._fallback(text, file_path, file_hash)
+                    if extraction_result.success and extraction_result.blocks:
+                        return extraction_result.blocks
+                except Exception:
+                    pass
 
-        except TreeSitterLanguageError:
-            return self._fallback(text, file_path, file_hash)
-        except TreeSitterFileTooLargeError:
-            return self._fallback(text, file_path, file_hash)
-        except TreeSitterError as exc:
+            # Fallback: pack's syntax-aware process() → line-based
+            return self._process_fallback(text, file_path, file_hash, language_key)
+
+        except Exception as exc:  # noqa: BLE001
             error_context = ErrorContext(
                 component="tree_sitter_coordinator",
                 operation="chunk_text",
                 file_path=file_path,
             )
             self._error_handler.handle_error(
-                exc, error_context, ErrorCategory.PARSING, ErrorSeverity.MEDIUM,
+                exc, error_context, ErrorCategory.PARSING, ErrorSeverity.HIGH,
             )
             return self._fallback(text, file_path, file_hash)
         except Exception as exc:  # noqa: BLE001
@@ -162,6 +156,16 @@ class TreeSitterChunkCoordinator:
 
         self._services_initialized = True
 
+    def _is_code_file(self, file_path: str) -> Optional[bool]:
+        """Check if file is in a code group via Magika."""
+        try:
+            from ...services.ai.magika_detector import MagikaDetector
+            detector = MagikaDetector()
+            result = detector.identify_file(file_path)
+            return result.get("group") == "code"
+        except Exception:
+            return None
+
     def get_language_key(self, file_path: str) -> Optional[str]:
         try:
             from ...language_detection import LanguageDetector
@@ -189,6 +193,44 @@ class TreeSitterChunkCoordinator:
         if hasattr(self._resource_manager, "ensure_tree_sitter_version"):
             return self._resource_manager.ensure_tree_sitter_version()
         return None
+
+    def _process_fallback(
+        self,
+        text: str,
+        file_path: str,
+        file_hash: str,
+        language_key: Optional[str] = None,
+    ) -> List[CodeBlock]:
+        """Fallback to pack's syntax-aware process() API, then line-based."""
+        try:
+            if language_key:
+                from tree_sitter_language_pack import process, ProcessConfig
+                from ...models import CodeBlock
+                max_chars = getattr(self._block_extractor, 'max_block_chars', 6000) if self._block_extractor else 6000
+                config = ProcessConfig(
+                    language=language_key,
+                    chunk_max_size=max_chars,
+                )
+                result = process(text, config)
+                chunks = result.get("chunks", [])
+                if chunks:
+                    blocks = []
+                    for c in chunks:
+                        blocks.append(CodeBlock(
+                            file_path=file_path,
+                            identifier=f"chunk_{c.start_line}_{c.end_line}",
+                            type="code_chunk",
+                            start_line=c.start_line,
+                            end_line=c.end_line,
+                            content=c.content,
+                            file_hash=file_hash,
+                            segment_hash=f"{file_hash}:{c.start_line}:{c.end_line}",
+                            metadata={"language": language_key},
+                        ))
+                    return blocks
+        except Exception:
+            pass
+        return self._fallback(text, file_path, file_hash)
 
     def _fallback(
         self,

@@ -92,7 +92,8 @@ class MagikaDetector:
                         "label": internal_label,
                         "score": float(score),
                         "method": "magika",
-                        "mime": res.output.mime_type
+                        "mime": res.output.mime_type,
+                        "group": res.output.group,
                     }
             except Exception as e:
                 logger.debug(f"Magika identification failed for {file_path}: {e}")

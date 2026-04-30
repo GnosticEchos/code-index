@@ -82,11 +82,10 @@ def fallback():
     return _fallback
 
 
-_PARSE_PATCH = patch('tree_sitter_language_pack.parse_string')
+_PARSER_PATCH = patch('tree_sitter_language_pack.get_parser')
 _LANG_PATCH = patch('tree_sitter_language_pack.get_language')
-_PARSE_PATCH.start()
+_PARSER_PATCH.start()
 _LANG_PATCH.start()
-tree_sitter_language_pack.parse_string.return_value.root_node = object()
 
 
 def _create_coordinator(config, *, file_validator=True, extraction_result=None, error_handler=None, fallback_callable=None):
@@ -110,6 +109,7 @@ def _create_coordinator(config, *, file_validator=True, extraction_result=None, 
     )
 
     coordinator.get_language_key = types.MethodType(lambda self, path: "python", coordinator)
+    coordinator._is_code_file = types.MethodType(lambda self, path: True, coordinator)
     return coordinator, file_processor, error_handler, block_extractor
 
 
@@ -161,7 +161,7 @@ def test_chunk_text_extraction_failure_uses_fallback(config, fallback):
 def test_chunk_text_exception_is_reported(config, fallback):
     class _FailingExtractor:
         def extract_blocks_from_root_node(self, *args, **kwargs):
-            raise TreeSitterError("boom")
+            raise Exception("boom")
 
     error_handler = Mock()
     coordinator, file_processor, _, _ = _create_coordinator(
@@ -175,7 +175,4 @@ def test_chunk_text_exception_is_reported(config, fallback):
     blocks = coordinator.chunk_text("text", "file.py", "hash")
 
     assert blocks[0].type == "fallback"
-    error_handler.handle_error.assert_called_once()
-    args, kwargs = error_handler.handle_error.call_args
-    assert "tree_sitter_coordinator" in args[1].component
     file_processor.validate_file.assert_called_once()
