@@ -57,8 +57,6 @@ def build_mcp_binary():
         # Embed Magika ONNX model and Universal Relationship Schema
         "--include-package-data=magika",
         "--include-data-file=src/code_index/queries/queries_minimal.jsonl=code_index/queries/queries_minimal.jsonl",
-        "--include-data-file=src/code_index/queries/queries_metadata.schema.json=code_index/queries/queries_metadata.schema.json",
-        "--include-data-file=src/code_index/queries/queries_relationships.json=code_index/queries/queries_relationships.json",
 
         # Proven Nuitka Optimization Suite
         "--clang",
