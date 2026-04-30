@@ -106,8 +106,7 @@ class ResourceAllocator:
             if language is None:
                 language = self._get_language(language_key)
             parser = Parser()
-            if hasattr(parser, 'set_language'):
-                parser.set_language(language)
+            parser.language = language
             self._parsers[language_key] = parser
             return parser
         except Exception as e:
