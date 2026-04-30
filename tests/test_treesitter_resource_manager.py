@@ -230,27 +230,16 @@ class TestTreeSitterResourceManager:
 
     def test_error_handling_parser_creation_failure(self):
         """Test error handling during parser creation."""
-        # For test compatibility, simulate a language load failure by setting a flag
-        # that will be detected by the _get_language method
         with patch.object(self.resource_manager, '_get_language_path', return_value='/path/to/lang.so'):
-            # Temporarily modify the _get_language method to simulate failure
-            original_get_language = self.resource_manager._get_language
-            
-            def failing_get_language(language_key):
-                raise Exception("Language load failed")
-            
-            self.resource_manager._get_language = failing_get_language
-            
-            try:
+            with patch.object(self.resource_manager._allocator, '_get_language') as mock_get_lang:
+                mock_get_lang.side_effect = Exception("Language load failed")
+
                 with patch.object(self.error_handler, 'handle_error') as mock_handle:
                     resources = self.resource_manager.acquire_resources('python')
 
                     # Should return empty resources on failure
                     assert resources == {}
                     mock_handle.assert_called_once()
-            finally:
-                # Restore original method
-                self.resource_manager._get_language = original_get_language
 
     def test_error_handling_parser_deletion_failure(self):
         """Test error handling during parser deletion."""
@@ -332,27 +321,16 @@ class TestTreeSitterResourceManager:
 
     def test_graceful_degradation(self):
         """Test graceful degradation when resources are unavailable."""
-        # For test compatibility, simulate a language load failure by setting a flag
-        # that will be detected by the _get_language method
         with patch.object(self.resource_manager, '_get_language_path', return_value='/path/to/lang.so'):
-            # Temporarily modify the _get_language method to simulate failure
-            original_get_language = self.resource_manager._get_language
-            
-            def failing_get_language(language_key):
-                raise Exception("All parsers busy")
-            
-            self.resource_manager._get_language = failing_get_language
-            
-            try:
+            with patch.object(self.resource_manager._allocator, '_get_language') as mock_get_lang:
+                mock_get_lang.side_effect = Exception("All parsers busy")
+
                 with patch.object(self.error_handler, 'handle_error') as mock_handle:
                     resources = self.resource_manager.acquire_resources('python')
 
                     # Should return empty dict and log error
                     assert resources == {}
                     mock_handle.assert_called_once()
-            finally:
-                # Restore original method
-                self.resource_manager._get_language = original_get_language
 
 
 if __name__ == "__main__":
