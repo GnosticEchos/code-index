@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 from ...config import Config
-from ...models import ValidationResult
+from ...service_validation import ValidationResult
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 
 
@@ -88,7 +88,7 @@ class WorkspaceService:
                 return {}
             
             # Get workspace metadata
-            metadata = {
+            metadata: Dict[str, Any] = {
                 "workspace_path": str(workspace_path.resolve()),
                 "workspace_name": workspace_path.name,
                 "workspace_size": self._get_directory_size(workspace_path),

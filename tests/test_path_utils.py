@@ -35,7 +35,7 @@ def test_normalize_path_with_none():
     error_handler = ErrorHandler("test")
     path_utils = PathUtils(error_handler, "/test/workspace")
     
-    normalized = path_utils.normalize_path(None)
+    normalized = path_utils.normalize_path(None)  # type: ignore[arg-type]
     assert normalized is None
 
 
@@ -65,7 +65,7 @@ def test_is_path_safe_with_none():
     path_utils = PathUtils(error_handler, "/test/workspace")
     
     # None path should be considered unsafe
-    is_safe = path_utils.is_path_safe(None)
+    is_safe = path_utils.is_path_safe(None)  # type: ignore[arg-type]
     assert not is_safe
 
 
@@ -89,7 +89,7 @@ def test_make_path_relative_with_none():
     path_utils = PathUtils(error_handler, "/test/workspace")
     
     # None path should return None
-    relative_path = path_utils.make_path_relative(None)
+    relative_path = path_utils.make_path_relative(None)  # type: ignore[arg-type]
     assert relative_path is None
 
 
@@ -117,7 +117,7 @@ def test_get_path_segments_with_none():
     path_utils = PathUtils(error_handler, "/test/workspace")
     
     # None path should return empty list
-    segments = path_utils.get_path_segments(None)
+    segments = path_utils.get_path_segments(None)  # type: ignore[arg-type]
     assert segments == []
 
 
@@ -155,7 +155,7 @@ def test_sanitize_path_with_none():
     path_utils = PathUtils(error_handler, "/test/workspace")
     
     # None path should return None
-    sanitized = path_utils.sanitize_path(None)
+    sanitized = path_utils.sanitize_path(None)  # type: ignore[arg-type]
     assert sanitized is None
 
 
@@ -179,7 +179,7 @@ def test_validate_and_normalize_with_none():
     path_utils = PathUtils(error_handler, "/test/workspace")
     
     # None path should return None
-    validated = path_utils.validate_and_normalize(None)
+    validated = path_utils.validate_and_normalize(None)  # type: ignore[arg-type]
     assert validated is None
 
 
@@ -203,7 +203,7 @@ def test_get_relative_path_segments_with_none():
     path_utils = PathUtils(error_handler, "/test/workspace")
     
     # None path should return empty list
-    segments = path_utils.get_relative_path_segments(None)
+    segments = path_utils.get_relative_path_segments(None)  # type: ignore[arg-type]
     assert segments == []
 
 
@@ -231,7 +231,7 @@ def test_is_subpath_with_none():
     path_utils = PathUtils(error_handler, "/test/workspace")
     
     # None path should return False
-    is_subpath = path_utils.is_subpath(None)
+    is_subpath = path_utils.is_subpath(None)  # type: ignore[arg-type]
     assert not is_subpath
 
 
@@ -255,7 +255,7 @@ def test_get_workspace_relative_path_with_none():
     path_utils = PathUtils(error_handler, "/test/workspace")
     
     # None path should return None
-    relative_path = path_utils.get_workspace_relative_path(None)
+    relative_path = path_utils.get_workspace_relative_path(None)  # type: ignore[arg-type]
     assert relative_path is None
 
 
@@ -281,7 +281,7 @@ def test_resolve_path_with_none():
     path_utils = PathUtils(error_handler, "/test/workspace")
     
     # None path should return None
-    resolved = path_utils.resolve_path(None)
+    resolved = path_utils.resolve_path(None)  # type: ignore[arg-type]
     assert resolved is None
 
 

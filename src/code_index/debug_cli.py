@@ -80,7 +80,7 @@ class DebugIndexingService:
                     logger.debug("Processing file %d/%d: %s", i, len(files), file_path)
                 
                 # Parse file
-                blocks = parser.parse_file(file_path)
+                blocks = parser.parse_file(file_path)  # type: ignore[arg-type]
                 processed_count += 1
                 total_blocks += len(blocks)
                 

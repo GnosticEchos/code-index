@@ -81,7 +81,7 @@ def prepare_vector_points(
 
 
 def store_vectors(vector_store, rel_path: str, points: List[Dict], errors: List[str], 
-                 error_handler: ErrorHandler = None, file_path: str = "") -> bool:
+                 error_handler: Optional[ErrorHandler] = None, file_path: str = "") -> bool:
     """Store vectors in the database, return True on success."""
     try:
         vector_store.delete_points_by_file_path(rel_path)
@@ -139,7 +139,7 @@ def init_result(file_path: str) -> Dict[str, Any]:
 
 def handle_skip(file_path: str, current_hash: str, cache_manager, 
                 progress_callback: Optional[Callable], completed_count: int, total_files: int,
-                reason: str = None) -> Dict[str, Any]:
+                 reason: Optional[str] = None) -> Dict[str, Any]:
     """Handle skipped file processing."""
     result = init_result(file_path)
     result['skipped'] = True

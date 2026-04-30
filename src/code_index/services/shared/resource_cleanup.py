@@ -45,13 +45,15 @@ class ResourceCleanup:
             if hasattr(self, '_processed_languages'):
                 stats["languages_cleared"] = len(self._processed_languages)
                 self._processed_languages.clear()
+            else:
+                self._processed_languages = set()  # type: ignore[attr-defined]
             
             # Force garbage collection
             gc.collect()
             
             return stats
         except Exception as e:
-            return {"error": str(e)}
+            return {"error": str(e)}  # type: ignore[return-value]
     
     def _cleanup_old_resources(self) -> int:
         """Clean up old resources based on age."""

@@ -57,7 +57,7 @@ class TreeSitterResourceManager:
     def acquire_resources(self, language_key: str, resource_type: str = "parser") -> Dict[str, Any]:
         return self._allocator.acquire(language_key, resource_type)
     
-    def release_resources(self, language_key: str, resources: Dict[str, Any] = None, resource_type: str = "all") -> int:
+    def release_resources(self, language_key: str, resources: Optional[Dict[str, Any]] = None, resource_type: str = "all") -> int:
         """Release resources for a language with error handling."""
         released = 0
         try:

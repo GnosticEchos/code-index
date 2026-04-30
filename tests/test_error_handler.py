@@ -45,7 +45,7 @@ def test_error_response_creation():
         severity=ErrorSeverity.HIGH,
         message="Test error message",
         context=context,
-        timestamp="2023-01-01T00:00:00",
+        timestamp="2023-01-01T00:00:00",  # type: ignore
         recovery_suggestions=["Try again"],
         actionable_guidance=["Check input"],
         original_exception=ValueError("Test error message"),
@@ -248,7 +248,7 @@ def test_error_response_repr():
         severity=ErrorSeverity.HIGH,
         message="Test error",
         context=context,
-        timestamp="2023-01-01T00:00:00",
+        timestamp="2023-01-01T00:00:00",  # type: ignore
         recovery_suggestions=["Try again"],
         actionable_guidance=["Check input"],
         original_exception=ValueError("Test error"),

@@ -167,6 +167,7 @@ const arrowFunc = () => {
     def test_error_handling(self):
         """Test extractor error handling."""
         # Graceful handling of invalid inputs
+        # type: ignore[arg-type]
         assert self.extractor.extract_blocks(None, None, None) == []
         
         # In this implementation, if root_node is None, we fallback to basic chunking 

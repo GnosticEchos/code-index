@@ -8,7 +8,7 @@ except ImportError:
     try:
         import chardet
     except ImportError:
-        chardet = None
+        chardet = None  # type: ignore[assignment]
 import time
 import logging
 import mmap
@@ -47,7 +47,7 @@ class FileProcessingService:
         self._path_utils = PathUtils(self.error_handler)
         
         # Initialize mmap metrics tracking
-        self.mmap_metrics = {
+        self.mmap_metrics: Dict[str, Any] = {
             'total_uses': 0,
             'successful_uses': 0,
             'failed_uses': 0,
@@ -196,7 +196,7 @@ class FileProcessingService:
             self.mmap_metrics['failed_uses'] += 1
             self.mmap_metrics['fallback_uses'] += 1
             return self._read_file_with_encoding_detection(file_path, encoding)
-        except (mmap.error, OSError, ValueError) as mmap_error:
+        except (OSError, ValueError) as mmap_error:
             mmap_logger.error(f"MMAP failed for {file_path}: {mmap_error}")
             self.mmap_metrics['failed_uses'] += 1
             self.mmap_metrics['fallback_uses'] += 1
@@ -249,7 +249,7 @@ class FileProcessingService:
                         # Test basic operations
                         if len(test_mm.read()) != 23:  # "test mmap compatibility" is 23 bytes
                             return False
-                except (mmap.error, OSError):
+                except OSError:
                     return False
                 finally:
                     try:
@@ -634,7 +634,7 @@ class FileProcessingService:
                 }
 
     def process_files_batch(self, file_list: List[Dict[str, Any]], operation: str = "batch_processing",
-                          progress_callback: Optional[callable] = None) -> Dict[str, Any]:
+                          progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
         """
         Process a batch of files and return results as a dictionary.
 
@@ -1000,7 +1000,7 @@ class FileProcessingService:
         )
 
         try:
-            from pygments.lexers import get_all_lexers  # type: ignore
+            from pygments.lexers import get_all_lexers
         except Exception as e:
             self.error_handler.handle_error(e, error_context, ErrorCategory.DEPENDENCY, ErrorSeverity.LOW)
             return base_extensions

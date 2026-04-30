@@ -86,7 +86,7 @@ class TreeSitterConfigurationManager:
         
         return None
     
-    def apply_optimizations(self, language_key: str, file_path: str = None) -> Optional[Dict[str, Any]]:
+    def apply_optimizations(self, language_key: str, file_path: Optional[str] = None) -> Optional[Dict[str, Any]]:  # type: ignore[override]
         """Apply language-specific optimizations."""
         try:
             if language_key == 'unsupported_language':

@@ -51,7 +51,7 @@ class ConfigurationService:
         self.logger = logging.getLogger(__name__)
         self.error_handler = error_handler or ErrorHandler()
         self._config_cache: Dict[str, Config] = {}
-        self._validation_cache: Dict[str, List[ValidationResult]] = {}
+        self._validation_cache: Dict[str, Any] = {}
         self.test_mode = test_mode
 
         # Define configuration sources in priority order (highest first)
@@ -434,7 +434,7 @@ class ConfigurationService:
             )
             return False
 
-    def validate_and_initialize(self, config: Config, skip_service_validation: bool = False) -> ValidationResult:
+    def validate_and_initialize(self, config: Config, skip_service_validation: bool = False) -> "ValidationResult":
         """
         Validate configuration and initialize services.
 

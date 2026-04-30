@@ -6,7 +6,7 @@ This module contains helper functions for resource cleanup and management.
 
 import logging
 import time
-from typing import List, Set, Any, Dict
+from typing import List, Set, Any, Dict, Optional
 
 from ...constants import OLD_RESOURCE_THRESHOLD
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 def cleanup_old_resources_by_type(
     resources: Dict[str, Any],
-    resource_types_to_cleanup: List[str] = None
+    resource_types_to_cleanup: Optional[List[str]] = None
 ) -> List[str]:
     """
     Cleanup resources that are older than a certain threshold.

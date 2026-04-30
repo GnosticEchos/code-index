@@ -89,7 +89,7 @@ class TestIndexingResult:
             warnings=[],
             timed_out_files=[],
             processing_time_seconds=10.0,
-            timestamp=None,  # Should be auto-initialized
+            timestamp=None,  # type: ignore[arg-type]  # Should be auto-initialized
             workspace_path="/test",
             config_summary={}
         )
@@ -278,7 +278,7 @@ class TestValidationResult:
             valid=False,
             errors=["error1"],
             warnings=[],
-            metadata=None,  # Should be auto-initialized
+            metadata=None,  # type: ignore[arg-type]  # Should be auto-initialized
             validation_time_seconds=1.0
         )
 

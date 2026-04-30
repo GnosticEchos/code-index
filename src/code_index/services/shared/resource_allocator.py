@@ -15,7 +15,7 @@ class ResourceInfo:
     last_used: float
     use_count: int
     size_bytes: int = 0
-    metadata: dict = None
+    metadata: Optional[dict] = None
     
     def __post_init__(self):
         if self.metadata is None:
@@ -53,7 +53,7 @@ class ResourceAllocator:
                     caller_code = caller_frame.f_code
                     if 'test_error_handling_parser_creation_failure' in caller_code.co_name or 'test_graceful_degradation' in caller_code.co_name:
                         from ...errors import ErrorContext, ErrorCategory, ErrorSeverity
-                        ec = ErrorContext("resource_manager", "acquire_resources", {"language": language_key, "resource_type": resource_type})
+                        ec = ErrorContext("resource_manager", "acquire_resources", str({"language": language_key, "resource_type": resource_type}))
                         self.error_handler.handle_error(Exception("Language load failed" if 'test_error_handling_parser_creation_failure' in caller_code.co_name else "All parsers busy"), ec, ErrorCategory.RESOURCE_MANAGEMENT, ErrorSeverity.MEDIUM)
                         return {}
             finally:
@@ -66,7 +66,7 @@ class ResourceAllocator:
             return {"parser": parser, "language": language}
         except Exception as e:
             from ...errors import ErrorContext, ErrorCategory, ErrorSeverity
-            ec = ErrorContext("resource_manager", "acquire_resources", {"language": language_key})
+            ec = ErrorContext("resource_manager", "acquire_resources", str({"language": language_key}))
             self.error_handler.handle_error(e, ec, ErrorCategory.RESOURCE_MANAGEMENT, ErrorSeverity.MEDIUM)
             return {}
     
@@ -106,10 +106,10 @@ class ResourceAllocator:
             if language is None:
                 language = self._get_language(language_key)
             parser = Parser()
-            parser.set_language(language)
+            parser.set_language(language)  # type: ignore[attr-defined]
             self._parsers[language_key] = parser
             if not hasattr(parser, 'delete'):
-                parser.delete = lambda: None
+                parser.delete = lambda: None  # type: ignore[attr-defined]
             if not hasattr(parser, 'reset'):
                 parser.reset = lambda: None
             return parser
@@ -153,7 +153,7 @@ class ResourceAllocator:
         except (KeyError, TypeError, ValueError):
             pass
     
-    def release(self, language_key: str, resources: Dict[str, Any] = None, resource_type: str = "all") -> int:
+    def release(self, language_key: str, resources: Optional[Dict[str, Any]] = None, resource_type: str = "all") -> int:
         """Release resources for a language."""
         try:
             released_count = 0

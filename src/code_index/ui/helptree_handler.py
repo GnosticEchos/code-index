@@ -34,9 +34,9 @@ class HelpTreeHandler:
             else:
                 arguments.append(param)
                 if param.required:
-                    params_suffix += f" <{param.name.upper()}>"
+                    params_suffix += f" <{(param.name or "").upper()}>"
                 else:
-                    params_suffix += f" [{param.name.upper()}]"
+                    params_suffix += f" [{(param.name or "").upper()}]"
         
         if options:
             params_suffix += " [flags]"

@@ -77,7 +77,7 @@ class TestSearchTool:
         with pytest.raises(ValueError, match="query parameter is required"):
             await search(
                 ctx=mock_context,
-                query=None,  # None query
+                query=None,  # type: ignore  # None query
                 workspace=temp_workspace
             )
     
@@ -88,7 +88,7 @@ class TestSearchTool:
             await search(
                 ctx=mock_context,
                 query="test query",
-                workspace=123  # Invalid type
+                workspace=123  # type: ignore[arg-type]  # Invalid type
             )
     
     @pytest.mark.asyncio

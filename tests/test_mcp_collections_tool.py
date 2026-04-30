@@ -63,7 +63,7 @@ class TestCollectionsTool:
         with pytest.raises(ValueError, match="subcommand parameter is required"):
             await collections(
                 ctx=mock_context,
-                subcommand=None,  # None subcommand
+                subcommand=None,  # type: ignore  # None subcommand
             )
     
     @pytest.mark.asyncio

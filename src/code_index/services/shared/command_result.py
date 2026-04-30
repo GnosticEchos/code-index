@@ -15,9 +15,9 @@ class CommandResult:
     """Result of a configuration command operation."""
     success: bool
     message: str
-    details: Dict[str, Any] = None
+    details: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
-    timestamp: datetime = None
+    timestamp: Optional[datetime] = None
 
     def __post_init__(self):
         if self.timestamp is None:

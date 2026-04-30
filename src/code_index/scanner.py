@@ -3,7 +3,7 @@ Directory scanner for the code index tool.
 """
 import os
 import logging
-from typing import List, Set, Tuple
+from typing import List, Set, Tuple, Optional
 from code_index.config import Config
 from code_index.smart_ignore_manager import SmartIgnoreManager
 from code_index.file_processing import FileProcessingService
@@ -49,7 +49,7 @@ class DirectoryScanner:
             return name != '.gitignore'
         return False
 
-    def scan_directory(self, directory: str = None) -> Tuple[List[str], int]:
+    def scan_directory(self, directory: Optional[str] = None) -> Tuple[List[str], int]:
         """
         Recursively scan directory for supported files.
         

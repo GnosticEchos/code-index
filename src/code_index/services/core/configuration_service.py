@@ -14,7 +14,7 @@ improving maintainability and enabling independent scaling of query and command 
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ...config import Config
 from ...config_service import ConfigurationService as ConfigService
@@ -31,10 +31,10 @@ from ..command.configuration_command_service import ConfigurationCommandService,
 class QueryCache:
     """Cache for query results to improve performance (delegated to query service)."""
     
-    file_status_cache: Dict[str, FileStatus] = None
+    file_status_cache: Dict[str, FileStatus] = field(default_factory=dict)
     processing_stats_cache: Optional[ProcessingStats] = None
-    workspace_status_cache: Dict[str, WorkspaceStatus] = None
-    service_health_cache: Dict[str, ServiceHealth] = None
+    workspace_status_cache: Dict[str, WorkspaceStatus] = field(default_factory=dict)
+    service_health_cache: Dict[str, ServiceHealth] = field(default_factory=dict)
     system_status_cache: Optional[SystemStatus] = None
     last_cache_update: Optional[datetime] = None
 

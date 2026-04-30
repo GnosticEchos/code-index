@@ -5,7 +5,7 @@ import hashlib
 import os
 import time
 from typing import List, Dict, Any, Optional
-from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, MatchValue
+from qdrant_client.models import VectorParams, Distance, PointStruct, Filter, FieldCondition, MatchValue, PayloadSchemaType
 from code_index.config import Config
 from code_index.errors import ErrorContext, ErrorCategory, ErrorSeverity, error_handler
 from code_index.service_validation import ValidationResult
@@ -16,7 +16,7 @@ try:
     QDRANT_AVAILABLE = True
 except ImportError:
     QDRANT_AVAILABLE = False
-    QdrantClient = None
+    QdrantClient = None  # type: ignore[assignment]
 
 
 class QdrantVectorStore:
@@ -115,10 +115,10 @@ class QdrantVectorStore:
                 if test_collection_name not in collection_names:
                     client.create_collection(
                         collection_name=test_collection_name,
-                        vectors_config={
-                            "size": 1,
-                            "distance": "Cosine"
-                        }
+                        vectors_config=VectorParams(
+                            size=1,
+                            distance=Distance.COSINE
+                        )
                     )
                     test_created = True
 
@@ -261,18 +261,18 @@ class QdrantVectorStore:
             self.client.create_payload_index(
                 collection_name=self.collection_name,
                 field_name="workspace_hash",
-                field_schema="keyword"
+                field_schema=PayloadSchemaType.KEYWORD
             )
             self.client.create_payload_index(
                 collection_name=self.collection_name,
                 field_name="filetype",
-                field_schema="keyword"
+                field_schema=PayloadSchemaType.KEYWORD
             )
             try:
                 self.client.create_payload_index(
                     collection_name=self.collection_name,
                     field_name="embedding_model",
-                    field_schema="keyword"
+                    field_schema=PayloadSchemaType.KEYWORD
                 )
             except Exception:
                 pass
@@ -427,20 +427,22 @@ class QdrantVectorStore:
                 return []
 
             # Convert results to dictionary format (KiloCode-compatible)
-            hits = [
-                {
+            hits = []
+            for result in results.points:
+                payload = result.payload
+                if payload is None or not self._is_payload_valid(payload):
+                    continue
+                hits.append({
                     "id": result.id,
                     "score": result.score,
                     "payload": {
-                        "filePath": result.payload.get("filePath", ""),
-                        "codeChunk": result.payload.get("codeChunk", ""),
-                        "startLine": result.payload.get("startLine", 0),
-                        "endLine": result.payload.get("endLine", 0),
-                        "type": result.payload.get("type", "")
+                        "filePath": payload.get("filePath", ""),
+                        "codeChunk": payload.get("codeChunk", ""),
+                        "startLine": payload.get("startLine", 0),
+                        "endLine": payload.get("endLine", 0),
+                        "type": payload.get("type", "")
                     }
-                }
-                for result in results.points if self._is_payload_valid(result.payload)
-            ]
+                })
 
             # Apply excludes and compute adjusted scores using config weights
             filtered_hits = []

@@ -46,8 +46,8 @@ class TestQueryCache:
     def test_cache_invalidation(self):
         """Test cache invalidation."""
         cache = QueryCache()
-        cache.file_status_cache["test"] = "value"
-        cache.processing_stats_cache = "stats"
+        cache.file_status_cache["test"] = "value"  # type: ignore[assignment]
+        cache.processing_stats_cache = "stats"  # type: ignore[assignment]
         cache.last_cache_update = datetime.now()
 
         cache.invalidate_cache()

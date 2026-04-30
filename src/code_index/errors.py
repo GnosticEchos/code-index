@@ -43,6 +43,11 @@ class ErrorCategory(Enum):
     CONFIGURATION = "configuration" # Configuration loading/processing errors
     SERVICE = "service"           # External service connectivity errors
     RESOURCE_MANAGEMENT = "resource_management" # Resource management errors
+    SYSTEM = "system"             # System-level errors
+    SEARCH = "search"             # Search operation errors
+    DEPENDENCY = "dependency"     # Missing dependency errors
+    SERVICE_CONNECTION = "service_connection" # Service connection errors
+    FILEPROCESSING = "fileprocessing" # File processing errors
     UNKNOWN = "unknown"           # Unclassified errors
 
 
@@ -395,7 +400,7 @@ class ErrorHandler:
 
     def _collect_error_context(self, error: Exception, context: ErrorContext) -> Dict[str, Any]:
         """Collect additional context information for the error."""
-        error_context = {
+        error_context: Dict[str, Any] = {
             "error_type": type(error).__name__,
             "error_module": type(error).__module__,
             "python_version": sys.version,

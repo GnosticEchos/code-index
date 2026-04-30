@@ -22,8 +22,9 @@ class CodeParser:
         """Initialize code parser with configuration and a chunking strategy."""
         self.config = config
         self.chunking_strategy = chunking_strategy
+        self.error_handler = ErrorHandler("parser")
         # Initialize mmap metrics tracking
-        self.mmap_metrics = {
+        self.mmap_metrics: Dict[str, Any] = {
             'total_uses': 0,
             'successful_uses': 0,
             'failed_uses': 0,
@@ -202,7 +203,7 @@ class CodeParser:
                             # Fall back to traditional reading with different encoding
                             return self._read_file_traditional(file_path)
                             
-                except (mmap.error, OSError, ValueError) as mmap_error:
+                except (OSError, ValueError) as mmap_error:
                     # mmap-specific errors with detailed logging
                     mmap_logger.error(f"MMAP failed for {file_path}: {mmap_error}")
                     self.mmap_metrics['failed_uses'] += 1
@@ -266,7 +267,7 @@ class CodeParser:
                         # Test basic operations
                         if len(test_mm.read()) != 23:  # "test mmap compatibility" is 23 bytes
                             return False
-                except (mmap.error, OSError):
+                except OSError:
                     return False
                 finally:
                     import os

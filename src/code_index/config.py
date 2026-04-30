@@ -136,10 +136,10 @@ def normalize_ignore_override_patterns(value: Any) -> List[str]:
 
 @dataclass
 class CoreConfig:
-    workspace_path: str = field(default_factory=lambda: _env_str("WORKSPACE_PATH", "."))
-    ollama_base_url: str = field(default_factory=lambda: _env_str("OLLAMA_BASE_URL", "http://localhost:11434"))
-    ollama_model: str = field(default_factory=lambda: _env_str("OLLAMA_MODEL", "nomic-embed-text:latest"))
-    qdrant_url: str = field(default_factory=lambda: _env_str("QDRANT_URL", "http://localhost:6333"))
+    workspace_path: str = field(default_factory=lambda: _env_str("WORKSPACE_PATH", ".") or ".")
+    ollama_base_url: str = field(default_factory=lambda: _env_str("OLLAMA_BASE_URL", "http://localhost:11434") or "http://localhost:11434")
+    ollama_model: str = field(default_factory=lambda: _env_str("OLLAMA_MODEL", "nomic-embed-text:latest") or "nomic-embed-text:latest")
+    qdrant_url: str = field(default_factory=lambda: _env_str("QDRANT_URL", "http://localhost:6333") or "http://localhost:6333")
     qdrant_api_key: Optional[str] = field(default_factory=lambda: _env_str("QDRANT_API_KEY"))
     embedding_length: Optional[int] = None
     embed_timeout_seconds: int = field(default_factory=lambda: _env_int("CODE_INDEX_EMBED_TIMEOUT", 60))

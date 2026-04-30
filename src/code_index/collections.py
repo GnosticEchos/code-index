@@ -66,10 +66,11 @@ class CollectionManager:
                 points = scroll_res[0] if isinstance(scroll_res, tuple) else scroll_res.points
                 for p in points:
                     payload = p.payload if hasattr(p, 'payload') else p.get('payload', {})
-                    c_name = payload.get('collection_name')
-                    w_path = payload.get('workspace_path')
-                    if c_name and w_path:
-                        path_map[c_name] = w_path
+                    if payload is not None:
+                        c_name = payload.get('collection_name')
+                        w_path = payload.get('workspace_path')
+                        if c_name and w_path:
+                            path_map[c_name] = w_path
             except Exception:
                 # Metadata collection might not exist yet; ignore
                 pass
@@ -125,7 +126,8 @@ class CollectionManager:
                 if points:
                     p = points[0]
                     payload = p.payload if hasattr(p, 'payload') else p.get('payload', {})
-                    model = payload.get("model") or payload.get("embedding_model") or "unknown"
+                    if payload is not None:
+                        model = payload.get("model") or payload.get("embedding_model") or "unknown"
                     
                     vec_data = p.vector if hasattr(p, 'vector') else p.get('vector')
                     if isinstance(vec_data, dict):
@@ -156,7 +158,8 @@ class CollectionManager:
                     meta_points = meta_res[0] if isinstance(meta_res, tuple) else meta_res.points
                     if meta_points:
                         m_payload = meta_points[0].payload if hasattr(meta_points[0], 'payload') else meta_points[0].get('payload', {})
-                        workspace_path = m_payload.get("workspace_path", "Unknown")
+                        if m_payload is not None:
+                            workspace_path = m_payload.get("workspace_path", "Unknown")
                 except Exception:
                     pass
 

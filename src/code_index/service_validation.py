@@ -7,6 +7,8 @@ duplicated validation logic across CLI and MCP server components.
 
 import time
 from typing import Dict, Any, List, Optional
+from .config import Config
+from .errors import ErrorHandler
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -18,10 +20,9 @@ try:
     QDRANT_AVAILABLE = True
 except ImportError:
     QDRANT_AVAILABLE = False
-    QdrantClient = None
+    QdrantClient = None  # type: ignore[assignment]
 
-from .config import Config
-from .errors import ErrorHandler
+from qdrant_client.models import VectorParams, Distance
 
 
 @dataclass
@@ -387,10 +388,10 @@ class ServiceValidator:
                 if test_collection_name not in collection_names:
                     client.create_collection(
                         collection_name=test_collection_name,
-                        vectors_config={
-                            "size": 1,
-                            "distance": "Cosine"
-                        }
+                        vectors_config=VectorParams(
+                            size=1,
+                            distance=Distance.COSINE
+                        )
                     )
                     test_created = True
 

@@ -61,9 +61,9 @@ class IndexingDependencies:
         chunking_strategy: Chunking strategy instance (lazy)
     """
     error_handler: ErrorHandler = field(default_factory=ErrorHandler)
-    config_service: ConfigurationService = field(default=None)
-    file_processing_service: FileProcessingService = field(default=None)
-    service_validator: ServiceValidator = field(default=None)
+    config_service: Optional[ConfigurationService] = field(default=None)
+    file_processing_service: Optional[FileProcessingService] = field(default=None)
+    service_validator: Optional[ServiceValidator] = field(default=None)
     parser: Optional[CodeParser] = None
     embedder: Optional[OllamaEmbedder] = None
     vector_store: Optional[QdrantVectorStore] = None
@@ -175,9 +175,9 @@ def _create_default_dependencies(
     """
     deps = IndexingDependencies(
         error_handler=error_handler or ErrorHandler(),
-        config_service=None,
-        file_processing_service=None,
-        service_validator=None,
+        config_service=None,  # type: ignore[arg-type]
+        file_processing_service=None,  # type: ignore[arg-type]
+        service_validator=None,  # type: ignore[arg-type]
         parser=None,
         embedder=None,
         vector_store=None,
@@ -222,15 +222,15 @@ def _create_test_dependencies(
     """
     deps = IndexingDependencies(
         error_handler=error_handler or ErrorHandler(),
-        config_service=None,
-        file_processing_service=None,
-        service_validator=None,
-        parser=mock_parser,
-        embedder=mock_embedder,
-        vector_store=mock_vector_store,
-        cache_manager=mock_cache_manager,
-        path_utils=mock_path_utils,
-        scanner=mock_scanner,
+        config_service=None,  # type: ignore[arg-type]
+        file_processing_service=None,  # type: ignore[arg-type]
+        service_validator=None,  # type: ignore[arg-type]
+        parser=mock_parser,  # type: ignore[arg-type]
+        embedder=mock_embedder,  # type: ignore[arg-type]
+        vector_store=mock_vector_store,  # type: ignore[arg-type]
+        cache_manager=mock_cache_manager,  # type: ignore[arg-type]
+        path_utils=mock_path_utils,  # type: ignore[arg-type]
+        scanner=mock_scanner,  # type: ignore[arg-type]
         chunking_strategy=None,
     )
     

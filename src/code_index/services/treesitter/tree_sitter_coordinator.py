@@ -68,6 +68,10 @@ class TreeSitterChunkCoordinator:
 
         try:
             self._ensure_services()
+            assert self._file_processor is not None
+            assert self._config_manager is not None
+            assert self._resource_manager is not None
+            assert self._block_extractor is not None
 
             if not self._file_processor.validate_file(file_path):
                 return self._fallback(text, file_path, file_hash)
@@ -177,7 +181,7 @@ class TreeSitterChunkCoordinator:
 
     def get_language_key(self, file_path: str) -> Optional[str]:
         try:
-            from ..language_detection import LanguageDetector
+            from ...language_detection import LanguageDetector
 
             detector = LanguageDetector(self._config, self._error_handler)
             return detector.detect_language(file_path)

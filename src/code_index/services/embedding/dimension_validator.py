@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 
 from ...config import Config
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
-from ...models import ValidationResult
+from ...service_validation import ValidationResult
 from ...constants import HTTP_TIMEOUT_DEFAULT
 
 

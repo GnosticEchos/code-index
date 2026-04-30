@@ -86,7 +86,7 @@ class FileProcessor:
         self._parallel_processor = None
         self._parallel_workers = parallel_workers
         if parallel_workers > 1:
-            from .parallel_file_processor import ParallelFileProcessor
+            from ..batch.parallel_file_processor import ParallelFileProcessor
             self._parallel_processor = ParallelFileProcessor(
                 max_workers=parallel_workers,
                 error_handler=None,  # Use internal error handling

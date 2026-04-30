@@ -63,7 +63,7 @@ class ResultRanker:
                 continue
         
         # Process and reassemble split parts
-        for parent_id, parts in split_groups:
+        for parent_id, parts in split_groups.items():
             try:
                 assembled_match = self._reassemble_split_block(
                     parent_id, parts, query

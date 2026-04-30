@@ -2,7 +2,7 @@
 Enhanced directory scanner with smart ignore pattern integration.
 """
 import os
-from typing import List, Set, Tuple
+from typing import Optional, List, Set, Tuple
 from code_index.config import Config
 from code_index.file_processing import FileProcessingService
 from code_index.errors import ErrorHandler
@@ -20,7 +20,7 @@ class EnhancedDirectoryScanner:
         # Initialize smart ignore manager
         self.ignore_manager = SmartIgnoreManager(
             self.workspace_path,
-            config=getattr(config, '__dict__', {})
+            config=getattr(config, '__dict__', {})  # type: ignore[arg-type]
         )
         
         # Initialize file processing service with error handler
@@ -74,7 +74,7 @@ class EnhancedDirectoryScanner:
             return name != '.gitignore'
         return False
 
-    def scan_directory(self, directory: str = None) -> Tuple[List[str], int]:
+    def scan_directory(self, directory: Optional[str] = None) -> Tuple[List[str], int]:
         """
         Recursively scan directory for supported files with enhanced ignore patterns.
         

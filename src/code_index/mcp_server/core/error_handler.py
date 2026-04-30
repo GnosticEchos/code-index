@@ -4,7 +4,7 @@ Structured Error Handling System for MCP Server
 
 import logging
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 
 class MCPErrorHandler:
@@ -14,7 +14,7 @@ class MCPErrorHandler:
         """Initialize the error handler."""
         self.logger = logging.getLogger(__name__)
     
-    def handle_configuration_error(self, error: Exception, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    def handle_configuration_error(self, error: Exception, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Handle configuration-related errors."""
         context = context or {}
         message = str(error)
@@ -22,7 +22,7 @@ class MCPErrorHandler:
 
         return self._format_error_response("configuration_error", message, context, guidance)
     
-    def handle_service_connection_error(self, service: str, error: Exception, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    def handle_service_connection_error(self, service: str, error: Exception, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Handle service connection errors."""
         context = context or {}
         context["service"] = service
@@ -33,7 +33,7 @@ class MCPErrorHandler:
         response["service"] = service  # Add service field that's specific to this error type
         return response
     
-    def handle_operation_error(self, error: Exception, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    def handle_operation_error(self, error: Exception, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Handle operation-specific errors."""
         context = context or {}
         message = f"Operation failed: {error}"
@@ -41,7 +41,7 @@ class MCPErrorHandler:
 
         return self._format_error_response("operation_error", message, context, guidance)
     
-    def handle_validation_error(self, error: Exception, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    def handle_validation_error(self, error: Exception, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Handle parameter validation errors."""
         context = context or {}
         message = f"Parameter validation failed: {error}"
@@ -49,7 +49,7 @@ class MCPErrorHandler:
 
         return self._format_error_response("validation_error", message, context, guidance)
     
-    def handle_safety_error(self, error: Exception, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    def handle_safety_error(self, error: Exception, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Handle safety-related errors."""
         context = context or {}
         message = f"Safety check failed: {error}"
@@ -72,7 +72,7 @@ class MCPErrorHandler:
             ]
         }
     
-    def handle_unknown_error(self, error: Exception, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    def handle_unknown_error(self, error: Exception, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Handle unknown or unexpected errors."""
         context = context or {}
         self.logger.error(f"Unknown error occurred: {error}", exc_info=True)
@@ -82,7 +82,7 @@ class MCPErrorHandler:
 
         return self._format_error_response("unknown_error", message, context, guidance)
 
-    def _generate_actionable_guidance(self, error_type: str, message: str, context: Dict[str, Any] = None) -> List[str]:
+    def _generate_actionable_guidance(self, error_type: str, message: str, context: Optional[Dict[str, Any]] = None) -> List[str]:
         """
         Generate actionable guidance based on error type and context.
 
@@ -214,7 +214,7 @@ class MCPErrorHandler:
 
         return guidance
 
-    def _categorize_error(self, error: Exception, context: Dict[str, Any] = None) -> str:
+    def _categorize_error(self, error: Exception, context: Optional[Dict[str, Any]] = None) -> str:
         """
         Categorize an error based on its type and context.
 
@@ -255,7 +255,7 @@ class MCPErrorHandler:
         # Default to unknown
         return "unknown_error"
 
-    def _format_error_response(self, error_type: str, message: str, context: Dict[str, Any] = None, guidance: List[str] = None) -> Dict[str, Any]:
+    def _format_error_response(self, error_type: str, message: str, context: Optional[Dict[str, Any]] = None, guidance: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Format a standardized error response.
 

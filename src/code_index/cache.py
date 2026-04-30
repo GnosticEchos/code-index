@@ -18,7 +18,7 @@ _user_cache_dir: Optional[Callable[..., str]]
 try:
     from platformdirs import user_cache_dir as _user_cache_dir
 except Exception:  # pragma: no cover - import-time environment variance
-    _user_cache_dir = None
+    _user_cache_dir = None  # type: ignore[assignment]
 
 
 def resolve_cache_dir(config: Optional[Any] = None) -> Path:

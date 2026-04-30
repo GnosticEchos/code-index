@@ -2,13 +2,14 @@
 Configuration query service for handling configuration queries and status queries.
 """
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 from ...config import Config
-from ...models import ValidationResult, FileStatus, ProcessingStats, WorkspaceStatus, ServiceHealth, SystemStatus
+from ...models import FileStatus, ProcessingStats, WorkspaceStatus, ServiceHealth, SystemStatus
+from ...service_validation import ValidationResult
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from ..command.config_loader import ConfigLoaderService
 from ..shared.health_service import HealthService
@@ -21,10 +22,10 @@ from ..shared.configuration_query_helpers import ConfigurationQueryHelpers
 @dataclass
 class QueryCache:
     """Cache for query results to improve performance."""
-    file_status_cache: Dict[str, FileStatus] = None
+    file_status_cache: Dict[str, FileStatus] = field(default_factory=dict)
     processing_stats_cache: Optional[ProcessingStats] = None
-    workspace_status_cache: Dict[str, WorkspaceStatus] = None
-    service_health_cache: Dict[str, ServiceHealth] = None
+    workspace_status_cache: Dict[str, WorkspaceStatus] = field(default_factory=dict)
+    service_health_cache: Dict[str, ServiceHealth] = field(default_factory=dict)
     system_status_cache: Optional[SystemStatus] = None
     last_cache_update: Optional[datetime] = None
 

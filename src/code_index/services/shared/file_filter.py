@@ -2,13 +2,12 @@
 File filtering service.
 """
 import os
-from typing import List
-
+from typing import List, Optional
 
 class FileFilter:
     """Filters files based on patterns and rules."""
     
-    def __init__(self, skip_patterns: List[str] = None, skip_test_files: bool = True):
+    def __init__(self, skip_patterns: Optional[List[str]] = None, skip_test_files: bool = True):
         self.skip_patterns = skip_patterns or []
         self.skip_test_files = skip_test_files
     

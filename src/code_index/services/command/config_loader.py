@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from ...config import Config
-from ...models import ValidationResult
+from ...service_validation import ValidationResult
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 from ..shared.health_service import HealthService
 from ..shared.workspace_service import WorkspaceService

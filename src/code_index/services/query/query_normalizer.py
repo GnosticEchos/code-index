@@ -1,7 +1,7 @@
 """
 Query result normalization service.
 """
-from typing import List, Tuple, Any
+from typing import Optional, List, Tuple, Any
 
 
 class QueryNormalizer:
@@ -28,7 +28,7 @@ class QueryNormalizer:
         except (AttributeError, TypeError):
             return str(cap_idx)
     
-    def process_cursor_capture(self, query, cap) -> Tuple[Any, str]:
+    def process_cursor_capture(self, query, cap) -> Optional[Tuple[Any, str]]:
         """Process a QueryCursor capture result."""
         try:
             if isinstance(cap, (tuple, list)):

@@ -24,7 +24,7 @@ class ParserResult:
     blocks: List[CodeBlock]
     success: bool
     error_message: Optional[str] = None
-    metadata: Dict[str, Any] = None
+    metadata: Optional[Dict[str, Any]] = None
     processing_time_ms: float = 0.0
     
     def __post_init__(self):

@@ -19,7 +19,7 @@ class ProgressTracker:
         self.config = config
         self.error_handler = error_handler
         self.start_time = None
-        self.stats = {}
+        self.stats: Dict[str, Any] = {}
         self.errors = []
         self.warnings = []
         

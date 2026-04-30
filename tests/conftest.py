@@ -18,7 +18,7 @@ from unittest.mock import Mock, patch
 try:
     from qdrant_client import QdrantClient
 except ImportError:
-    QdrantClient = None
+    QdrantClient = None  # type: ignore[assignment]
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -622,6 +622,6 @@ def tree_sitter_patched_imports():
 
 
 # Make custom assertions available globally
-pytest.assert_mcp_error_response = assert_mcp_error_response
-pytest.assert_mcp_success_response = assert_mcp_success_response
-pytest.assert_search_results_format = assert_search_results_format
+pytest.assert_mcp_error_response = assert_mcp_error_response  # type: ignore[attr-defined]
+pytest.assert_mcp_success_response = assert_mcp_success_response  # type: ignore[attr-defined]
+pytest.assert_search_results_format = assert_search_results_format  # type: ignore[attr-defined]

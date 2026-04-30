@@ -76,7 +76,7 @@ class TreeSitterBlockExtractor:
         text: str, 
         file_path: str, 
         file_hash: str, 
-        language_key: str = None, 
+        language_key: Optional[str] = None, 
         max_blocks: Optional[int] = None,
         ts_lang: Optional[Any] = None
     ) -> ExtractionResult:
@@ -150,7 +150,7 @@ class TreeSitterBlockExtractor:
         """Backward compatibility for tests."""
         return self.extract_blocks_from_root_node(*args, **kwargs)
 
-    def extract_blocks(self, code: str, file_path: str, file_hash: str, language_key: str = None, max_blocks: int = 100, timeout: float = 30.0) -> List[CodeBlock]:
+    def extract_blocks(self, code: str, file_path: str, file_hash: str, language_key: Optional[str] = None, max_blocks: int = 100, timeout: float = 30.0) -> List[CodeBlock]:
         """
         Main entry point for block extraction (matches legacy API for compatibility).
         """

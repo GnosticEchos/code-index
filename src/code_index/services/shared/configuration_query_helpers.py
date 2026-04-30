@@ -98,7 +98,7 @@ class ConfigurationQueryHelpers:
                     metadata["vector_store_error"] = str(e)
                 try:
                     cache_manager = CacheManager(config.workspace_path, config)
-                    cached_time = cache_manager.get_processing_time(file_path)
+                    cached_time = cache_manager.get_processing_time(file_path)  # type: ignore[attr-defined]
                     if cached_time:
                         processing_time_seconds = cached_time
                 except Exception as e:
@@ -139,7 +139,7 @@ class ConfigurationQueryHelpers:
                 total_files = sum(1 for _ in workspace_path.rglob('*') if _.is_file())
                 try:
                     cache_manager = CacheManager(config.workspace_path, config)
-                    cache_stats = cache_manager.get_workspace_stats()
+                    cache_stats = cache_manager.get_workspace_stats()  # type: ignore[attr-defined]
                     processed_files = cache_stats.get("processed_files", 0)
                     failed_files = cache_stats.get("failed_files", 0)
                     total_blocks = cache_stats.get("total_blocks", 0)

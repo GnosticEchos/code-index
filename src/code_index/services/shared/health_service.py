@@ -7,7 +7,7 @@ import time
 from typing import List, Dict, Any, Optional
 
 from ...config import Config
-from ...models import ValidationResult
+from ...service_validation import ValidationResult
 from ...errors import ErrorHandler, ErrorContext, ErrorCategory, ErrorSeverity
 
 
@@ -21,7 +21,7 @@ class HealthService:
     def check_health(self, config: Config) -> List[Dict[str, Any]]:
         """Check the health of various services."""
         try:
-            from ..service_validation import ServiceValidator
+            from ...service_validation import ServiceValidator
             service_validator = ServiceValidator(self.error_handler)
             return service_validator.validate_all_services(config)
         except Exception as e:
@@ -30,7 +30,7 @@ class HealthService:
                 operation="check_health"
             )
             error_response = self.error_handler.handle_error(
-                e, error_context, ErrorCategory.SYSTEM, ErrorSeverity.MEDIUM
+                e, error_context, ErrorCategory.CONFIGURATION, ErrorSeverity.MEDIUM
             )
             return [
                 {
@@ -59,8 +59,9 @@ class HealthService:
             
             # Validate service configuration
             if getattr(config, "ollama_model") not in ["llama3.2:3b", "llama3:70b", "codellama:7b", "deepseek-r1:7b"]:
-                warnings = metadata.get("warnings", [])
-                metadata["warnings"] = warnings + [f"Unknown model: {getattr(config, 'ollama_model') if getattr(config, 'ollama_model') else 'unknown model not configured'}"]
+                model = getattr(config, "ollama_model")
+                existing_warnings = metadata.get("warnings", [])
+                metadata["warnings"] = existing_warnings + [f"Unknown model: {model if model else 'unknown model not configured'}"]
             
             combined_error = "; ".join(errors) if errors else None
             return ValidationResult(
