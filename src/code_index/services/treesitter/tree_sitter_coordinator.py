@@ -77,13 +77,11 @@ class TreeSitterChunkCoordinator:
             if not language_key:
                 return self._fallback(text, file_path, file_hash)
 
-            from tree_sitter_language_pack import get_language
-            from tree_sitter import Parser
+            from tree_sitter_language_pack import get_parser, get_language
 
+            pack_parser = get_parser(language_key)
             ts_lang = get_language(language_key)
-            parser = Parser()
-            parser.language = ts_lang
-            tree = parser.parse(text.encode("utf8"))
+            tree = pack_parser.parse(text.encode("utf8"))
 
             extraction_result = self._block_extractor.extract_blocks_from_root_node(
                 tree.root_node,
