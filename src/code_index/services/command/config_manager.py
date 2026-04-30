@@ -164,6 +164,9 @@ class TreeSitterConfigurationManager:
         if hasattr(self, '_query_cache') and language_key in self._query_cache:
             del self._query_cache[language_key]
     
+    def apply_language_optimizations(self, language_key: str, file_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        return self.apply_optimizations(language_key, file_path)
+
     def invalidate_all_caches(self):
         if hasattr(self, '_query_cache'):
             self._query_cache.clear()
