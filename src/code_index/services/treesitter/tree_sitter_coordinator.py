@@ -79,7 +79,7 @@ class TreeSitterChunkCoordinator:
 
             from tree_sitter_language_pack import parse_string, get_language
 
-            tree = parse_string(language_key, bytes(text, "utf8"))
+            tree = parse_string(language_key, text)
             ts_lang = get_language(language_key)
 
             extraction_result = self._block_extractor.extract_blocks_from_root_node(
