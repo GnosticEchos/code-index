@@ -67,6 +67,15 @@ class _StubBatchProcessor:
         return Mock(results={})
 
 
+@pytest.fixture(autouse=True)
+def _mock_ts_pack():
+    with patch('tree_sitter_language_pack.get_parser') as mock_parser_cls,          patch('tree_sitter_language_pack.get_language') as mock_lang:
+        mock_parser = mock_parser_cls.return_value
+        mock_tree = type('MockTree', (), {'root_node': object()})()
+        mock_parser.parse.return_value = mock_tree
+        yield
+
+
 @pytest.fixture()
 def config():
     cfg = Config()
@@ -80,12 +89,6 @@ def fallback():
         return [CodeBlock(file_path, "fallback", "fallback", 1, 1, text, file_hash, file_hash)]
 
     return _fallback
-
-
-_PARSER_PATCH = patch('tree_sitter_language_pack.get_parser')
-_LANG_PATCH = patch('tree_sitter_language_pack.get_language')
-_PARSER_PATCH.start()
-_LANG_PATCH.start()
 
 
 def _create_coordinator(config, *, file_validator=True, extraction_result=None, error_handler=None, fallback_callable=None):
