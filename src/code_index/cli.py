@@ -445,8 +445,9 @@ def _process_single_workspace(workspace: str, config: str, embed_timeout: int | 
 @click.option('--max-results', type=int, default=None, help='Maximum number of results')
 @click.option('--json', 'json_output', is_flag=True, help='Output results as JSON')
 @click.option('--filetype', '-ft', type=str, default=None, help='Filter by file type/language (e.g. go, py, rs, md, js). Skips language weight boosting.')
+@click.option('--name', '--collection-name', type=str, default=None, help='Search a specific collection by name instead of workspace path.')
 @click.argument('query')
-def search(ctx, help_tree: bool, help_tree_json: bool, workspace: str, config: str, min_score: float, max_results: int, json_output: bool, filetype: str, query: str):
+def search(ctx, help_tree: bool, help_tree_json: bool, workspace: str, config: str, min_score: float, max_results: int, json_output: bool, filetype: str, name: str, query: str):
     """Search indexed code using semantic similarity."""
     ctx = click.get_current_context()
     handle_helptree_invocation(ctx, search)
@@ -461,6 +462,9 @@ def search(ctx, help_tree: bool, help_tree_json: bool, workspace: str, config: s
         overrides=cli_overrides,
     )
     
+    if name:
+        deps.config.workspace_path = name
+
     result = deps.search_service.search_code(query, deps.config, filetype=filetype)
 
     # Display results

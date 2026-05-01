@@ -197,7 +197,6 @@ async def search(
         # If collection_name is given, bypass workspace resolution
         if collection_name:
             deps.config.workspace_path = collection_name
-            metadata = {"collection_name": collection_name}
         else:
             workspace_collections = collection_manager.list_collections()
         matching_collections = [

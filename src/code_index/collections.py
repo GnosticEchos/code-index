@@ -56,23 +56,22 @@ class CollectionManager:
             # Build workspace path mapping from metadata collection
             path_map = {}
             try:
-                # Get up to 100 recent metadata entries
-                scroll_res = self.client.scroll(
-                    collection_name="code_index_metadata",
-                    limit=100,
-                    with_payload=True,
-                    with_vectors=False
-                )
-                points = scroll_res[0] if isinstance(scroll_res, tuple) else scroll_res.points
-                for p in points:
-                    payload = p.payload if hasattr(p, 'payload') else p.get('payload', {})
-                    if payload is not None:
-                        c_name = payload.get('collection_name')
-                        w_path = payload.get('workspace_path')
-                        if c_name and w_path:
-                            path_map[c_name] = w_path
+                # Read workspace_path from each collection's first point
+                for c in collections:
+                    c_name = c.name if hasattr(c, 'name') else str(c)
+                    if not c_name.startswith("_"):
+                        scroll_res = self.client.scroll(
+                            collection_name=c_name,
+                            limit=1,
+                            with_payload=True,
+                            with_vectors=False
+                        )
+                        points = scroll_res[0] if isinstance(scroll_res, tuple) else scroll_res.points
+                        if points and points[0].payload:
+                            w_path = points[0].payload.get("workspace_path")
+                            if w_path:
+                                path_map[c_name] = w_path
             except Exception:
-                # Metadata collection might not exist yet; ignore
                 pass
 
             result = []
