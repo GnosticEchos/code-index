@@ -163,3 +163,4 @@ kanban_backend_index_output*.txt
 .claude/
 CLAUDE.md
 src/code_index/queries/queries_minimal.jsonl.bak
+nuitka-crash-report.xml
