@@ -13,10 +13,12 @@ from code_index.mcp_server.server import CodeIndexMCPServer
 
 async def main():
     """Main entry point for MCP server."""
-    # Default to current directory if no config specified
     config_path = "code_index.json"
-    if len(sys.argv) > 1:
-        config_path = sys.argv[1]
+    for i, arg in enumerate(sys.argv[1:], 1):
+        if arg == "--config" and i < len(sys.argv):
+            config_path = sys.argv[i + 1]
+        elif arg.startswith("--config="):
+            config_path = arg.split("=", 1)[1]
         
     server = CodeIndexMCPServer(config_path=config_path)
     try:

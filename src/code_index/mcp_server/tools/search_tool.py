@@ -63,6 +63,7 @@ Parameters:
   min_score (float): Minimum similarity score threshold (0.0-1.0). Lower = more results.
   max_results (int): Maximum number of results to return (1-500). Higher may be slower.
   filetype (str, optional): Filter by file type/language (e.g. "go", "py", "rs"). Skips language weight boosting.
+  collection_name (str, optional): Search a specific collection by name instead of workspace path.
 
 Search Optimization Tips:
   • Use specific technical terms for better matches
@@ -124,7 +125,8 @@ async def search(
     workspace: str = ".",
     min_score: Optional[float] = None,
     max_results: Optional[int] = None,
-    filetype: Optional[str] = None
+    filetype: Optional[str] = None,
+    collection_name: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Search tool for MCP server.
@@ -191,11 +193,24 @@ async def search(
         )
 
         collection_manager = deps.collection_manager
-        workspace_collections = collection_manager.list_collections()
+        
+        # If collection_name is given, bypass workspace resolution
+        if collection_name:
+            deps.config.workspace_path = collection_name
+            metadata = {"collection_name": collection_name}
+        else:
+            workspace_collections = collection_manager.list_collections()
         matching_collections = [
             collection for collection in workspace_collections
             if collection.get("workspace_path") == workspace_path
         ]
+        # Fallback: match by collection name (folder name)
+        if not matching_collections:
+            folder = os.path.basename(os.path.normpath(workspace_path))
+            matching_collections = [
+                collection for collection in workspace_collections
+                if collection.get("name") == folder
+            ]
         if not matching_collections:
             logger.warning(
                 "Workspace '%s' has not been indexed yet; returning empty search results",
