@@ -214,11 +214,13 @@ class SearchService:
                 return self._error_result(query, config, start_time, errors, warnings)
 
             # Perform vector search
+            skip_ws_filter = getattr(config, "collection_name_override", None) is not None
             search_results = vector_store.search(
                 query_vector=query_embedding,
                 min_score=getattr(config, "search_min_score", 0.4),
                 max_results=getattr(config, "search_max_results", 50),
-                filetype_filter=filetype
+                filetype_filter=filetype,
+                skip_workspace_filter=skip_ws_filter
             )
 
             # Convert search results to SearchMatch objects (reassembling split blocks)

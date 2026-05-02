@@ -472,6 +472,8 @@ class Config:
 
             if key in self.SECTION_ATTR_MAP:
                 setattr(self, key, value)
+            else:
+                object.__setattr__(self, key, value)
 
     @staticmethod
     def _section_to_dict(section: Any) -> Dict[str, Any]:

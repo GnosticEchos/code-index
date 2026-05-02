@@ -25,7 +25,11 @@ class QdrantVectorStore:
     def __init__(self, config: Config):
         """Initialize Qdrant client with configuration."""
         self.workspace_path = os.path.abspath(config.workspace_path)
-        self.collection_name = self._collection_name_from_path(config.workspace_path)
+        override = getattr(config, "collection_name_override", None)
+        if override:
+            self.collection_name = override
+        else:
+            self.collection_name = self._collection_name_from_path(config.workspace_path)
 
         # Parse Qdrant URL
         url = config.qdrant_url
@@ -381,7 +385,8 @@ class QdrantVectorStore:
 
     def search(self, query_vector: List[float], directory_prefix: Optional[str] = None,
                min_score: float = 0.4, max_results: int = 50,
-               filetype_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+               filetype_filter: Optional[str] = None,
+               skip_workspace_filter: bool = False) -> List[Dict[str, Any]]:
         """
         Search for similar vectors, scoped to the current workspace.
 
@@ -391,19 +396,22 @@ class QdrantVectorStore:
             min_score: Minimum score threshold
             max_results: Maximum number of results to return
             filetype_filter: Optional file type/language to narrow results (e.g. "go", "py")
+            skip_workspace_filter: If True, search the entire collection (used with --name/collection_name)
 
         Returns:
             List of search results
         """
         try:
             # Build filter scoped to this workspace, optionally by filetype
-            workspace_hash = hashlib.sha256(self.workspace_path.encode()).hexdigest()
-            must_conditions = [
-                FieldCondition(
-                    key="workspace_hash",
-                    match=MatchValue(value=workspace_hash)
+            must_conditions = []
+            if not skip_workspace_filter:
+                workspace_hash = hashlib.sha256(self.workspace_path.encode()).hexdigest()
+                must_conditions.append(
+                    FieldCondition(
+                        key="workspace_hash",
+                        match=MatchValue(value=workspace_hash)
+                    )
                 )
-            ]
             if filetype_filter:
                 ft = filetype_filter.lower()
                 # Map common language names to file extensions
@@ -432,12 +440,38 @@ class QdrantVectorStore:
                 )
             search_filter = Filter(must=must_conditions)
 
-            # Perform search
+            # Determine min_content_len from config file (needed before search for Qdrant limit)
+            min_content_len = 0
+            try:
+                import json as _json
+                ws = getattr(self._config, "workspace_path", None) or "."
+                cfg_dir = ws if os.path.isdir(ws) else os.path.dirname(ws)
+                cfg_paths = [
+                    os.path.join(cfg_dir, "rust_optimized_config.json"),
+                    os.path.join(cfg_dir, "code_index.json"),
+                    os.path.join(os.getcwd(), "rust_optimized_config.json"),
+                    os.path.join(os.getcwd(), "code_index.json"),
+                ]
+                for _cp in cfg_paths:
+                    if os.path.exists(_cp):
+                        with open(_cp) as _f:
+                            _raw = _json.load(_f)
+                        _block = _raw.get("block_extraction", {})
+                        if isinstance(_block, dict):
+                            _mcl = _block.get("min_content_length", {})
+                            if isinstance(_mcl, dict):
+                                min_content_len = _mcl.get("default", 0)
+                        break
+            except Exception:
+                pass
+
+            # Perform search - use larger limit when filtering by content length
+            qdrant_limit = max(max_results, 200) if min_content_len > 0 else max_results
             results = self.client.query_points(
                 collection_name=self.collection_name,
                 query=query_vector,
                 query_filter=search_filter,
-                limit=max_results,
+                limit=qdrant_limit,
                 score_threshold=min_score,
                 with_payload=True
             )
@@ -463,11 +497,15 @@ class QdrantVectorStore:
                     }
                 })
 
-            # Apply excludes and compute adjusted scores using config weights
+            # Apply excludes, min content length filter, and compute adjusted scores
+
             filtered_hits = []
             for h in hits:
                 fp = h["payload"].get("filePath", "")
                 if self._exclude_match(fp):
+                    continue
+                chunk = h["payload"].get("codeChunk", "")
+                if min_content_len > 0 and len(chunk.strip()) < min_content_len:
                     continue
                 file_w = self._filetype_weight(fp)
                 path_w = self._path_weight(fp)
@@ -486,7 +524,8 @@ class QdrantVectorStore:
                 reverse=True
             )
 
-            return filtered_hits
+            # Truncate to requested max_results
+            return filtered_hits[:max_results]
         except Exception as e:
             raise Exception(f"Failed to search: {e}")
 

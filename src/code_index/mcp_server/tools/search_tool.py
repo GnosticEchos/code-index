@@ -196,31 +196,31 @@ async def search(
         
         # If collection_name is given, bypass workspace resolution
         if collection_name:
-            deps.config.workspace_path = collection_name
+            deps.config.collection_name_override = collection_name
         else:
             workspace_collections = collection_manager.list_collections()
-        matching_collections = [
-            collection for collection in workspace_collections
-            if collection.get("workspace_path") == workspace_path
-        ]
-        # Fallback: match by collection name (folder name)
-        if not matching_collections:
-            folder = os.path.basename(os.path.normpath(workspace_path))
             matching_collections = [
                 collection for collection in workspace_collections
-                if collection.get("name") == folder
+                if collection.get("workspace_path") == workspace_path
             ]
-        if not matching_collections:
-            logger.warning(
-                "Workspace '%s' has not been indexed yet; returning empty search results",
-                workspace_path,
-            )
-            return {
-                "results": [],
-                "status": "not_indexed",
-                "message": "Workspace is not indexed. Call the index tool first with this workspace path.",
-                "workspace": workspace_path
-            }
+            # Fallback: match by collection name (folder name)
+            if not matching_collections:
+                folder = os.path.basename(os.path.normpath(workspace_path))
+                matching_collections = [
+                    collection for collection in workspace_collections
+                    if collection.get("name") == folder
+                ]
+            if not matching_collections:
+                logger.warning(
+                    "Workspace '%s' has not been indexed yet; returning empty search results",
+                    workspace_path,
+                )
+                return {
+                    "results": [],
+                    "status": "not_indexed",
+                    "message": "Workspace is not indexed. Call the index tool first with this workspace path.",
+                    "workspace": workspace_path
+                }
 
         # Perform search via shared service with validation
         result = deps.search_service.search_code(query, deps.config, filetype=filetype)

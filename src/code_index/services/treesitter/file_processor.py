@@ -304,7 +304,7 @@ class FileProcessor:
     
     def _prepare_vector_points(self, file_path: str, blocks: List, embeddings: List[List[float]], rel_path: str) -> List[Dict[str, Any]]:
         """Prepare vector points for storage."""
-        return helpers.prepare_vector_points(file_path, blocks, embeddings, rel_path, self.embedder)
+        return helpers.prepare_vector_points(file_path, blocks, embeddings, rel_path, self.embedder, config=self.config)
     
     def create_processing_result(
         self,

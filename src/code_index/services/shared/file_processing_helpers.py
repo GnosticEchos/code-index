@@ -39,13 +39,31 @@ def prepare_vector_points(
     blocks: List,
     embeddings: List[List[float]],
     rel_path: str,
-    embedder
+    embedder,
+    config: Optional[Any] = None
 ) -> List[Dict[str, Any]]:
     """Prepare vector points for storage."""
     points = []
+    _, ext = os.path.splitext(rel_path)
+    filetype = ext.lstrip('.').lower() if ext else ""
+
+    # Determine minimum content length from config
+    min_len = 0
+    if config:
+        block_cfg = getattr(config, "block_extraction", None) or {}
+        if isinstance(block_cfg, dict):
+            min_len_cfg = block_cfg.get("min_content_length", {})
+        else:
+            min_len_cfg = getattr(block_cfg, "min_content_length", {}) if hasattr(block_cfg, "min_content_length") else {}
+        if isinstance(min_len_cfg, dict):
+            min_len = min_len_cfg.get(filetype, min_len_cfg.get("default", 0))
+
     for i, block in enumerate(blocks):
         if i >= len(embeddings):
             break
+
+        if min_len > 0 and len((block.content or "").strip()) < min_len:
+            continue
         
         point_id = str(uuid.uuid5(
             uuid.NAMESPACE_URL,

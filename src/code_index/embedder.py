@@ -46,25 +46,31 @@ class OllamaEmbedder:
         url = f"{self.base_url}/api/embed"
         
         try:
+            # Truncate texts to avoid exceeding model context length
+            trunk_texts = [t[:4000] for t in texts]
+
             response = requests.post(
                 url,
                 json={
                     "model": self.model,
-                    "input": texts
+                    "input": trunk_texts
                 },
                 timeout=self.timeout
             )
             response.raise_for_status()
-            
+
             data = response.json()
             embeddings = data.get("embeddings", [])
-            
+
             if not isinstance(embeddings, list):
                 raise ValueError("Invalid response structure from Ollama API")
-            
+
             return {
                 "embeddings": embeddings
             }
+        except requests.exceptions.HTTPError as e:
+            body = e.response.text[:500] if e.response is not None else ""
+            raise Exception(f"Failed to generate embeddings: {e} [body: {body}]")
         except requests.exceptions.ReadTimeout as e:
             # Bubble up read timeouts so the caller can treat them as retriable and log file in timeout list
             raise e

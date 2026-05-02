@@ -463,7 +463,7 @@ def search(ctx, help_tree: bool, help_tree_json: bool, workspace: str, config: s
     )
     
     if name:
-        deps.config.workspace_path = name
+        deps.config.collection_name_override = name
 
     result = deps.search_service.search_code(query, deps.config, filetype=filetype)
 
