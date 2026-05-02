@@ -77,7 +77,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          uv sync --dev --no-default-groups
+          uv sync --all-extras --dev
 
       - name: Run ruff
         shell: bash
